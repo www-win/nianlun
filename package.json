@@ -1,0 +1,10 @@
+{
+  "name": "nianlun",
+  "private": true,
+  "version": "0.0.0",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build"
+  }
+}
