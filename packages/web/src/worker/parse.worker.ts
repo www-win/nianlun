@@ -15,7 +15,7 @@ self.onmessage = (ev: MessageEvent<ParseRequest>) => {
     })
     const friends = aggregate(conversations)
     const report = buildReport(conversations, friends, year)
-    post({ type: 'done', conversations, friends, report, warnings })
+    post({ type: 'done', friends, report, warnings })
   } catch (e) {
     post({ type: 'error', message: (e as Error).message })
   }

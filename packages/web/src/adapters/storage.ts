@@ -48,3 +48,7 @@ export async function clearAll(): Promise<void> {
   await tx.objectStore('meta').clear()
   await tx.done
 }
+
+export function resetDB(): void {
+  dbPromise = null
+}

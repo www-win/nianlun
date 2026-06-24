@@ -1,8 +1,7 @@
-import type { Conversation, Friend, ReportData } from '@nianlun/core'
+import type { Friend, ReportData } from '@nianlun/core'
 import type { WorkerLike, ParseRequest, ParseResponse } from '../worker/protocol'
 
 export interface ParseOutcome {
-  conversations: Conversation[]
   friends: Friend[]
   report: ReportData
   warnings: string[]
@@ -29,7 +28,7 @@ export function parseFiles(
       if (msg.type === 'progress') opts.onProgress?.(msg.value)
       else if (msg.type === 'done') {
         worker.terminate?.()
-        resolve({ conversations: msg.conversations, friends: msg.friends, report: msg.report, warnings: msg.warnings })
+        resolve({ friends: msg.friends, report: msg.report, warnings: msg.warnings })
       } else if (msg.type === 'error') {
         worker.terminate?.()
         reject(new Error(msg.message))

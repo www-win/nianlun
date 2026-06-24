@@ -10,7 +10,6 @@ vi.mock('../../adapters/parseClient', () => ({
   parseFiles: vi.fn(async (_files, _year, opts) => {
     opts?.onProgress?.(1)
     return {
-      conversations: [],
       friends: [{ id: '周彤', name: '周彤', rel: '其他', role: '', alias: '', msgCount: 5,
         sentRatio: 0, firstContact: 0, lastContact: 0, peakPeriod: '', maxStreak: 0,
         monthly: new Array(12).fill(0), userEdited: {} }],

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { parseFiles } from '../parseClient'
-import type { WorkerLike, ParseRequest, ParseResponse } from '../../worker/protocol'
+import type { WorkerLike, ParseResponse } from '../../worker/protocol'
 
 // A fake worker that echoes scripted responses after receiving a request.
 function makeFakeWorker(scripted: ParseResponse[]): WorkerLike {
@@ -19,7 +19,6 @@ describe('parseFiles', () => {
   it('resolves with the done payload and reports progress', async () => {
     const done: ParseResponse = {
       type: 'done',
-      conversations: [],
       friends: [{ id: '周彤' } as any],
       report: { year: 2025, totalMessages: 5 } as any,
       warnings: [],
