@@ -18,7 +18,12 @@ function applyRecord(rec: Record<string, unknown>): Friend {
 }
 
 export function parseJsonBackup(content: string): Friend[] {
-  const arr = JSON.parse(content)
+  let arr: unknown
+  try {
+    arr = JSON.parse(content)
+  } catch {
+    return []
+  }
   if (!Array.isArray(arr)) return []
   return arr.map((r) => applyRecord(r as Record<string, unknown>))
 }
@@ -28,6 +33,8 @@ export function parseCsvBackup(content: string): Friend[] {
   if (lines.length < 2) return []
   const headers = lines[0].split(',')
   return lines.slice(1).map((line) => {
+    // NOTE: split-on-comma assumes the tool's own export format with no embedded commas in fields.
+    // Full CSV quoting/escaping is out of scope for v1.
     const cells = line.split(',')
     const rec: Record<string, string> = {}
     headers.forEach((h, i) => { rec[h.trim()] = (cells[i] ?? '').trim() })

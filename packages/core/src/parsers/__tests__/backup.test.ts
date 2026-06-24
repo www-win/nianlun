@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { parseJsonBackup, parseCsvBackup } from '../backup'
 
 describe('backup parsers', () => {
+  it('returns [] for malformed JSON input', () => {
+    expect(parseJsonBackup('{ not valid json')).toEqual([])
+  })
+
   it('parses json backup into Friend[]', () => {
     const json = JSON.stringify([
       { name: '周彤', alias: '老周', rel: '挚友', role: '大学室友', msgCount: 9670, sentRatio: 49 },

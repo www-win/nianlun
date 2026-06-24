@@ -2,6 +2,10 @@ import type { Conversation, Message, Friend } from '../model/types'
 
 const msgKey = (m: Message) => `${m.ts}|${m.from}|${m.text ?? ''}`
 
+// NOTE: mergeConversations keys on peerName while mergeFriends keys on Friend.id.
+// All current parsers set Conversation.id === peerName, so they agree today.
+// If a future adapter makes id a stable identifier distinct from the display
+// peerName, update this to merge on id to avoid splitting the same conversation.
 export function mergeConversations(a: Conversation[], b: Conversation[]): Conversation[] {
   const byPeer = new Map<string, Conversation>()
   const add = (c: Conversation) => {

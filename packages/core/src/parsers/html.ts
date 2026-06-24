@@ -1,5 +1,7 @@
 import type { Parser, ParseResult, Conversation, Message, ParseWarning } from '../model/types'
 
+// MSG matches the assumed export format per plan (div.msg with data-from/data-name/data-ts attrs).
+// HTML exports from other tools or app versions that use a different structure need a dedicated adapter.
 const MSG = /<div class="msg"([^>]*)>([\s\S]*?)<\/div>/g
 const ATTR = (attrs: string, name: string) => {
   const m = new RegExp(`${name}="([^"]*)"`).exec(attrs)
