@@ -95,6 +95,16 @@ describe('weflowParser.parse', () => {
     const res = weflowParser.parse(content)
     expect(res.conversations[0].messages[0].from).toBe('me')
   })
+
+  it('strips a leading BOM before parsing', () => {
+    const content = '﻿' + JSON.stringify({
+      talker: 'wxid_1', nickName: '甲',
+      messages: [{ createTime: 1704888000, isSender: 1, type: 1, content: 'hi' }],
+    })
+    const res = weflowParser.parse(content)
+    expect(res.conversations).toHaveLength(1)
+    expect(res.conversations[0].messages[0].text).toBe('hi')
+  })
 })
 
 import { parseFile, aggregate, buildReport } from '../../index'

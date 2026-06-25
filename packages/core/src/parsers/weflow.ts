@@ -83,7 +83,7 @@ export const weflowParser: Parser = {
   parse(content, onProgress): ParseResult {
     let raw: unknown
     try {
-      raw = JSON.parse(content)
+      raw = JSON.parse(content.replace(/^﻿/, ''))
     } catch {
       return { conversations: [], warnings: [{ reason: 'JSON 解析失败' }] }
     }
