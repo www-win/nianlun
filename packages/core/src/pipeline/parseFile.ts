@@ -1,8 +1,9 @@
 import type { Parser, ParseResult } from '../model/types'
 import { txtParser } from '../parsers/txt'
 import { htmlParser } from '../parsers/html'
+import { weflowParser } from '../parsers/weflow'
 
-const PARSERS: Parser[] = [htmlParser, txtParser] // html 先嗅探(更具体)
+const PARSERS: Parser[] = [weflowParser, htmlParser, txtParser] // weflow/html 先嗅探(更具体)
 
 export function parseFile(
   fileName: string,

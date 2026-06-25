@@ -96,3 +96,26 @@ describe('weflowParser.parse', () => {
     expect(res.conversations[0].messages[0].from).toBe('me')
   })
 })
+
+import { parseFile, aggregate, buildReport } from '../../index'
+
+describe('weflow end-to-end via parseFile', () => {
+  const content = JSON.stringify(sample)
+
+  it('parseFile dispatches WeFlow JSON to weflowParser', () => {
+    const { conversations } = parseFile('chat.json', content)
+    expect(conversations).toHaveLength(1)
+    expect(conversations[0].peerName).toBe('测试好友')
+  })
+
+  it('parses → aggregates → builds report', () => {
+    const { conversations } = parseFile('chat.json', content)
+    const friends = aggregate(conversations)
+    const report = buildReport(conversations, friends, 2024)
+    expect(friends).toHaveLength(1)
+    expect(friends[0].name).toBe('测试好友')
+    expect(friends[0].sentRatio).toBe(50)
+    expect(report.totalMessages).toBe(4)
+    expect(report.activeDays).toBe(2)
+  })
+})
