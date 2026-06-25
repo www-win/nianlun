@@ -57,3 +57,42 @@ describe('mapWeflowMessages', () => {
     expect(res.warnings).toHaveLength(1)
   })
 })
+
+import { weflowParser } from '../weflow'
+
+describe('weflowParser.canParse', () => {
+  const weflowSample = JSON.stringify({
+    talker: 'wxid_1', nickName: '甲',
+    messages: [{ createTime: 1704888000, isSender: 0, type: 1, content: 'hi' }],
+  })
+
+  it('accepts a WeFlow message JSON', () => {
+    expect(weflowParser.canParse('chat.json', weflowSample)).toBe(true)
+  })
+
+  it('rejects nianlun friend-backup JSON (array of friends)', () => {
+    const backup = JSON.stringify([{ name: '张三', rel: '同事', msgCount: 10 }])
+    expect(weflowParser.canParse('好友信息.json', backup)).toBe(false)
+  })
+
+  it('rejects txt chat-log content', () => {
+    expect(weflowParser.canParse('chat.txt', '2025-01-10 20:00:00 妈妈\n吃了吗')).toBe(false)
+  })
+})
+
+describe('weflowParser.parse', () => {
+  it('returns empty + warning on invalid JSON, never throws', () => {
+    const res = weflowParser.parse('{ not json ')
+    expect(res.conversations).toHaveLength(0)
+    expect(res.warnings.length).toBeGreaterThan(0)
+  })
+
+  it('parses valid WeFlow JSON into conversations', () => {
+    const content = JSON.stringify({
+      talker: 'wxid_1', nickName: '甲',
+      messages: [{ createTime: 1704888000, isSender: 1, type: 1, content: 'hi' }],
+    })
+    const res = weflowParser.parse(content)
+    expect(res.conversations[0].messages[0].from).toBe('me')
+  })
+})

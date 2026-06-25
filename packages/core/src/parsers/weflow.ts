@@ -1,4 +1,4 @@
-import type { Conversation, Message, ParseWarning } from '../model/types'
+import type { Conversation, Message, ParseWarning, Parser, ParseResult } from '../model/types'
 
 // 候选字段名（用真实 WeFlow 导出校验；缺失的真名补进对应数组即可）
 const F = {
@@ -65,4 +65,30 @@ export function mapWeflowMessages(
 
   const conv: Conversation = { id: talker, peerName, isGroup, messages }
   return { conversations: messages.length ? [conv] : [], warnings }
+}
+
+export const weflowParser: Parser = {
+  name: 'weflow',
+
+  canParse(_fileName, sample) {
+    // 不靠 .json 后缀(年轮自家备份也是 .json)。靠内容签名:
+    // 顶层对象 { ... "messages": [...] } 且含消息级时间/发送者字段。
+    const s = sample.replace(/^﻿/, '').trimStart()
+    if (!s.startsWith('{')) return false // 好友备份是数组,以 '[' 开头
+    const hasMsgArray = /"(messages|msgList|data)"\s*:\s*\[/.test(s)
+    const hasMsgField = /"(createTime|CreateTime|isSender|IsSender)"/.test(s)
+    return hasMsgArray && hasMsgField
+  },
+
+  parse(content, onProgress): ParseResult {
+    let raw: unknown
+    try {
+      raw = JSON.parse(content)
+    } catch {
+      return { conversations: [], warnings: [{ reason: 'JSON 解析失败' }] }
+    }
+    const result = mapWeflowMessages(raw)
+    if (onProgress) onProgress(1)
+    return result
+  },
 }
