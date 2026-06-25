@@ -8,7 +8,7 @@ import TheFooter from '../components/TheFooter.vue'
 const imp = useImportStore()
 const data = useDataStore()
 const dragOver = ref(false)
-const YEAR = 2025
+const YEAR = new Date().getFullYear()
 
 const pct = computed(() => Math.round(imp.progress * 100))
 
@@ -115,7 +115,7 @@ function stageClass(index: number) {
                 查看好友信息表
               </router-link>
               <router-link class="btn" to="/report">生成年度报告</router-link>
-              <button class="btn btn-ghost" type="button" @click="imp.status = 'idle'">重新导入</button>
+              <button class="btn btn-ghost" type="button" @click="imp.reset()">重新导入</button>
             </div>
           </div>
 

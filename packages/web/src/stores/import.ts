@@ -33,5 +33,12 @@ export const useImportStore = defineStore('import', () => {
     }
   }
 
-  return { status, progress, warnings, error, run }
+  function reset() {
+    status.value = 'idle'
+    progress.value = 0
+    warnings.value = []
+    error.value = ''
+  }
+
+  return { status, progress, warnings, error, run, reset }
 })

@@ -14,10 +14,10 @@
         年轮 <small>聊天记忆 · 年度报告</small>
       </router-link>
       <nav class="nav" aria-label="主导航">
-        <router-link to="/" active-class="is-active">概览</router-link>
-        <router-link to="/import" active-class="is-active">导入数据</router-link>
-        <router-link to="/friends" active-class="is-active">好友信息</router-link>
-        <router-link to="/report" active-class="is-active">年度报告</router-link>
+        <router-link to="/">概览</router-link>
+        <router-link to="/import">导入数据</router-link>
+        <router-link to="/friends">好友信息</router-link>
+        <router-link to="/report">年度报告</router-link>
       </nav>
       <div class="topbar-end">
         <span class="privacy-badge">

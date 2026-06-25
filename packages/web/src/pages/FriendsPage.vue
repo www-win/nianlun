@@ -60,9 +60,10 @@ function saveRole(f: Friend, role: string) { data.updateFriend(f.id, { role }) }
 function saveRel(f: Friend, rel: Relation) { data.updateFriend(f.id, { rel }) }
 
 function exportCsv() {
+  const q = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`
   const header = ['昵称', '备注', '关系', '职务', '首次联系', '最近联系', '消息数', '我发出%']
-  const lines = [header.join(',')].concat(filtered.value.map((f) =>
-    [f.name, f.alias, f.rel, f.role, fmtDate(f.firstContact), fmtDate(f.lastContact), f.msgCount, f.sentRatio].join(',')))
+  const lines = [header.map(q).join(',')].concat(filtered.value.map((f) =>
+    [f.name, f.alias, f.rel, f.role, fmtDate(f.firstContact), fmtDate(f.lastContact), f.msgCount, f.sentRatio].map(q).join(',')))
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
