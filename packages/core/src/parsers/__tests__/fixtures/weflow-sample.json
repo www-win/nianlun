@@ -1,0 +1,11 @@
+{
+  "talker": "wxid_test001",
+  "nickName": "测试好友",
+  "isChatroom": false,
+  "messages": [
+    { "createTime": 1704888000, "isSender": 0, "type": 1, "content": "在吗" },
+    { "createTime": 1704888060, "isSender": 1, "type": 1, "content": "在的" },
+    { "createTime": 1704888120, "isSender": 0, "type": 3, "content": "" },
+    { "createTime": 1704974400, "isSender": 1, "type": 34, "content": "" }
+  ]
+}
