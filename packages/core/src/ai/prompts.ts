@@ -24,6 +24,8 @@ export function buildReportCopyPrompt(report: ReportData, friends: Friend[]): st
   ].join('\n')
 }
 
+const fmtDate = (ts: number) => (ts ? new Date(ts).toISOString().slice(0, 10) : '—')
+
 export function buildFriendAnalysisPrompt(friend: Friend): string {
   const displayName = friend.alias || friend.name
   const monthly = friend.monthly.map((n, i) => `${i + 1}月 ${n}`).join('，')
@@ -42,8 +44,8 @@ export function buildFriendAnalysisPrompt(friend: Friend): string {
     `- 我方发送占比：${friend.sentRatio}%`,
     `- 活跃时段：${friend.peakPeriod || '（无）'}`,
     `- 最长连续聊天：${friend.maxStreak} 天`,
-    `- 首次联系时间戳：${friend.firstContact}`,
-    `- 最近联系时间戳：${friend.lastContact}`,
+    `- 首次联系：${fmtDate(friend.firstContact)}`,
+    `- 最近联系：${fmtDate(friend.lastContact)}`,
     `- 全年月度消息分布：${monthly}`,
   ].join('\n')
 }

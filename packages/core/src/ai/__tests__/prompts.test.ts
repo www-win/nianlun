@@ -52,6 +52,7 @@ describe('buildFriendAnalysisPrompt', () => {
     expect(p).toContain('820')
     expect(p).toContain('65')
     expect(p).toContain('深夜')
+    expect(p).toContain('2023-11-14')
   })
 
   it('用 alias 优先于 name 显示好友', () => {
