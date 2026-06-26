@@ -71,4 +71,12 @@ describe('buildMacZip', () => {
       buildMacZip({ distDir, serverDir: join(tmp, 'nope'), outFile: join(tmp, 'x.zip') })
     ).rejects.toThrow(/服务器二进制/)
   })
+
+  it('缺少 dist/index.html 时抛错', async () => {
+    const emptyDist = join(tmp, 'empty-dist')
+    await mkdir(emptyDist, { recursive: true })
+    await expect(
+      buildMacZip({ distDir: emptyDist, serverDir, outFile: join(tmp, 'y.zip') })
+    ).rejects.toThrow(/index\.html|dist 未构建/)
+  })
 })
