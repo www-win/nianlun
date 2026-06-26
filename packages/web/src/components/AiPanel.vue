@@ -11,13 +11,6 @@ const props = defineProps<{
 
 const settings = useSettingsStore()
 
-const baseUrl = ref(settings.baseUrl)
-const apiKey = ref(settings.apiKey)
-const model = ref(settings.model)
-function saveSettings() {
-  settings.update({ baseUrl: baseUrl.value, apiKey: apiKey.value, model: model.value })
-}
-
 const isConfigured = computed(() => settings.isConfigured)
 
 const loading = ref(false)
@@ -45,20 +38,6 @@ async function generate() {
 
 <template>
   <section class="ai-panel">
-    <details class="ai-settings">
-      <summary>AI 设置</summary>
-      <label>接入地址
-        <input v-model="baseUrl" placeholder="https://api.gaccode.com" />
-      </label>
-      <label>API Key
-        <input v-model="apiKey" type="password" placeholder="sk-..." />
-      </label>
-      <label>模型
-        <input v-model="model" />
-      </label>
-      <button type="button" @click="saveSettings">保存</button>
-    </details>
-
     <button
       class="btn btn-primary btn-sm"
       type="button"

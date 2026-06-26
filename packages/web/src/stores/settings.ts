@@ -5,9 +5,11 @@ const STORAGE_KEY = 'nianlun.ai.settings'
 const DEFAULT_MODEL = 'claude-opus-4-8'
 
 export const useSettingsStore = defineStore('settings', () => {
-  const baseUrl = ref('')
-  const apiKey = ref('')
-  const model = ref(DEFAULT_MODEL)
+  // 预置接入信息从构建期环境变量读取（见 .env / vite-env.d.ts）。
+  // 界面不再暴露 AI 设置，用户无需也无法手动配置。
+  const baseUrl = ref(import.meta.env.VITE_AI_BASE_URL ?? '')
+  const apiKey = ref(import.meta.env.VITE_AI_API_KEY ?? '')
+  const model = ref(import.meta.env.VITE_AI_MODEL || DEFAULT_MODEL)
 
   const isConfigured = computed(
     () => baseUrl.value.trim() !== '' && apiKey.value.trim() !== '',
