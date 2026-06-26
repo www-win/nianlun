@@ -4,7 +4,8 @@ import { useDataStore } from '../stores/data'
 import { useUiStore } from '../stores/ui'
 import TheTopbar from '../components/TheTopbar.vue'
 import TheFooter from '../components/TheFooter.vue'
-import AiCopyPanel from '../components/AiCopyPanel.vue'
+import AiPanel from '../components/AiPanel.vue'
+import { buildReportCopyPrompt } from '@nianlun/core'
 
 const data = useDataStore()
 const ui = useUiStore()
@@ -16,6 +17,9 @@ const themes = [
 ] as const
 function fmtWan(n: number) { return n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n) }
 function save() { window.print() }
+function reportPrompt() {
+  return report.value ? buildReportCopyPrompt(report.value, data.friends) : ''
+}
 </script>
 
 <template>
@@ -58,7 +62,12 @@ function save() { window.print() }
       </div>
     </div>
 
-    <AiCopyPanel :report="report" :friends="data.friends" />
+    <AiPanel
+      class="wrap"
+      :build-prompt="reportPrompt"
+      button-label="✨ AI 生成文案"
+      busy-label="生成中…"
+    />
 
     <main class="wrap page">
       <div class="stage">

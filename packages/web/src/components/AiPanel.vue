@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { Friend, ReportData } from '@nianlun/core'
-import { buildReportCopyPrompt } from '@nianlun/core'
 import { useSettingsStore } from '../stores/settings'
 import { generateText } from '../adapters/aiClient'
 
-const props = defineProps<{ report: ReportData; friends: Friend[] }>()
+const props = defineProps<{
+  buildPrompt: () => string
+  buttonLabel: string
+  busyLabel: string
+}>()
+
 const settings = useSettingsStore()
 
 const baseUrl = ref(settings.baseUrl)
@@ -26,7 +29,7 @@ async function generate() {
   result.value = ''
   loading.value = true
   try {
-    const prompt = buildReportCopyPrompt(props.report, props.friends)
+    const prompt = props.buildPrompt()
     result.value = await generateText(prompt, {
       baseUrl: settings.baseUrl,
       apiKey: settings.apiKey,
@@ -41,7 +44,7 @@ async function generate() {
 </script>
 
 <template>
-  <section class="wrap ai-panel">
+  <section class="ai-panel">
     <details class="ai-settings">
       <summary>AI 设置</summary>
       <label>接入地址
@@ -63,7 +66,7 @@ async function generate() {
       :disabled="!isConfigured || loading"
       @click="generate"
     >
-      {{ loading ? '生成中…' : '✨ AI 生成文案' }}
+      {{ loading ? busyLabel : buttonLabel }}
     </button>
     <p class="ai-privacy">使用 AI 功能时，相关统计数据会发送至 AI 服务进行处理。</p>
 
