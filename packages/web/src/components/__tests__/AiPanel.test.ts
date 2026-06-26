@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AiPanel from '../AiPanel.vue'
@@ -19,6 +19,14 @@ beforeEach(() => {
   setActivePinia(createPinia())
   localStorage.clear()
   vi.clearAllMocks()
+  // 让测试不受本地 .env 预置的 AI 接入信息影响
+  vi.stubEnv('VITE_AI_BASE_URL', '')
+  vi.stubEnv('VITE_AI_API_KEY', '')
+  vi.stubEnv('VITE_AI_MODEL', '')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('AiPanel', () => {

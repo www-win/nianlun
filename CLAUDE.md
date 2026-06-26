@@ -28,10 +28,29 @@ pnpm --filter @nianlun/web build       # vue-tsc --noEmit && vite build
 pnpm --filter @nianlun/web preview      # 预览生产构建产物
 pnpm --filter @nianlun/web test         # vitest run（jsdom）
 
+# 本地交付打包（先 build 再打包；产物为 zip，对方解压双击即用）
+pnpm --filter @nianlun/web pack:mac     # → 年轮.zip（双击 启动.command）
+pnpm --filter @nianlun/web pack:win     # → 年轮-windows.zip（双击 启动.bat）
+
 # 运行单个测试文件 / 单个测试
 pnpm --filter @nianlun/web exec vitest run src/stores/__tests__/data.test.ts
 pnpm --filter @nianlun/core exec vitest run -t "mergeFriends"
 ```
+
+### 本地交付打包细节
+
+`pack:mac` / `pack:win`（`packages/web/scripts/pack-{mac,win}.mjs`）把 `dist/` + 一个
+预下载的 [static-web-server](https://github.com/joseluisq/static-web-server)（简称 sws）二进制
++ 双击启动器 + 中文《使用说明》打成一个 zip。对方解压后双击启动器，sws 在本地
+`127.0.0.1:8723` 提供静态站点（应用用到 Worker/IndexedDB/ESM，**必须**经 HTTP server，不能
+`file://` 直开）。全程本地、不联网、不上传。
+
+- **二进制不入库**：`scripts/server/` 下的 `sws-arm64`/`sws-amd64`（Mac）与 `sws.exe`（Windows）
+  被 `.gitignore`（`scripts/server/sws*`），换机/重新 clone 后需重新放入，否则打包报"缺少服务器二进制"。
+  到 sws releases 下载 **v2.43.0**（与现有 Mac 包一致）：Mac 用 `aarch64-apple-darwin` /
+  `x86_64-apple-darwin`，Windows 用 `x86_64-pc-windows-msvc` 里的 `static-web-server.exe`（重命名为 `sws.exe`）。
+- **Windows 首启会触发 SmartScreen**（未签名 exe）：《使用说明》已教对方点"更多信息 → 仍要运行"。
+- 测试见 `scripts/__tests__/pack-{mac,win}.test.mjs`（用 yauzl 读回 zip 断言条目）。
 
 测试使用 **Vitest**；web 测试在 **jsdom** 下运行，配合 **@vue/test-utils**，IndexedDB 测试使用 **fake-indexeddb**（通过 `import 'fake-indexeddb/auto'` 引入）。
 

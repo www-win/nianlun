@@ -1,10 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useSettingsStore } from '../settings'
 
 beforeEach(() => {
   setActivePinia(createPinia())
   localStorage.clear()
+  // 让测试不受本地 .env 预置的 AI 接入信息影响
+  vi.stubEnv('VITE_AI_BASE_URL', '')
+  vi.stubEnv('VITE_AI_API_KEY', '')
+  vi.stubEnv('VITE_AI_MODEL', '')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('useSettingsStore', () => {
