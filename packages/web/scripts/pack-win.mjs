@@ -8,25 +8,28 @@ export const PORT = 8723
 
 // 启动脚本：注入端口/AI 地址/app 路径，用捆绑的 node.exe 运行本地服务器。
 export function buildLauncher(aiBaseUrl, port = PORT) {
+  // 批处理内容必须为纯 ASCII：中文版 Windows 的 cmd 按 GBK 解析 .bat，
+  // 文件里若含 UTF-8 中文会乱码并打乱行结构（导致 set/URL 行被拆坏）。
+  // 中文说明放在「使用说明.txt」里（不执行，不受影响）。
   return `@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title 年轮（运行中 — 用完关闭此窗口即可停止）
+title Nianlun (running - close this window to stop)
 set "PORT=${port}"
 set "HOST=127.0.0.1"
 set "APP_ROOT=%~dp0app"
 set "AI_TARGET=${aiBaseUrl}"
 echo.
-echo   正在启动年轮本地服务器，请稍候…
-echo   启动后浏览器会自动打开： http://127.0.0.1:${port}
-echo   （若没自动打开，手动在浏览器输入上面的地址）
-echo   用完后：关闭浏览器，再关闭此窗口即可停止。
+echo   Nianlun is starting... your browser will open:
+echo   http://127.0.0.1:${port}
+echo   (if it does not open, type that address in your browser)
+echo   To stop: close the browser, then close this window.
 echo ============================================================
 start "" /b cmd /c "ping -n 3 127.0.0.1 >nul & start """" http://127.0.0.1:${port}"
 "%~dp0node.exe" "%~dp0server\\proxy-server.mjs"
 echo.
 echo ============================================================
-echo  服务器已停止 / 或启动失败。若上方出现红色或英文报错，请截图反馈。
+echo  Server stopped, or failed to start. If you see red/English errors above, screenshot them.
 echo ============================================================
 pause
 `
