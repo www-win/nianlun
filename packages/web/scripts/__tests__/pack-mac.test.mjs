@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import yauzl from 'yauzl'
 import { buildMacZip } from '../pack-mac.mjs'
 
+const AI_BASE = 'https://gaccode.com/claudecode'
+
 // 读回 zip：返回 { 条目名 -> unix 权限 } 映射
 function readZipModes(zipPath) {
   return new Promise((resolve, reject) => {
@@ -55,9 +57,10 @@ describe('buildMacZip', () => {
     await writeFile(join(distDir, 'index.html'), '<!doctype html><title>年轮</title>')
     await writeFile(join(distDir, 'assets', 'app.js'), 'console.log(1)')
     await mkdir(serverDir, { recursive: true })
-    await writeFile(join(serverDir, 'sws-arm64'), 'dummy-arm64-binary')
-    await writeFile(join(serverDir, 'sws-amd64'), 'dummy-amd64-binary')
-    await buildMacZip({ distDir, serverDir, outFile })
+    await writeFile(join(serverDir, 'node-arm64'), 'dummy-arm64-binary')
+    await writeFile(join(serverDir, 'node-amd64'), 'dummy-amd64-binary')
+    await writeFile(join(serverDir, 'proxy-server.mjs'), '// dummy server')
+    await buildMacZip({ distDir, serverDir, outFile, aiBaseUrl: AI_BASE })
   })
 
   afterAll(async () => {
@@ -68,8 +71,9 @@ describe('buildMacZip', () => {
     const modes = await readZipModes(outFile)
     expect(modes).toHaveProperty('年轮/启动.command')
     expect(modes).toHaveProperty('年轮/使用说明.txt')
-    expect(modes).toHaveProperty('年轮/server/sws-arm64')
-    expect(modes).toHaveProperty('年轮/server/sws-amd64')
+    expect(modes).toHaveProperty('年轮/server/proxy-server.mjs')
+    expect(modes).toHaveProperty('年轮/node-arm64')
+    expect(modes).toHaveProperty('年轮/node-amd64')
     expect(modes).toHaveProperty('年轮/app/index.html')
     expect(modes).toHaveProperty('年轮/app/assets/app.js')
   })
@@ -77,8 +81,8 @@ describe('buildMacZip', () => {
   it('启动脚本与二进制为可执行 0755', async () => {
     const modes = await readZipModes(outFile)
     expect(modes['年轮/启动.command']).toBe(0o755)
-    expect(modes['年轮/server/sws-arm64']).toBe(0o755)
-    expect(modes['年轮/server/sws-amd64']).toBe(0o755)
+    expect(modes['年轮/node-arm64']).toBe(0o755)
+    expect(modes['年轮/node-amd64']).toBe(0o755)
   })
 
   it('app 内文件为 0644', async () => {
@@ -89,24 +93,25 @@ describe('buildMacZip', () => {
 
   it('缺少二进制时抛错', async () => {
     await expect(
-      buildMacZip({ distDir, serverDir: join(tmp, 'nope'), outFile: join(tmp, 'x.zip') })
-    ).rejects.toThrow(/服务器二进制/)
+      buildMacZip({ distDir, serverDir: join(tmp, 'nope'), outFile: join(tmp, 'x.zip'), aiBaseUrl: AI_BASE })
+    ).rejects.toThrow(/node 运行时|node-arm64/)
   })
 
   it('缺少 dist/index.html 时抛错', async () => {
     const emptyDist = join(tmp, 'empty-dist')
     await mkdir(emptyDist, { recursive: true })
     await expect(
-      buildMacZip({ distDir: emptyDist, serverDir, outFile: join(tmp, 'y.zip') })
+      buildMacZip({ distDir: emptyDist, serverDir, outFile: join(tmp, 'y.zip'), aiBaseUrl: AI_BASE })
     ).rejects.toThrow(/index\.html|dist 未构建/)
   })
 
-  it('启动脚本含 shebang、端口与 SPA fallback', async () => {
+  it('启动脚本含 shebang、端口、AI 地址与 node 运行', async () => {
     const txt = await readZipText(outFile, '年轮/启动.command')
     expect(txt.startsWith('#!/bin/bash')).toBe(true)
     expect(txt).toContain('PORT=8723')
     expect(txt).toContain('127.0.0.1')
-    expect(txt).toContain('--page-fallback')
+    expect(txt).toContain('proxy-server.mjs')
+    expect(txt).toContain('AI_TARGET="https://gaccode.com/claudecode"')
     expect(txt).toContain('com.apple.quarantine')
   })
 

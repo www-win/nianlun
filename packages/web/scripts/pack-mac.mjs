@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync } from 'node:fs'
+import { createWriteStream, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ZipArchive } from 'archiver'
@@ -7,31 +7,36 @@ export const PORT = 8723
 const EXEC_MODE = 0o755
 const FILE_MODE = 0o644
 
-export const LAUNCHER = `#!/bin/bash
+export function buildLauncher(aiBaseUrl, port = PORT) {
+  return `#!/bin/bash
 # 年轮本地启动器
 cd "$(dirname "$0")"
 DIR="$(pwd)"
 
-# 清除 Gatekeeper 隔离标记，避免 server 二进制被二次拦截
+# 清除 Gatekeeper 隔离标记，避免二进制被二次拦截
 xattr -dr com.apple.quarantine "$DIR" 2>/dev/null
 
-# 按芯片选二进制
+# 按芯片选 node 运行时
 if [ "$(uname -m)" = "arm64" ]; then
-  SERVER="$DIR/server/sws-arm64"
+  NODE="$DIR/node-arm64"
 else
-  SERVER="$DIR/server/sws-amd64"
+  NODE="$DIR/node-amd64"
 fi
-chmod +x "$SERVER" 2>/dev/null
+chmod +x "$NODE" 2>/dev/null
 
-PORT=${PORT}
+export PORT=${port}
+export HOST=127.0.0.1
+export APP_ROOT="$DIR/app"
+export AI_TARGET="${aiBaseUrl}"
 
 # 稍等服务器起来后自动打开浏览器
-( sleep 1; open "http://127.0.0.1:$PORT" ) &
+( sleep 1; open "http://127.0.0.1:${port}" ) &
 
-echo "年轮已启动，浏览器将自动打开 http://127.0.0.1:$PORT"
+echo "年轮已启动，浏览器将自动打开 http://127.0.0.1:${port}"
 echo "使用完毕后，直接关闭此终端窗口即可停止。"
-"$SERVER" --host 127.0.0.1 --port "$PORT" --root "$DIR/app" --page-fallback "$DIR/app/index.html"
+"$NODE" "$DIR/server/proxy-server.mjs"
 `
+}
 
 export const README = `年轮 · 使用说明
 ================
@@ -42,17 +47,35 @@ export const README = `年轮 · 使用说明
 3. 浏览器会自动打开 http://127.0.0.1:8723 ，开始使用。
 4. 使用完毕：关闭浏览器标签页，并关闭弹出的终端窗口即可。
 
-说明：本工具完全在你的电脑本地运行，不联网、不上传任何聊天数据。
+说明：聊天记录的解析与统计全部在你电脑本地完成，不上传。仅“AI 文案/分析”
+功能会把相应内容经本机转发到 AI 服务处理（需本机能联网访问该服务）。
 `
 
-export async function buildMacZip({ distDir, serverDir, outFile, rootName = '年轮' }) {
-  const arm = join(serverDir, 'sws-arm64')
-  const amd = join(serverDir, 'sws-amd64')
+function readEnvBaseUrl(webDir) {
+  if (process.env.VITE_AI_BASE_URL) return process.env.VITE_AI_BASE_URL
+  const envFile = join(webDir, '.env')
+  if (existsSync(envFile)) {
+    const m = readFileSync(envFile, 'utf8').match(/^\s*VITE_AI_BASE_URL\s*=\s*(.+)\s*$/m)
+    if (m) return m[1].trim()
+  }
+  return ''
+}
+
+export async function buildMacZip({ distDir, serverDir, outFile, aiBaseUrl, rootName = '年轮' }) {
+  const arm = join(serverDir, 'node-arm64')
+  const amd = join(serverDir, 'node-amd64')
+  const proxyScript = join(serverDir, 'proxy-server.mjs')
   if (!existsSync(arm) || !existsSync(amd)) {
-    throw new Error(`缺少服务器二进制（需 sws-arm64 / sws-amd64）：${serverDir}`)
+    throw new Error(`缺少 node 运行时（需 node-arm64 / node-amd64）：${serverDir}`)
+  }
+  if (!existsSync(proxyScript)) {
+    throw new Error(`缺少本地服务器脚本（需 proxy-server.mjs）：${serverDir}`)
   }
   if (!existsSync(join(distDir, 'index.html'))) {
     throw new Error(`dist 未构建（缺 index.html）：${distDir}`)
+  }
+  if (!aiBaseUrl) {
+    throw new Error('缺少 AI 接入地址（VITE_AI_BASE_URL），无法生成转发配置')
   }
 
   const output = createWriteStream(outFile)
@@ -64,10 +87,11 @@ export async function buildMacZip({ distDir, serverDir, outFile, rootName = '年
   })
   archive.pipe(output)
 
-  archive.append(LAUNCHER, { name: `${rootName}/启动.command`, mode: EXEC_MODE })
+  archive.append(buildLauncher(aiBaseUrl), { name: `${rootName}/启动.command`, mode: EXEC_MODE })
   archive.append(README, { name: `${rootName}/使用说明.txt`, mode: FILE_MODE })
-  archive.file(arm, { name: `${rootName}/server/sws-arm64`, mode: EXEC_MODE })
-  archive.file(amd, { name: `${rootName}/server/sws-amd64`, mode: EXEC_MODE })
+  archive.file(proxyScript, { name: `${rootName}/server/proxy-server.mjs`, mode: FILE_MODE })
+  archive.file(arm, { name: `${rootName}/node-arm64`, mode: EXEC_MODE })
+  archive.file(amd, { name: `${rootName}/node-amd64`, mode: EXEC_MODE })
   archive.directory(distDir, `${rootName}/app`, (entry) => {
     const isDir = entry.stats && entry.stats.isDirectory()
     entry.mode = isDir ? 0o755 : FILE_MODE
@@ -81,10 +105,12 @@ export async function buildMacZip({ distDir, serverDir, outFile, rootName = '年
 
 // CLI：node scripts/pack-mac.mjs  （从 packages/web 目录运行）
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const distDir = join(process.cwd(), 'dist')
-  const serverDir = join(process.cwd(), 'scripts', 'server')
-  const outFile = join(process.cwd(), '年轮.zip')
-  buildMacZip({ distDir, serverDir, outFile })
+  const webDir = process.cwd()
+  const distDir = join(webDir, 'dist')
+  const serverDir = join(webDir, 'scripts', 'server')
+  const outFile = join(webDir, '年轮.zip')
+  const aiBaseUrl = readEnvBaseUrl(webDir)
+  buildMacZip({ distDir, serverDir, outFile, aiBaseUrl })
     .then((p) => console.log(`已生成：${p}`))
     .catch((e) => {
       console.error(e.message)

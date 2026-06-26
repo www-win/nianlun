@@ -1,23 +1,31 @@
-import { createWriteStream, existsSync } from 'node:fs'
+import { createWriteStream, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
 import { ZipArchive } from 'archiver'
 
 export const PORT = 8723
 
-export const LAUNCHER = `@echo off
+// 启动脚本：注入端口/AI 地址/app 路径，用捆绑的 node.exe 运行本地服务器。
+export function buildLauncher(aiBaseUrl, port = PORT) {
+  return `@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
 title 年轮（运行中 — 用完关闭此窗口即可停止）
+set "PORT=${port}"
+set "HOST=127.0.0.1"
+set "APP_ROOT=%~dp0app"
+set "AI_TARGET=${aiBaseUrl}"
 echo.
 echo   年轮已启动，正在打开浏览器…
-echo   地址：http://127.0.0.1:${PORT}
+echo   地址：http://127.0.0.1:${port}
 echo.
 echo   用完后：关闭浏览器，再关闭此窗口即可停止。
 echo ============================================================
-start "" /b cmd /c "ping -n 2 127.0.0.1 >nul & start """" http://127.0.0.1:${PORT}"
-"%~dp0server\\sws.exe" --host 127.0.0.1 --port ${PORT} --root "%~dp0app" --page-fallback "%~dp0app\\index.html"
+start "" /b cmd /c "ping -n 2 127.0.0.1 >nul & start """" http://127.0.0.1:${port}"
+"%~dp0node.exe" "%~dp0server\\proxy-server.mjs"
 `
+}
 
 export const README = `年轮 · 使用说明（Windows）
 ================================
@@ -31,16 +39,46 @@ export const README = `年轮 · 使用说明（Windows）
 4. 浏览器会自动打开 http://127.0.0.1:${PORT} ，开始使用。
 5. 用完后：关闭浏览器标签页，再关闭那个黑色小窗口即可停止。
 
-说明：本工具完全在你的电脑本地运行，不联网、不上传任何聊天数据。
+说明：聊天记录的解析与统计全部在你电脑本地完成，不上传。仅“AI 文案/分析”
+功能会把相应内容经本机转发到 AI 服务处理（需本机能联网访问该服务）。
 `
 
-export async function buildWinZip({ distDir, serverDir, outFile, rootName = '年轮' }) {
-  const exe = join(serverDir, 'sws.exe')
-  if (!existsSync(exe)) {
-    throw new Error(`缺少服务器二进制（需 sws.exe）：${serverDir}`)
+function readEnvBaseUrl(webDir) {
+  if (process.env.VITE_AI_BASE_URL) return process.env.VITE_AI_BASE_URL
+  const envFile = join(webDir, '.env')
+  if (existsSync(envFile)) {
+    const m = readFileSync(envFile, 'utf8').match(/^\s*VITE_AI_BASE_URL\s*=\s*(.+)\s*$/m)
+    if (m) return m[1].trim()
+  }
+  return ''
+}
+
+function findNodeExe() {
+  if (process.env.NODE_EXE && existsSync(process.env.NODE_EXE)) return process.env.NODE_EXE
+  // 当前运行的 node 即可（打包机为 Windows 时直接复用）
+  if (process.platform === 'win32') return process.execPath
+  // 跨平台兜底：尝试 where/which
+  try {
+    const p = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['node'])
+      .toString().split(/\r?\n/)[0].trim()
+    if (p && existsSync(p)) return p
+  } catch { /* ignore */ }
+  return ''
+}
+
+export async function buildWinZip({ distDir, serverDir, nodeExe, outFile, aiBaseUrl, rootName = '年轮' }) {
+  const proxyScript = join(serverDir, 'proxy-server.mjs')
+  if (!existsSync(proxyScript)) {
+    throw new Error(`缺少本地服务器脚本（需 proxy-server.mjs）：${serverDir}`)
+  }
+  if (!nodeExe || !existsSync(nodeExe)) {
+    throw new Error(`缺少 node.exe（用于打包内置运行时）：${nodeExe || '(未提供)'}`)
   }
   if (!existsSync(join(distDir, 'index.html'))) {
     throw new Error(`dist 未构建（缺 index.html）：${distDir}`)
+  }
+  if (!aiBaseUrl) {
+    throw new Error('缺少 AI 接入地址（VITE_AI_BASE_URL），无法生成转发配置')
   }
 
   const output = createWriteStream(outFile)
@@ -52,9 +90,10 @@ export async function buildWinZip({ distDir, serverDir, outFile, rootName = '年
   })
   archive.pipe(output)
 
-  archive.append(LAUNCHER, { name: `${rootName}/启动.bat` })
+  archive.append(buildLauncher(aiBaseUrl), { name: `${rootName}/启动.bat` })
   archive.append(README, { name: `${rootName}/使用说明.txt` })
-  archive.file(exe, { name: `${rootName}/server/sws.exe` })
+  archive.file(nodeExe, { name: `${rootName}/node.exe` })
+  archive.file(proxyScript, { name: `${rootName}/server/proxy-server.mjs` })
   archive.directory(distDir, `${rootName}/app`)
 
   await archive.finalize()
@@ -64,10 +103,13 @@ export async function buildWinZip({ distDir, serverDir, outFile, rootName = '年
 
 // CLI：node scripts/pack-win.mjs  （从 packages/web 目录运行）
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const distDir = join(process.cwd(), 'dist')
-  const serverDir = join(process.cwd(), 'scripts', 'server')
-  const outFile = join(process.cwd(), '年轮-windows.zip')
-  buildWinZip({ distDir, serverDir, outFile })
+  const webDir = process.cwd()
+  const distDir = join(webDir, 'dist')
+  const serverDir = join(webDir, 'scripts', 'server')
+  const outFile = join(webDir, '年轮-windows.zip')
+  const aiBaseUrl = readEnvBaseUrl(webDir)
+  const nodeExe = findNodeExe()
+  buildWinZip({ distDir, serverDir, nodeExe, outFile, aiBaseUrl })
     .then((p) => console.log(`已生成：${p}`))
     .catch((e) => {
       console.error(e.message)
