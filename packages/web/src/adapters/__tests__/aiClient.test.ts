@@ -4,7 +4,7 @@ import { generateText, type AiSettings } from '../aiClient'
 const settings: AiSettings = { baseUrl: 'https://api.x.com', apiKey: 'sk-1', model: 'claude-opus-4-8' }
 
 function fakeFetch(resp: { ok: boolean; status: number; body: any }) {
-  return vi.fn(async () => ({ ok: resp.ok, status: resp.status, json: async () => resp.body }))
+  return vi.fn(async (_url: string, _init: RequestInit) => ({ ok: resp.ok, status: resp.status, json: async () => resp.body }))
 }
 
 describe('generateText', () => {
