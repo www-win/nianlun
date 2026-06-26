@@ -146,7 +146,7 @@ const data = useDataStore()
 .hero-note { margin-top: 18px; font-size: 12.5px; color: var(--faint); display: flex; align-items: center; gap: 8px; }
 
 /* device preview — a stylized "ring" data visual, not a stock image */
-.orb { position: relative; aspect-ratio: 1; max-width: 380px; margin-left: auto; }
+.orb { position: relative; aspect-ratio: 1; width: 100%; max-width: 380px; margin-left: auto; }
 .orb .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--border-2); }
 .orb svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .orb .core {
