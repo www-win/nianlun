@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useDataStore } from '../stores/data'
+import { useImportStore } from '../stores/import'
 import type { Friend, Relation } from '@nianlun/core'
 import { buildFriendAnalysisPrompt } from '@nianlun/core'
 import AiPanel from '../components/AiPanel.vue'
+import FriendSuggestPanel from '../components/FriendSuggestPanel.vue'
 import TheTopbar from '../components/TheTopbar.vue'
 import TheFooter from '../components/TheFooter.vue'
 
 const data = useDataStore()
+const importStore = useImportStore()
 const q = ref('')
 const relFilter = ref<'all' | Relation>('all')
 const sortKey = ref<'name' | 'rel' | 'role' | 'first' | 'last' | 'msgs'>('msgs')
@@ -96,6 +99,15 @@ function closeDrawer() {
 
 function friendPrompt() {
   return drawerFriend.value ? buildFriendAnalysisPrompt(drawerFriend.value) : ''
+}
+
+function applySuggestion(payload: { rel?: Relation; role?: string }) {
+  if (!drawerFriend.value) return
+  // 页面层写回，符合「编辑经 updateFriend」铁律。
+  data.updateFriend(drawerFriend.value.id, payload)
+  // 同步抽屉里的编辑控件，让用户看到已采纳。
+  if (payload.rel !== undefined) drawerRel.value = payload.rel
+  if (payload.role !== undefined) drawerRole.value = payload.role
 }
 
 function saveDrawer() {
@@ -366,10 +378,18 @@ function handleRoleKey(f: Friend, e: KeyboardEvent) {
 
       <div class="d-sec-title">AI 分析</div>
       <AiPanel
-        :key="drawerFriend.id"
+        :key="'analysis-' + drawerFriend.id"
         :build-prompt="friendPrompt"
         button-label="✨ AI 分析"
         busy-label="分析中…"
+      />
+
+      <div class="d-sec-title">AI 建议关系/职务</div>
+      <FriendSuggestPanel
+        :key="'suggest-' + drawerFriend.id"
+        :friend="drawerFriend"
+        :samples="importStore.samplesFor(drawerFriend.id)"
+        @apply="applySuggestion"
       />
 
       <div class="d-sec-title">编辑信息</div>

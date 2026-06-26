@@ -5,6 +5,8 @@ export interface ParseOutcome {
   friends: Friend[]
   report: ReportData
   warnings: string[]
+  /** 有界的聊天样本（键为 friend id）；仅存内存，绝不持久化。 */
+  samples: Record<string, string[]>
 }
 
 export interface ParseOptions {
@@ -28,7 +30,7 @@ export function parseFiles(
       if (msg.type === 'progress') opts.onProgress?.(msg.value)
       else if (msg.type === 'done') {
         worker.terminate?.()
-        resolve({ friends: msg.friends, report: msg.report, warnings: msg.warnings })
+        resolve({ friends: msg.friends, report: msg.report, warnings: msg.warnings, samples: msg.samples })
       } else if (msg.type === 'error') {
         worker.terminate?.()
         reject(new Error(msg.message))

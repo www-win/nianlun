@@ -12,6 +12,8 @@ export const useImportStore = defineStore('import', () => {
   const progress = ref(0)
   const warnings = ref<string[]>([])
   const error = ref('')
+  // 聊天样本仅存内存（键为 friend id），绝不写入 IndexedDB；刷新即失。
+  const friendSamples = ref<Record<string, string[]>>({})
 
   async function run(files: File[], year: number) {
     status.value = 'parsing'
@@ -25,6 +27,8 @@ export const useImportStore = defineStore('import', () => {
       // 合并进已有好友,保留用户编辑
       const merged = mergeFriends(data.friends, outcome.friends)
       await data.setData(merged.friends, outcome.report)
+      // 合并本次样本进内存（后到的覆盖同 id 的旧样本），不持久化。
+      friendSamples.value = { ...friendSamples.value, ...outcome.samples }
       warnings.value = outcome.warnings
       status.value = 'done'
     } catch (e) {
@@ -40,5 +44,9 @@ export const useImportStore = defineStore('import', () => {
     error.value = ''
   }
 
-  return { status, progress, warnings, error, run, reset }
+  function samplesFor(friendId: string): string[] {
+    return friendSamples.value[friendId] ?? []
+  }
+
+  return { status, progress, warnings, error, friendSamples, run, reset, samplesFor }
 })

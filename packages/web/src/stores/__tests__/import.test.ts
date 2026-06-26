@@ -16,6 +16,7 @@ vi.mock('../../adapters/parseClient', () => ({
       report: { year: 2025, totalMessages: 5, friendCount: 1, activeDays: 1,
         topContacts: [], latestMessage: null, keywords: [], relationBreakdown: [] },
       warnings: ['a.txt: 1 行无法识别'],
+      samples: { '周彤': ['对方：在吗', '我：在的'] },
     }
   }),
 }))
@@ -33,5 +34,23 @@ describe('importStore', () => {
     const data = useDataStore()
     expect(data.friends).toHaveLength(1)
     expect(data.hasData).toBe(true)
+  })
+
+  it('run 后样本存于内存，可经 samplesFor 读取', async () => {
+    const imp = useImportStore()
+    const file = new File(['x'], 'a.txt', { type: 'text/plain' })
+    await imp.run([file], 2025)
+    expect(imp.samplesFor('周彤')).toEqual(['对方：在吗', '我：在的'])
+    expect(imp.samplesFor('不存在')).toEqual([])
+  })
+
+  it('样本不持久化：刷新（新 store 实例）后样本为空', async () => {
+    const imp = useImportStore()
+    const file = new File(['x'], 'a.txt', { type: 'text/plain' })
+    await imp.run([file], 2025)
+    // 模拟刷新：重建 pinia，import store 重新实例化
+    setActivePinia(createPinia())
+    const fresh = useImportStore()
+    expect(fresh.samplesFor('周彤')).toEqual([])
   })
 })

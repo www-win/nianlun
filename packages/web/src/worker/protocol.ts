@@ -7,7 +7,7 @@ export interface ParseRequest {
 
 export type ParseResponse =
   | { type: 'progress'; value: number }
-  | { type: 'done'; friends: Friend[]; report: ReportData; warnings: string[] }
+  | { type: 'done'; friends: Friend[]; report: ReportData; warnings: string[]; samples: Record<string, string[]> }
   | { type: 'error'; message: string }
 
 export interface WorkerLike {

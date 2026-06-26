@@ -22,6 +22,7 @@ describe('parseFiles', () => {
       friends: [{ id: '周彤' } as any],
       report: { year: 2025, totalMessages: 5 } as any,
       warnings: [],
+      samples: { '周彤': ['对方：在吗'] },
     }
     const progressSpy = vi.fn()
     const result = await parseFiles(
@@ -31,6 +32,7 @@ describe('parseFiles', () => {
     expect(progressSpy).toHaveBeenCalledWith(0.5)
     expect(result.friends).toHaveLength(1)
     expect(result.report.totalMessages).toBe(5)
+    expect(result.samples['周彤']).toEqual(['对方：在吗'])
   })
 
   it('rejects on an error response', async () => {

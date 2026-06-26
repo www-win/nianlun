@@ -1,4 +1,4 @@
-import { parseFile, aggregate, buildReport, mergeConversations } from '@nianlun/core'
+import { parseFile, aggregate, buildReport, mergeConversations, extractFriendSamples } from '@nianlun/core'
 import type { ParseRequest, ParseResponse } from './protocol'
 
 self.onmessage = (ev: MessageEvent<ParseRequest>) => {
@@ -15,7 +15,9 @@ self.onmessage = (ev: MessageEvent<ParseRequest>) => {
     })
     const friends = aggregate(conversations)
     const report = buildReport(conversations, friends, year)
-    post({ type: 'done', friends, report, warnings })
+    // 截取有界的聊天样本随结果带回主线程；原始 Conversation[] 绝不离开 Worker。
+    const samples = extractFriendSamples(conversations)
+    post({ type: 'done', friends, report, warnings, samples })
   } catch (e) {
     post({ type: 'error', message: (e as Error).message })
   }
