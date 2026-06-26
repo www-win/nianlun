@@ -4,6 +4,7 @@ import { useDataStore } from '../stores/data'
 import { useUiStore } from '../stores/ui'
 import TheTopbar from '../components/TheTopbar.vue'
 import TheFooter from '../components/TheFooter.vue'
+import AiCopyPanel from '../components/AiCopyPanel.vue'
 
 const data = useDataStore()
 const ui = useUiStore()
@@ -56,6 +57,8 @@ function save() { window.print() }
         </div>
       </div>
     </div>
+
+    <AiCopyPanel :report="report" :friends="data.friends" />
 
     <main class="wrap page">
       <div class="stage">
