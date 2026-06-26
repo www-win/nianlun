@@ -36,6 +36,7 @@ function readZipText(zipPath, wanted) {
           rs.on('end', () => resolve(buf))
         })
       })
+      zip.on('end', () => reject(new Error('entry not found: ' + wanted)))
       zip.on('error', reject)
       zip.readEntry()
     })
