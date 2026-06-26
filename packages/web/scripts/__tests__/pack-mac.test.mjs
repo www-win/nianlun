@@ -22,6 +22,26 @@ function readZipModes(zipPath) {
   })
 }
 
+// 读回 zip：返回 { 条目名 -> 文本内容 }
+function readZipText(zipPath, wanted) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zip) => {
+      if (err) return reject(err)
+      zip.on('entry', (e) => {
+        if (e.fileName !== wanted) return zip.readEntry()
+        zip.openReadStream(e, (err2, rs) => {
+          if (err2) return reject(err2)
+          let buf = ''
+          rs.on('data', (d) => (buf += d.toString('utf8')))
+          rs.on('end', () => resolve(buf))
+        })
+      })
+      zip.on('error', reject)
+      zip.readEntry()
+    })
+  })
+}
+
 describe('buildMacZip', () => {
   let tmp, distDir, serverDir, outFile
 
@@ -78,5 +98,20 @@ describe('buildMacZip', () => {
     await expect(
       buildMacZip({ distDir: emptyDist, serverDir, outFile: join(tmp, 'y.zip') })
     ).rejects.toThrow(/index\.html|dist 未构建/)
+  })
+
+  it('启动脚本含 shebang、端口与 SPA fallback', async () => {
+    const txt = await readZipText(outFile, '年轮/启动.command')
+    expect(txt.startsWith('#!/bin/bash')).toBe(true)
+    expect(txt).toContain('PORT=8723')
+    expect(txt).toContain('127.0.0.1')
+    expect(txt).toContain('--page-fallback')
+    expect(txt).toContain('com.apple.quarantine')
+  })
+
+  it('说明文件含首次右键打开提示', async () => {
+    const txt = await readZipText(outFile, '年轮/使用说明.txt')
+    expect(txt).toContain('右键')
+    expect(txt).toContain('打开')
   })
 })
