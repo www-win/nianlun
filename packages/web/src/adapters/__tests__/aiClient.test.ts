@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { generateText, type AiSettings } from '../aiClient'
+﻿import { describe, it, expect, vi } from 'vitest'
+import { generateText, extractFromImage, type AiSettings } from '../aiClient'
 
 const settings: AiSettings = { baseUrl: 'https://api.x.com', apiKey: 'sk-1', model: 'claude-opus-4-8' }
 
@@ -45,5 +45,43 @@ describe('generateText', () => {
   it('空内容抛出提示', async () => {
     const f = fakeFetch({ ok: true, status: 200, body: { content: [] } })
     await expect(generateText('p', settings, f)).rejects.toThrow(/为空/)
+  })
+})
+
+const settingsImg = { baseUrl: '/__ai', apiKey: 'k', model: 'claude-opus-4-8' }
+
+function fakeFetchImg(captured: any[], resp: any) {
+  return vi.fn(async (url: string, init: any) => {
+    captured.push({ url, body: JSON.parse(init.body) })
+    return resp
+  })
+}
+
+describe('extractFromImage', () => {
+  it('sends an image block + prompt and returns the text', async () => {
+    const captured: any[] = []
+    const fetchImpl = fakeFetchImg(captured, {
+      ok: true, status: 200,
+      json: async () => ({ content: [{ type: 'text', text: '2025-01-01 10:00:00 我\n你好' }] }),
+    })
+    const out = await extractFromImage(
+      { base64: 'AAAA', mediaType: 'image/png' }, '提取对话', settingsImg, fetchImpl as any,
+    )
+    expect(out).toBe('2025-01-01 10:00:00 我\n你好')
+    expect(captured[0].url).toBe('/__ai/v1/messages')
+    const content = captured[0].body.messages[0].content
+    expect(content[0]).toEqual({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: 'AAAA' },
+    })
+    expect(content[1]).toEqual({ type: 'text', text: '提取对话' })
+    expect(captured[0].body.max_tokens).toBeGreaterThanOrEqual(4096)
+  })
+
+  it('maps HTTP 401 to a friendly error', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }))
+    await expect(
+      extractFromImage({ base64: 'A', mediaType: 'image/png' }, 'p', settingsImg, fetchImpl as any),
+    ).rejects.toThrow('API Key 无效，请检查设置中的密钥')
   })
 })

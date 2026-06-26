@@ -1,4 +1,4 @@
-export interface AiSettings {
+﻿export interface AiSettings {
   baseUrl: string
   apiKey: string
   model: string
@@ -9,10 +9,18 @@ export type FetchLike = (
   init: RequestInit,
 ) => Promise<{ ok: boolean; status: number; json: () => Promise<any> }>
 
-export async function generateText(
-  prompt: string,
+type Content =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+    >
+
+async function requestMessages(
+  content: Content,
+  maxTokens: number,
   settings: AiSettings,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike,
 ): Promise<string> {
   const url = settings.baseUrl.replace(/\/+$/, '') + '/v1/messages'
 
@@ -28,8 +36,8 @@ export async function generateText(
       },
       body: JSON.stringify({
         model: settings.model,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content }],
       }),
     })
   } catch {
@@ -48,4 +56,25 @@ export async function generateText(
     : null
   if (!block?.text) throw new Error('AI 返回内容为空')
   return block.text as string
+}
+
+export async function generateText(
+  prompt: string,
+  settings: AiSettings,
+  fetchImpl: FetchLike = fetch,
+): Promise<string> {
+  return requestMessages(prompt, 1024, settings, fetchImpl)
+}
+
+export async function extractFromImage(
+  image: { base64: string; mediaType: string },
+  prompt: string,
+  settings: AiSettings,
+  fetchImpl: FetchLike = fetch,
+): Promise<string> {
+  const content: Content = [
+    { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+    { type: 'text', text: prompt },
+  ]
+  return requestMessages(content, 4096, settings, fetchImpl)
 }
