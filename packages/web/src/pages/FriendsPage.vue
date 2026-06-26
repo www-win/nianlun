@@ -4,6 +4,7 @@ import { useDataStore } from '../stores/data'
 import { useImportStore } from '../stores/import'
 import type { Friend, Relation } from '@nianlun/core'
 import { buildFriendAnalysisPrompt } from '@nianlun/core'
+import { RELATIONS, REL_COLORS, relColor, initials } from '../lib/relations'
 import AiPanel from '../components/AiPanel.vue'
 import FriendSuggestPanel from '../components/FriendSuggestPanel.vue'
 import TheTopbar from '../components/TheTopbar.vue'
@@ -15,16 +16,6 @@ const q = ref('')
 const relFilter = ref<'all' | Relation>('all')
 const sortKey = ref<'name' | 'rel' | 'role' | 'first' | 'last' | 'msgs'>('msgs')
 const sortDir = ref(-1)
-const RELATIONS: Relation[] = ['家人', '挚友', '同事', '同学', '客户', '其他']
-
-const REL_COLORS: Record<string, string> = {
-  '家人': 'oklch(60% 0.12 25)',
-  '挚友': 'oklch(62% 0.12 145)',
-  '同事': 'oklch(58% 0.1 250)',
-  '同学': 'oklch(66% 0.13 75)',
-  '客户': 'oklch(58% 0.11 320)',
-  '其他': 'oklch(60% 0.02 240)',
-}
 
 const filtered = computed(() => {
   const kw = q.value.trim().toLowerCase()
@@ -49,8 +40,6 @@ const roleCount = computed(() => data.friends.filter((f) => f.role).length)
 
 function fmtDate(ts: number) { return ts ? new Date(ts).toLocaleDateString('zh-CN') : '—' }
 function fmtMsg(n: number) { return n >= 10000 ? (n / 10000).toFixed(1) + '万' : n.toLocaleString('zh-CN') }
-function initials(name: string) { return name.slice(name.length > 1 ? name.length - 2 : 0) }
-function relColor(rel: string) { return REL_COLORS[rel] || 'oklch(60% 0.02 240)' }
 
 function setSort(k: typeof sortKey.value) {
   if (sortKey.value === k) {
