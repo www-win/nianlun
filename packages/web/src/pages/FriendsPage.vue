@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue'
 import { useDataStore } from '../stores/data'
 import type { Friend, Relation } from '@nianlun/core'
+import { buildFriendAnalysisPrompt } from '@nianlun/core'
+import AiPanel from '../components/AiPanel.vue'
 import TheTopbar from '../components/TheTopbar.vue'
 import TheFooter from '../components/TheFooter.vue'
 
@@ -90,6 +92,10 @@ function openDrawer(f: Friend) {
 function closeDrawer() {
   drawerOpen.value = false
   drawerFriend.value = null
+}
+
+function friendPrompt() {
+  return drawerFriend.value ? buildFriendAnalysisPrompt(drawerFriend.value) : ''
 }
 
 function saveDrawer() {
@@ -357,6 +363,14 @@ function handleRoleKey(f: Friend, e: KeyboardEvent) {
           <span>{{ i + 1 }}</span>
         </div>
       </div>
+
+      <div class="d-sec-title">AI 分析</div>
+      <AiPanel
+        :key="drawerFriend.id"
+        :build-prompt="friendPrompt"
+        button-label="✨ AI 分析"
+        busy-label="分析中…"
+      />
 
       <div class="d-sec-title">编辑信息</div>
       <div class="d-edit">
