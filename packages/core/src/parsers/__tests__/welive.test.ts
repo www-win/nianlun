@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { weliveParser, sessionIdFromFileName, isServiceSession } from '../welive'
+import { parseFile, aggregate, buildReport } from '../../index'
 
 // 真实 WeLive 行的脱敏样本（字段顺序与真实导出一致）
 const line = (o: Record<string, unknown>) => JSON.stringify({
@@ -137,8 +138,6 @@ describe('weliveParser.parse — service filtering', () => {
     expect(res.warnings).toHaveLength(0)
   })
 })
-
-import { parseFile, aggregate, buildReport } from '../../index'
 
 describe('welive end-to-end via parseFile', () => {
   const content = [
