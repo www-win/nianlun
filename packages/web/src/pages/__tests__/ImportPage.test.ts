@@ -34,4 +34,13 @@ describe('ImportPage', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('50')
   })
+
+  it('accepts image files and shows an upload-privacy notice', async () => {
+    const router = makeRouter(); router.push('/import'); await router.isReady()
+    const wrapper = mount(ImportPage, { global: { plugins: [router] } })
+    const input = wrapper.find('input[type="file"]')
+    expect(input.attributes('accept')).toContain('.png')
+    expect(input.attributes('accept')).toContain('.jpg')
+    expect(wrapper.text()).toContain('上传')
+  })
 })
