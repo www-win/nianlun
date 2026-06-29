@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
-import { saveFriends, loadFriends, saveReport, loadReport, clearAll } from '../storage'
+import { saveFriends, loadFriends, saveReport, loadReport, saveSamples, loadSamples, clearAll } from '../storage'
 import { createFriend } from '@nianlun/core'
 import type { ReportData } from '@nianlun/core'
 
@@ -33,9 +33,20 @@ describe('storage adapter', () => {
     expect(await loadReport()).toBeNull()
   })
 
-  it('clearAll wipes everything', async () => {
+  it('saves and loads friend samples', async () => {
+    await saveSamples({ '周彤': ['对方：在吗', '我：在的'] })
+    expect(await loadSamples()).toEqual({ '周彤': ['对方：在吗', '我：在的'] })
+  })
+
+  it('returns {} when no samples stored', async () => {
+    expect(await loadSamples()).toEqual({})
+  })
+
+  it('clearAll wipes everything (incl. samples)', async () => {
     await saveFriends([createFriend('a', 'a')])
+    await saveSamples({ a: ['x'] })
     await clearAll()
     expect(await loadFriends()).toEqual([])
+    expect(await loadSamples()).toEqual({})
   })
 })

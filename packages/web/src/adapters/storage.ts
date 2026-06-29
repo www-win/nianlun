@@ -41,6 +41,17 @@ export async function loadReport(): Promise<ReportData | null> {
   return ((await db.get('meta', 'report')) as ReportData | undefined) ?? null
 }
 
+// 有界的聊天样本(每好友少量片段)，供 AI 建议在刷新后仍可用。存于 meta 库的 'samples' 键。
+export async function saveSamples(samples: Record<string, string[]>): Promise<void> {
+  const db = await getDB()
+  await db.put('meta', samples, 'samples')
+}
+
+export async function loadSamples(): Promise<Record<string, string[]>> {
+  const db = await getDB()
+  return ((await db.get('meta', 'samples')) as Record<string, string[]> | undefined) ?? {}
+}
+
 export async function clearAll(): Promise<void> {
   const db = await getDB()
   const tx = db.transaction(['friends', 'meta'], 'readwrite')
