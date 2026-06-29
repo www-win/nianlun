@@ -77,8 +77,9 @@ C 在 web 侧预转换 —— 重逻辑越界进 web。）
 
 **canParse(fileName, sample)**
 - 取 `sample` 第一个非空行，去 BOM 后必须以 `{` 开头且能体现 WeLive 签名：
-  同时包含 `"create_time"`、`"local_type"`、`"sender_username"` 三个键
-  （借此与 weflow 的 `createTime`/`isSender` 区分）。
+  同时包含 `"sort_seq"`、`"create_time"`、`"local_type"` 三个键
+  （这三个键都在行首附近 —— `message_content` 可能极长，2000 字符样本扫不到行尾的
+  `sender_username`；并借此与 weflow 的 `createTime`/`isSender` 区分）。
 - 不依赖 `.jsonl` 后缀。
 
 **parse(content, onProgress, fileName)**
