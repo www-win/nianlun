@@ -34,11 +34,11 @@ vi.mock('../settings', () => ({
 describe('importStore — AI 未配置', () => {
   beforeEach(async () => { setActivePinia(createPinia()); await clearAll() })
 
-  it('图片文件被跳过并产生 warning，不调用 ocrImage', async () => {
+  it('含图片但 AI 未配置时阻断并给出指向设置的错误', async () => {
     const imp = useImportStore()
     const img = new File([''], 'screen.png', { type: 'image/png' })
     await imp.run([img], 2025)
-    expect(imp.status).toBe('done')
-    expect(imp.warnings.some((w) => w.includes('screen.png'))).toBe(true)
+    expect(imp.status).toBe('error')
+    expect(imp.error).toContain('设置')
   })
 })

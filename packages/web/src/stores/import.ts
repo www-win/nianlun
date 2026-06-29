@@ -26,13 +26,14 @@ export const useImportStore = defineStore('import', () => {
       const settings = useSettingsStore()
       const ocrWarnings: string[] = []
 
+      const images = files.filter(isImageFile)
+      if (images.length && !settings.isConfigured) {
+        throw new Error('图片识别需要先在"设置"里配置 AI（视觉模型）后再试。')
+      }
+
       // 分流：图片走 OCR，文本直接读取
       const readPromises = files.map(async (file) => {
         if (isImageFile(file)) {
-          if (!settings.isConfigured) {
-            ocrWarnings.push(`${file.name}: AI 未配置，已跳过图片`)
-            return null
-          }
           try {
             return await ocrImage(file, year, {
               baseUrl: settings.baseUrl,
