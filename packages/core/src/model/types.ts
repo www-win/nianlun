@@ -27,6 +27,9 @@ export interface Friend {
   peakPeriod: string
   maxStreak: number      // 最长连续聊天天数
   monthly: number[]      // 长度 12
+  hourly: number[]       // 长度 24，按小时(0–23)消息数
+  weekHour: number[]     // 长度 168，索引 = getDay(0=周日)*24 + 小时
+  keywords: Array<{ word: string; count: number }>  // 该好友 Top 20 高频词
   userEdited: { role?: string; rel?: Relation; alias?: string; name?: string }
 }
 

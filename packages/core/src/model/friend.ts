@@ -14,6 +14,9 @@ export function createFriend(id: string, name: string): Friend {
     peakPeriod: '',
     maxStreak: 0,
     monthly: new Array(12).fill(0),
+    hourly: new Array(24).fill(0),
+    weekHour: new Array(168).fill(0),
+    keywords: [],
     userEdited: {},
   }
 }

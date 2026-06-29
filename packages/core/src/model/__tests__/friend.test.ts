@@ -13,3 +13,14 @@ describe('createFriend', () => {
     expect(f.userEdited).toEqual({})
   })
 })
+
+describe('createFriend 新统计字段', () => {
+  it('初始化 hourly/weekHour/keywords', () => {
+    const f = createFriend('a', 'A')
+    expect(f.hourly).toHaveLength(24)
+    expect(f.hourly.every((n) => n === 0)).toBe(true)
+    expect(f.weekHour).toHaveLength(168)
+    expect(f.weekHour.every((n) => n === 0)).toBe(true)
+    expect(f.keywords).toEqual([])
+  })
+})
