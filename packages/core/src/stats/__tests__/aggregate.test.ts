@@ -27,3 +27,21 @@ describe('aggregate', () => {
     expect(f.monthly[2]).toBe(1) // 3 月 1 条
   })
 })
+
+describe('aggregate 时段/热力/词频', () => {
+  it('按小时与星期分桶，并算词频', () => {
+    const c = {
+      id: 'A', peerName: 'A', isGroup: false,
+      messages: [
+        // 2025-01-06 是周一，10 点
+        { ts: t('2025-01-06T10:00:00'), from: 'them' as const, type: 'text' as const, text: '今天开会' },
+        { ts: t('2025-01-06T10:30:00'), from: 'me' as const, type: 'text' as const, text: '好的开会' },
+      ],
+    }
+    const f = aggregate([c])[0]
+    expect(f.hourly[10]).toBe(2)
+    // 周一 getDay()===1 → 索引 1*24+10 = 34
+    expect(f.weekHour[34]).toBe(2)
+    expect(f.keywords[0]).toEqual({ word: '开会', count: 2 })
+  })
+})
