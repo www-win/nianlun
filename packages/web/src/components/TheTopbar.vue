@@ -17,6 +17,7 @@
         <router-link to="/">概览</router-link>
         <router-link to="/import">导入数据</router-link>
         <router-link to="/friends">好友信息</router-link>
+        <router-link to="/network">关系图</router-link>
         <router-link to="/report">年度报告</router-link>
       </nav>
       <div class="topbar-end">

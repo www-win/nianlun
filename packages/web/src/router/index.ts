@@ -3,6 +3,7 @@ import Overview from '../pages/Overview.vue'
 import ImportPage from '../pages/ImportPage.vue'
 import FriendsPage from '../pages/FriendsPage.vue'
 import ReportPage from '../pages/ReportPage.vue'
+import NetworkPage from '../pages/NetworkPage.vue'
 import FriendDetail from '../pages/FriendDetail.vue'
 
 export const router = createRouter({
@@ -12,6 +13,7 @@ export const router = createRouter({
     { path: '/import', name: 'import', component: ImportPage },
     { path: '/friends', name: 'friends', component: FriendsPage },
     { path: '/friends/:id', name: 'friend-detail', component: FriendDetail },
+    { path: '/network', name: 'network', component: NetworkPage },
     { path: '/report', name: 'report', component: ReportPage },
   ],
 })

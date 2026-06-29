@@ -7,7 +7,9 @@ function makeFriend(id: string, rel: Relation, msgCount: number): Friend {
   return {
     id, name: id, alias: '', rel, role: '',
     firstContact: 0, lastContact: 0, msgCount, sentRatio: 50,
-    peakPeriod: '', maxStreak: 0, monthly: Array(12).fill(0), userEdited: {},
+    peakPeriod: '', maxStreak: 0, monthly: Array(12).fill(0),
+    hourly: Array(24).fill(0), weekHour: Array(168).fill(0), keywords: [],
+    userEdited: {},
   }
 }
 const SIZE = 720
