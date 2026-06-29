@@ -137,3 +137,28 @@ describe('weliveParser.parse — service filtering', () => {
     expect(res.warnings).toHaveLength(0)
   })
 })
+
+import { parseFile, aggregate, buildReport } from '../../index'
+
+describe('welive end-to-end via parseFile', () => {
+  const content = [
+    line({ create_time: '1782207175', local_type: '1', message_content: '你好', sender_username: 'wxid_peer' }),
+    line({ create_time: '1782207200', local_type: '1', message_content: '在的', sender_username: '' }),
+  ].join('\n')
+
+  it('dispatches jsonl to weliveParser using the filename', () => {
+    const { conversations } = parseFile('wxid_peer_aabbccdd.jsonl', content)
+    expect(conversations).toHaveLength(1)
+    expect(conversations[0].peerName).toBe('wxid_peer')
+  })
+
+  it('parses → aggregates → builds report', () => {
+    const { conversations } = parseFile('wxid_peer_aabbccdd.jsonl', content)
+    const friends = aggregate(conversations)
+    const report = buildReport(conversations, friends, 2026)
+    expect(friends).toHaveLength(1)
+    expect(friends[0].name).toBe('wxid_peer')
+    expect(friends[0].sentRatio).toBe(50)
+    expect(report.totalMessages).toBe(2)
+  })
+})

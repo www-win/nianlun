@@ -2,8 +2,9 @@ import type { Parser, ParseResult } from '../model/types'
 import { txtParser } from '../parsers/txt'
 import { htmlParser } from '../parsers/html'
 import { weflowParser } from '../parsers/weflow'
+import { weliveParser } from '../parsers/welive'
 
-const PARSERS: Parser[] = [weflowParser, htmlParser, txtParser] // weflow/html 先嗅探(更具体)
+const PARSERS: Parser[] = [weflowParser, weliveParser, htmlParser, txtParser] // 靠内容签名嗅探
 
 export function parseFile(
   fileName: string,
@@ -15,5 +16,5 @@ export function parseFile(
   if (!parser) {
     return { conversations: [], warnings: [{ reason: `无法识别的文件格式:${fileName}` }] }
   }
-  return parser.parse(content, onProgress)
+  return parser.parse(content, onProgress, fileName)
 }

@@ -47,5 +47,5 @@ export interface ParseResult { conversations: Conversation[]; warnings: ParseWar
 export interface Parser {
   name: string
   canParse(fileName: string, sample: string): boolean
-  parse(content: string, onProgress?: (p: number) => void): ParseResult
+  parse(content: string, onProgress?: (p: number) => void, fileName?: string): ParseResult
 }
