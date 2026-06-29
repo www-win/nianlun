@@ -28,7 +28,15 @@ export async function saveFriends(friends: Friend[]): Promise<void> {
 
 export async function loadFriends(): Promise<Friend[]> {
   const db = await getDB()
-  return (await db.getAll('friends')) as Friend[]
+  const raw = (await db.getAll('friends')) as Friend[]
+  // 向后兼容:老数据可能缺 charts 后加的 hourly/weekHour/keywords,入口处补齐默认值,
+  // 让所有下游消费端(报告页 sumHourly、好友详情、关系图等)都拿到完整形状的 Friend。
+  return raw.map((f) => ({
+    ...f,
+    hourly: f.hourly ?? new Array(24).fill(0),
+    weekHour: f.weekHour ?? new Array(168).fill(0),
+    keywords: f.keywords ?? [],
+  }))
 }
 
 export async function saveReport(report: ReportData): Promise<void> {

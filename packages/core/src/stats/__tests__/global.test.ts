@@ -22,4 +22,13 @@ describe('global 派生', () => {
     const b = fr({ keywords: [{ word: '开会', count: 2 }] })
     expect(mergeKeywords([a, b], 1)).toEqual([{ word: '开会', count: 5 }])
   })
+  it('容忍老数据缺 hourly/weekHour 字段(向后兼容,不抛异常)', () => {
+    const legacy = fr({})
+    delete (legacy as Partial<typeof legacy>).hourly
+    delete (legacy as Partial<typeof legacy>).weekHour
+    expect(() => sumHourly([legacy])).not.toThrow()
+    expect(() => sumWeekHour([legacy])).not.toThrow()
+    expect(sumHourly([legacy])).toEqual(new Array(24).fill(0))
+    expect(sumWeekHour([legacy])).toEqual(new Array(168).fill(0))
+  })
 })

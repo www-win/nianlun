@@ -20,6 +20,18 @@ describe('storage adapter', () => {
     expect(await loadFriends()).toEqual([])
   })
 
+  it('给老数据补齐缺失的 hourly/weekHour/keywords(向后兼容)', async () => {
+    const legacy = createFriend('老张', '老张')
+    delete (legacy as Partial<typeof legacy>).hourly
+    delete (legacy as Partial<typeof legacy>).weekHour
+    delete (legacy as Partial<typeof legacy>).keywords
+    await saveFriends([legacy])
+    const loaded = await loadFriends()
+    expect(loaded[0].hourly).toEqual(new Array(24).fill(0))
+    expect(loaded[0].weekHour).toEqual(new Array(168).fill(0))
+    expect(loaded[0].keywords).toEqual([])
+  })
+
   it('saves and loads the report', async () => {
     const report: ReportData = {
       year: 2025, totalMessages: 100, friendCount: 1, activeDays: 10,
