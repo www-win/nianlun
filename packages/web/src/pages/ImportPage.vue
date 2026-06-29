@@ -67,7 +67,7 @@ function stageClass(index: number) {
             <h3>拖入文件，或点击选择</h3>
             <div class="sub">支持微信导出的聊天记录</div>
             <div class="fmts">
-              <span class="tag">.txt</span><span class="tag">.html</span><span class="tag">.csv</span><span class="tag">.png</span><span class="tag">.jpg</span><span class="tag">.webp</span>
+              <span class="tag">.txt</span><span class="tag">.html</span><span class="tag">.csv</span><span class="tag">.jsonl</span><span class="tag">.png</span><span class="tag">.jpg</span><span class="tag">.webp</span>
             </div>
             <div class="or">最大约 500 MB · 多个文件可一次拖入</div>
             <div class="or" style="margin-top:6px; color:#b4690e;">
@@ -79,7 +79,7 @@ function stageClass(index: number) {
             type="file"
             class="sr-only"
             multiple
-            accept=".txt,.html,.csv,.json,.png,.jpg,.jpeg,.webp"
+            accept=".txt,.html,.csv,.json,.jsonl,.png,.jpg,.jpeg,.webp"
             @change="onFiles(($event.target as HTMLInputElement).files)"
           />
 
