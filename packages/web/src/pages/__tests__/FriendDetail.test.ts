@@ -35,4 +35,15 @@ describe('FriendDetail', () => {
     const w = mount(FriendDetail, { global: { plugins: [router] } })
     expect(w.text()).toMatch(/没有|未找到|不存在/)
   })
+
+  it('缺少新字段的旧数据（legacy）不崩溃并渲染零值图表', async () => {
+    const data = useDataStore()
+    const legacy = createFriend('老王', '老王') as any
+    delete legacy.hourly; delete legacy.weekHour; delete legacy.keywords
+    data.friends = [legacy]
+    const router = makeRouter(); router.push('/friends/老王'); await router.isReady()
+    const w = mount(FriendDetail, { global: { plugins: [router] } })
+    expect(w.findAll('[data-h]')).toHaveLength(24)
+    expect(w.findAll('[data-cell]')).toHaveLength(168)
+  })
 })

@@ -17,6 +17,7 @@ const friends: Friend[] = [
     id: 'f1', name: '小明', alias: '', rel: '挚友', role: '',
     firstContact: 0, lastContact: 0, msgCount: 500, sentRatio: 50,
     peakPeriod: '', maxStreak: 0, monthly: new Array(12).fill(0), userEdited: {},
+    hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0), keywords: [],
   },
 ]
 
@@ -41,6 +42,7 @@ const friendForAnalysis: Friend = {
   firstContact: 1700000000000, lastContact: 1730000000000, msgCount: 820, sentRatio: 65,
   peakPeriod: '深夜', maxStreak: 14, monthly: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130],
   userEdited: {},
+  hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0), keywords: [],
 }
 
 describe('buildFriendAnalysisPrompt', () => {

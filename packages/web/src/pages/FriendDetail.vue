@@ -9,6 +9,10 @@ import WordRanks from '../components/charts/WordRanks.vue'
 const route = useRoute()
 const data = useDataStore()
 const friend = computed(() => data.friends.find((f) => f.id === route.params.id))
+
+const hourly = computed(() => friend.value?.hourly ?? new Array(24).fill(0))
+const weekHour = computed(() => friend.value?.weekHour ?? new Array(168).fill(0))
+const keywords = computed(() => friend.value?.keywords ?? [])
 </script>
 
 <template>
@@ -18,11 +22,11 @@ const friend = computed(() => data.friends.find((f) => f.id === route.params.id)
       <p>{{ friend.rel }} · 共 {{ friend.msgCount }} 条消息</p>
     </header>
     <h2>时段分布</h2>
-    <HourBars :hourly="friend.hourly" />
+    <HourBars :hourly="hourly" />
     <h2>周 × 时活跃热力</h2>
-    <WeekHourHeatmap :week-hour="friend.weekHour" />
+    <WeekHourHeatmap :week-hour="weekHour" />
     <h2>高频词</h2>
-    <WordRanks :keywords="friend.keywords" />
+    <WordRanks :keywords="keywords" />
   </section>
   <section v-else class="empty">
     <p>未找到该好友，可能数据尚未导入。</p>

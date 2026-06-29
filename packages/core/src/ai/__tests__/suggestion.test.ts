@@ -71,6 +71,7 @@ const friend: Friend = {
   id: 'f1', name: '阿强', alias: '', rel: '其他', role: '',
   firstContact: 1700000000000, lastContact: 1730000000000, msgCount: 820, sentRatio: 65,
   peakPeriod: '深夜', maxStreak: 14, monthly: new Array(12).fill(5), userEdited: {},
+  hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0), keywords: [],
 }
 
 describe('buildFriendSuggestionPrompt', () => {
