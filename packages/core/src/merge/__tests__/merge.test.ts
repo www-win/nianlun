@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeConversations, mergeFriends } from '../merge'
+import { mergeConversations, mergeFriends, applyContactNames } from '../merge'
 import { createFriend } from '../../model/friend'
 import type { Conversation } from '../../model/types'
 
@@ -44,5 +44,45 @@ describe('mergeFriends', () => {
     const { friends, added } = mergeFriends([], [createFriend('新朋友', '新朋友')])
     expect(added).toBe(1)
     expect(friends).toHaveLength(1)
+  })
+
+  it('keeps a contact-applied name across re-import (userEdited.name)', () => {
+    const existing = createFriend('wxid_a', '张兴国') // 联系人套名后
+    existing.userEdited = { name: '张兴国' }
+    existing.msgCount = 100
+
+    const incoming = createFriend('wxid_a', 'wxid_a') // 重新导入 jsonl，name 退回 wxid
+    incoming.msgCount = 150
+
+    const { friends } = mergeFriends([existing], [incoming])
+    expect(friends[0].msgCount).toBe(150)  // 统计用新值
+    expect(friends[0].name).toBe('张兴国')  // 套用的名字保留
+  })
+})
+
+describe('applyContactNames', () => {
+  it('sets name and userEdited.name for matched friends', () => {
+    const friends = [createFriend('wxid_a', 'wxid_a'), createFriend('25032865050@chatroom', '25032865050@chatroom')]
+    const out = applyContactNames(friends, [
+      { id: 'wxid_a', name: '张兴国' },
+      { id: '25032865050@chatroom', name: '校园集市燕大24站' },
+    ])
+    expect(out[0].name).toBe('张兴国')
+    expect(out[0].userEdited.name).toBe('张兴国')
+    expect(out[1].name).toBe('校园集市燕大24站')
+    expect(out[1].userEdited.name).toBe('校园集市燕大24站')
+  })
+
+  it('leaves unmatched friends unchanged', () => {
+    const friends = [createFriend('wxid_x', 'wxid_x')]
+    const out = applyContactNames(friends, [{ id: 'wxid_other', name: '别人' }])
+    expect(out[0].name).toBe('wxid_x')
+    expect(out[0].userEdited.name).toBeUndefined()
+  })
+
+  it('does not mutate the input array elements', () => {
+    const friends = [createFriend('wxid_a', 'wxid_a')]
+    applyContactNames(friends, [{ id: 'wxid_a', name: '小明' }])
+    expect(friends[0].name).toBe('wxid_a') // 原对象不变
   })
 })

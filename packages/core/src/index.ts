@@ -17,4 +17,6 @@ export {
   extractFriendSamples, buildFriendSuggestionPrompt, parseFriendSuggestion,
 } from './ai/suggestion'
 export type { ExtractSamplesOptions, FriendSuggestion } from './ai/suggestion'
-export { mergeConversations, mergeFriends } from './merge/merge'
+export { mergeConversations, mergeFriends, applyContactNames } from './merge/merge'
+export { parseWeliveContacts, isWeliveContacts } from './parsers/welive-contacts'
+export type { ContactName } from './parsers/welive-contacts'

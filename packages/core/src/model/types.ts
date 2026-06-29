@@ -27,7 +27,7 @@ export interface Friend {
   peakPeriod: string
   maxStreak: number      // 最长连续聊天天数
   monthly: number[]      // 长度 12
-  userEdited: { role?: string; rel?: Relation; alias?: string }
+  userEdited: { role?: string; rel?: Relation; alias?: string; name?: string }
 }
 
 export interface ReportData {

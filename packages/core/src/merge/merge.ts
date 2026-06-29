@@ -45,9 +45,24 @@ export function mergeFriends(
     merged.role = old.userEdited.role ?? inc.role
     merged.rel = old.userEdited.rel ?? inc.rel
     merged.alias = old.userEdited.alias ?? inc.alias
+    merged.name = old.userEdited.name ?? inc.name // 联系人套用的名字也保留
     merged.userEdited = { ...inc.userEdited, ...old.userEdited }
     byId.set(inc.id, merged)
   })
 
   return { friends: [...byId.values()], added, updated }
+}
+
+// 用 welive 联系人对照（id → 显示名）给好友套真名；命中者设 name 与 userEdited.name
+// （记进 userEdited 以便再导入时被 mergeFriends 保留）。返回新数组，不改原对象。
+export function applyContactNames(
+  friends: Friend[],
+  names: Array<{ id: string; name: string }>,
+): Friend[] {
+  const byId = new Map(names.map((n) => [n.id, n.name]))
+  return friends.map((f) => {
+    const name = byId.get(f.id)
+    if (!name) return f
+    return { ...f, name, userEdited: { ...f.userEdited, name } }
+  })
 }
