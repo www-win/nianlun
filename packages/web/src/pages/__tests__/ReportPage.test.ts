@@ -8,7 +8,7 @@ import { useUiStore } from '../../stores/ui'
 import { createFriend } from '@nianlun/core'
 
 function makeRouter() {
-  return createRouter({ history: createMemoryHistory(), routes: ['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })) })
+  return createRouter({ history: createMemoryHistory(), routes: ['/', '/import', '/friends', '/network', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })) })
 }
 function seed() {
   const data = useDataStore()

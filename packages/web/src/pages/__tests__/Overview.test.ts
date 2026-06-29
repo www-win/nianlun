@@ -7,7 +7,7 @@ import Overview from '../Overview.vue'
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: ['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
+    routes: ['/', '/import', '/friends', '/network', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
   })
 }
 

@@ -6,7 +6,7 @@ import ImportPage from '../ImportPage.vue'
 import { useImportStore } from '../../stores/import'
 
 function makeRouter() {
-  return createRouter({ history: createMemoryHistory(), routes: ['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })) })
+  return createRouter({ history: createMemoryHistory(), routes: ['/', '/import', '/friends', '/network', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })) })
 }
 
 describe('ImportPage', () => {

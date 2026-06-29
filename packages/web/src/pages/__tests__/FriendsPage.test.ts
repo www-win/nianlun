@@ -8,7 +8,7 @@ import { createFriend } from '@nianlun/core'
 
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [
-    ...['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
+    ...['/', '/import', '/friends', '/network', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
     { path: '/friends/:id', name: 'friend-detail', component: { template: '<div/>' } },
   ] })
 }

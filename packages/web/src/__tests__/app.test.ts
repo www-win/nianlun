@@ -11,7 +11,10 @@ describe('App shell', () => {
   it('renders the overview route', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: '/', component: Overview }],
+      routes: [
+        { path: '/', component: Overview },
+        ...['/import', '/friends', '/network', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
+      ],
     })
     router.push('/')
     await router.isReady()
