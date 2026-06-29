@@ -21,6 +21,23 @@ vi.mock('../../adapters/parseClient', () => ({
   }),
 }))
 
+vi.mock('../../adapters/imageOcr', () => ({
+  isImageFile: vi.fn((f: File) => f.name.endsWith('.png')),
+  ocrImage: vi.fn(async (f: File) => {
+    if (f.name === 'bad.png') throw new Error('OCR 失败')
+    return { name: f.name, content: '2024-01-01 10:00:00 我\n你好' }
+  }),
+}))
+
+vi.mock('../settings', () => ({
+  useSettingsStore: vi.fn(() => ({
+    isConfigured: true,
+    baseUrl: '/__ai',
+    apiKey: 'test-key',
+    model: 'claude-opus-4-8',
+  })),
+}))
+
 describe('importStore', () => {
   beforeEach(async () => { setActivePinia(createPinia()); await clearAll() })
 
@@ -52,5 +69,14 @@ describe('importStore', () => {
     setActivePinia(createPinia())
     const fresh = useImportStore()
     expect(fresh.samplesFor('周彤')).toEqual([])
+  })
+
+  it('OCR 失败的图片只产生 warning，不中断整体导入', async () => {
+    const imp = useImportStore()
+    const txt = new File(['x'], 'a.txt', { type: 'text/plain' })
+    const bad = new File([''], 'bad.png', { type: 'image/png' })
+    await imp.run([txt, bad], 2025)
+    expect(imp.status).toBe('done')
+    expect(imp.warnings.some((w) => w.includes('bad.png'))).toBe(true)
   })
 })

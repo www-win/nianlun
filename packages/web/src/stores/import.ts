@@ -3,7 +3,9 @@ import { ref } from 'vue'
 import { mergeFriends } from '@nianlun/core'
 import { readTextFile } from '../adapters/fileReader'
 import { parseFiles } from '../adapters/parseClient'
+import { isImageFile, ocrImage } from '../adapters/imageOcr'
 import { useDataStore } from './data'
+import { useSettingsStore } from './settings'
 
 export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 
@@ -21,7 +23,33 @@ export const useImportStore = defineStore('import', () => {
     warnings.value = []
     error.value = ''
     try {
-      const read = await Promise.all(files.map(readTextFile))
+      const settings = useSettingsStore()
+      const ocrWarnings: string[] = []
+
+      // 分流：图片走 OCR，文本直接读取
+      const readPromises = files.map(async (file) => {
+        if (isImageFile(file)) {
+          if (!settings.isConfigured) {
+            ocrWarnings.push(`${file.name}: AI 未配置，已跳过图片`)
+            return null
+          }
+          try {
+            return await ocrImage(file, year, {
+              baseUrl: settings.baseUrl,
+              apiKey: settings.apiKey,
+              model: settings.model,
+            })
+          } catch (e) {
+            ocrWarnings.push(`${file.name}: OCR 失败 —— ${(e as Error).message}`)
+            return null
+          }
+        }
+        return readTextFile(file)
+      })
+
+      const results = await Promise.all(readPromises)
+      const read = results.filter((r) => r !== null)
+
       const outcome = await parseFiles(read, year, { onProgress: (p) => { progress.value = p } })
       const data = useDataStore()
       // 合并进已有好友,保留用户编辑
@@ -29,7 +57,7 @@ export const useImportStore = defineStore('import', () => {
       await data.setData(merged.friends, outcome.report)
       // 合并本次样本进内存（后到的覆盖同 id 的旧样本），不持久化。
       friendSamples.value = { ...friendSamples.value, ...outcome.samples }
-      warnings.value = outcome.warnings
+      warnings.value = [...ocrWarnings, ...outcome.warnings]
       status.value = 'done'
     } catch (e) {
       error.value = (e as Error).message
