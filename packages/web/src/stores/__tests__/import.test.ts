@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useImportStore } from '../import'
 import { useDataStore } from '../data'
-import { clearAll } from '../../adapters/storage'
+import { clearAll, saveSamples, loadSamples } from '../../adapters/storage'
 
 // stub parseClient so no real worker is needed
 vi.mock('../../adapters/parseClient', () => ({
@@ -61,14 +61,21 @@ describe('importStore', () => {
     expect(imp.samplesFor('不存在')).toEqual([])
   })
 
-  it('样本不持久化：刷新（新 store 实例）后样本为空', async () => {
+  it('导入后样本持久化到 IndexedDB', async () => {
     const imp = useImportStore()
     const file = new File(['x'], 'a.txt', { type: 'text/plain' })
     await imp.run([file], 2025)
-    // 模拟刷新：重建 pinia，import store 重新实例化
+    expect(await loadSamples()).toEqual({ '周彤': ['对方：在吗', '我：在的'] })
+  })
+
+  it('hydrateSamples 从 IndexedDB 恢复样本（刷新后 AI 建议仍可用）', async () => {
+    await saveSamples({ '周彤': ['对方：在吗'] })
+    // 模拟刷新：重建 pinia，import store 重新实例化后注水
     setActivePinia(createPinia())
     const fresh = useImportStore()
-    expect(fresh.samplesFor('周彤')).toEqual([])
+    expect(fresh.samplesFor('周彤')).toEqual([]) // 注水前为空
+    await fresh.hydrateSamples()
+    expect(fresh.samplesFor('周彤')).toEqual(['对方：在吗'])
   })
 
   it('OCR 失败的图片只产生 warning，不中断整体导入', async () => {

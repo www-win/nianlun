@@ -3,6 +3,7 @@ import { ref, toRaw } from 'vue'
 import { mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts } from '@nianlun/core'
 import { readTextFile } from '../adapters/fileReader'
 import { parseFiles } from '../adapters/parseClient'
+import { saveSamples, loadSamples } from '../adapters/storage'
 import { isImageFile, ocrImage } from '../adapters/imageOcr'
 import { useDataStore } from './data'
 import { useSettingsStore } from './settings'
@@ -14,7 +15,7 @@ export const useImportStore = defineStore('import', () => {
   const progress = ref(0)
   const warnings = ref<string[]>([])
   const error = ref('')
-  // 聊天样本仅存内存（键为 friend id），绝不写入 IndexedDB；刷新即失。
+  // 有界的聊天样本（键为 friend id），持久化到 IndexedDB,供刷新后的 AI 建议使用。
   const friendSamples = ref<Record<string, string[]>>({})
 
   async function run(files: File[], year: number) {
@@ -70,8 +71,9 @@ export const useImportStore = defineStore('import', () => {
         // toRaw：避免把 Vue 响应式代理喂给 applyContactNames(浅展开后嵌套数组仍是代理,无法结构化克隆入库)
         const named = applyContactNames(merged.friends.map(toRaw), contactNames)
         await data.setData(named, outcome.report)
-        // 合并本次样本进内存（后到的覆盖同 id 的旧样本），不持久化。
+        // 合并本次样本（后到的覆盖同 id 的旧样本）并持久化（JSON 深拷贝去掉响应式代理,便于结构化克隆入库）。
         friendSamples.value = { ...friendSamples.value, ...outcome.samples }
+        await saveSamples(JSON.parse(JSON.stringify(friendSamples.value)))
         warnings.value = [...ocrWarnings, ...outcome.warnings, ...contactWarn(appliedCount(named))]
       } else {
         // 只导了 contacts.json：给已有好友套名
@@ -101,5 +103,10 @@ export const useImportStore = defineStore('import', () => {
     return friendSamples.value[friendId] ?? []
   }
 
-  return { status, progress, warnings, error, friendSamples, run, reset, samplesFor }
+  // 启动时从 IndexedDB 恢复样本（刷新后 AI 建议仍可用）。
+  async function hydrateSamples() {
+    friendSamples.value = await loadSamples()
+  }
+
+  return { status, progress, warnings, error, friendSamples, run, reset, samplesFor, hydrateSamples }
 })

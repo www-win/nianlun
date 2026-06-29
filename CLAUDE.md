@@ -78,7 +78,7 @@ pnpm --filter @nianlun/core exec vitest run -t "mergeFriends"
 web 层只负责搬运、展示和存储数据 —— 它从不计算。所有重逻辑都委托给 `core`，并且 **`core` 只会在 Web Worker 内部被调用**，从不在主线程上调用。
 
 - `worker/parse.worker.ts` + `adapters/parseClient.ts` —— `core` 的 parse/aggregate/report 在 Worker 中运行；`parseClient.parseFiles()` 是对消息往返的 promise 封装。`parseClient` 接受一个可注入的 `createWorker`，因此无需真实 Worker 即可测试。**`ParseOutcome` 故意不把 `Conversation[]` 携带到主线程**（原始聊天记录绝不能被持久化）。
-- `adapters/storage.ts` —— 通过 `idb` 使用 IndexedDB。**只持久化聚合后的 `Friend[]` + `ReportData`，绝不存原始聊天文本。** Pinia 的响应式代理无法被结构化克隆，因此 data store 在每次 `put` 之前都会调用 Vue 的 `toRaw()`。
+- `adapters/storage.ts` —— 通过 `idb` 使用 IndexedDB。持久化聚合后的 `Friend[]` + `ReportData`，**以及每个好友少量有界的聊天样本**（`saveSamples`/`loadSamples`，存于 `meta` 库的 `samples` 键，供刷新后的 AI 建议使用）。**完整的原始聊天（`Conversation[]`）仍绝不落盘**，只持久化有界样本。Pinia 的响应式代理无法被结构化克隆，因此入库前需 `toRaw()`（样本用 JSON 深拷贝去代理）。
 - `stores/`（Pinia）—— `data`（好友 + 报告，页面的唯一数据源；编辑经由 `updateFriend`，它会记录 `userEdited` 并持久化）、`import`（`run(files, year)` 编排 读取 → worker → 合并进已有数据 → 存储）、`ui`（报告主题）。
 - `pages/` —— `Overview`、`ImportPage`（驱动 `importStore.run`）、`FriendsPage`（表格/搜索/排序/行内编辑/CSV 导出）、`ReportPage`（海报 + 主题 + `window.print`）。页面必须从 stores 读取，编辑要经由 `updateFriend` —— 绝不直接修改 store 数据或直接调用 `core`。
 - 应用启动时（`main.ts`）会在挂载前调用 `useDataStore().hydrate()`，以便重新加载之前导入的数据。
