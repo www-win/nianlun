@@ -42,4 +42,14 @@ describe('ocrImage', () => {
     const out = await ocrImage(file, 2024, settings, fetchImpl as any)
     expect(out.content).toBe('2024-05-01 09:00:00 我\n在吗')
   })
+
+  it('strips fences with no trailing newline before closing ```', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ content: [{ type: 'text', text: '```\n2024-05-01 09:00:00 我\n在吗```' }] }),
+    }))
+    const file = new File([new Uint8Array([1])], 'c.png', { type: 'image/png' })
+    const out = await ocrImage(file, 2024, settings, fetchImpl as any)
+    expect(out.content).toBe('2024-05-01 09:00:00 我\n在吗')
+  })
 })

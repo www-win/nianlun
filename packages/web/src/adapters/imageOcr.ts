@@ -29,7 +29,7 @@ function buildPrompt(year: number): string {
 
 function stripFences(text: string): string {
   const t = text.trim()
-  const fenced = t.match(/^```[\w]*\n([\s\S]*?)\n```$/)
+  const fenced = t.match(/^```[\w]*\r?\n([\s\S]*?)\r?\n?```$/)
   return (fenced ? fenced[1] : t).trim()
 }
 
