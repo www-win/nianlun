@@ -95,13 +95,14 @@ mergeKeywords(friends: Friend[], topN: number): Array<{word,count}>  // 合并 c
 
 ### 6.2 全局：`ReportPage.vue`
 
-- 在现有年度海报内新增三图区块，数据来自对 `data.friends` 的派生。
+- 海报内新增"时段柱状图 + 周×时热力图"两张图，数据来自对 `data.friends` 的 `sumHourly`/`sumWeekHour` 派生。
+- **全局词频复用海报既有的"年度关键词"区块**（它已渲染 `report.keywords`，`buildReport` 填充后自动有内容），不重复加 WordRanks。`WordRanks` 组件仅用于单好友详情页。
 
 ### 6.3 单好友：独立详情页路由
 
 - 新增路由 `{ path: '/friends/:id', name: 'friend-detail', component: FriendDetail }`（`router/index.ts`）。
 - 新建 `pages/FriendDetail.vue`：按 `route.params.id` 从 `useDataStore().friends` 取该好友，展示其 `hourly`/`weekHour`/`keywords` 三图 + 基本信息；好友不存在时给空态。
-- `FriendsPage.vue` 表格行可点击跳转到 `/friends/:id`（不内嵌图表，避免一屏几百行各塞三图）。
+- **`FriendsPage.vue` 已有的"点击行打开详情抽屉"保持不变**（抽屉继续承载全年分布/AI 分析/AI 建议/编辑）。在抽屉内新增一个"查看完整图表"入口（`RouterLink`），跳转到 `/friends/:id`。新页只承载三张新图，不重复抽屉里的编辑/AI 功能。
 
 ## 七、测试
 
