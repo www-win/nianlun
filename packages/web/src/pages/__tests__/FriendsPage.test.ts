@@ -7,12 +7,15 @@ import { useDataStore } from '../../stores/data'
 import { createFriend } from '@nianlun/core'
 
 function makeRouter() {
-  return createRouter({ history: createMemoryHistory(), routes: ['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })) })
+  return createRouter({ history: createMemoryHistory(), routes: [
+    ...['/', '/import', '/friends', '/report'].map((p) => ({ path: p, component: { template: '<div/>' } })),
+    { path: '/friends/:id', name: 'friend-detail', component: { template: '<div/>' } },
+  ] })
 }
 function seed() {
   const data = useDataStore()
-  const a = createFriend('周彤', '周彤'); a.rel = '挚友'; a.role = '大学室友'; a.msgCount = 9670
-  const b = createFriend('陈志远', '陈志远'); b.rel = '同事'; b.msgCount = 12880
+  const a = createFriend('周彤', '周彤'); a.rel = '挚友'; a.role = '大学室友'; a.msgCount = 12880
+  const b = createFriend('陈志远', '陈志远'); b.rel = '同事'; b.msgCount = 9670
   data.friends = [a, b]
   data.report = { year: 2025, totalMessages: 22550, friendCount: 2, activeDays: 100, topContacts: [], latestMessage: null, keywords: [], relationBreakdown: [] }
   return data
@@ -44,5 +47,14 @@ describe('FriendsPage', () => {
     await wrapper.find('input[type="search"]').setValue('周彤')
     expect(wrapper.findAll('tbody tr').length).toBe(1)
     expect(wrapper.text()).toContain('周彤')
+  })
+
+  it('抽屉里有跳转到完整图表页的入口', async () => {
+    const router = makeRouter(); router.push('/friends'); await router.isReady()
+    seed()
+    const wrapper = mount(FriendsPage, { global: { plugins: [router] } })
+    await wrapper.find('tbody tr').trigger('click') // 打开抽屉
+    const link = wrapper.find('.drawer a[href="/friends/周彤"]')
+    expect(link.exists()).toBe(true)
   })
 })

@@ -352,6 +352,11 @@ function handleRoleKey(f: Friend, e: KeyboardEvent) {
         <div class="d-field"><div class="lab">活跃时段</div><div class="val">{{ drawerFriend.peakPeriod || '—' }}</div></div>
         <div class="d-field"><div class="lab">最长连续聊天</div><div class="val num">{{ drawerFriend.maxStreak }} 天</div></div>
       </div>
+      <RouterLink
+        v-if="drawerFriend"
+        class="btn btn-sm full-charts-link"
+        :to="`/friends/${drawerFriend.id}`"
+      >查看完整图表 →</RouterLink>
 
       <div class="d-sec-title">全年消息分布</div>
       <div class="spark">
