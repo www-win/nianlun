@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { mergeFriends } from '@nianlun/core'
+import { ref, toRaw } from 'vue'
+import { mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts } from '@nianlun/core'
 import { readTextFile } from '../adapters/fileReader'
 import { parseFiles } from '../adapters/parseClient'
 import { isImageFile, ocrImage } from '../adapters/imageOcr'
@@ -49,16 +49,40 @@ export const useImportStore = defineStore('import', () => {
       })
 
       const results = await Promise.all(readPromises)
-      const read = results.filter((r) => r !== null)
+      const read = results.filter((r) => r !== null) as { name: string; content: string }[]
 
-      const outcome = await parseFiles(read, year, { onProgress: (p) => { progress.value = p } })
+      // 分流：welive 联系人表(contacts.json)→名字对照；其余→聊天记录走 worker 解析
+      const contactNames = read
+        .filter((r) => isWeliveContacts(r.content.slice(0, 2000)))
+        .flatMap((r) => parseWeliveContacts(r.content))
+      const chatFiles = read.filter((r) => !isWeliveContacts(r.content.slice(0, 2000)))
+      const appliedCount = (fs: { id: string }[]) => {
+        const ids = new Set(contactNames.map((n) => n.id))
+        return fs.filter((f) => ids.has(f.id)).length
+      }
+      const contactWarn = (n: number) => (contactNames.length ? [`已套用联系人名字 ${n} 个`] : [])
+
       const data = useDataStore()
-      // 合并进已有好友,保留用户编辑
-      const merged = mergeFriends(data.friends, outcome.friends)
-      await data.setData(merged.friends, outcome.report)
-      // 合并本次样本进内存（后到的覆盖同 id 的旧样本），不持久化。
-      friendSamples.value = { ...friendSamples.value, ...outcome.samples }
-      warnings.value = [...ocrWarnings, ...outcome.warnings]
+      if (chatFiles.length || contactNames.length === 0) {
+        const outcome = await parseFiles(chatFiles, year, { onProgress: (p) => { progress.value = p } })
+        // 合并进已有好友,保留用户编辑;再用联系人表套真名(无联系人则 no-op)
+        const merged = mergeFriends(data.friends, outcome.friends)
+        // toRaw：避免把 Vue 响应式代理喂给 applyContactNames(浅展开后嵌套数组仍是代理,无法结构化克隆入库)
+        const named = applyContactNames(merged.friends.map(toRaw), contactNames)
+        await data.setData(named, outcome.report)
+        // 合并本次样本进内存（后到的覆盖同 id 的旧样本），不持久化。
+        friendSamples.value = { ...friendSamples.value, ...outcome.samples }
+        warnings.value = [...ocrWarnings, ...outcome.warnings, ...contactWarn(appliedCount(named))]
+      } else {
+        // 只导了 contacts.json：给已有好友套名
+        if (!data.report) {
+          throw new Error('请先导入聊天记录,再导入联系人 contacts.json。')
+        }
+        const named = applyContactNames(data.friends.map(toRaw), contactNames)
+        await data.setData(named, toRaw(data.report))
+        progress.value = 1
+        warnings.value = [...ocrWarnings, ...contactWarn(appliedCount(data.friends))]
+      }
       status.value = 'done'
     } catch (e) {
       error.value = (e as Error).message

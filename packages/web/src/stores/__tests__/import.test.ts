@@ -79,4 +79,31 @@ describe('importStore', () => {
     expect(imp.status).toBe('done')
     expect(imp.warnings.some((w) => w.includes('bad.png'))).toBe(true)
   })
+
+  const contactsJson = JSON.stringify([
+    { username: '周彤', user_name: '周彤', remark: '周老师', nick_name: '彤彤', alias: '', local_type: 1 },
+  ])
+
+  it('聊天文件 + contacts.json 一起导入：好友显示真名', async () => {
+    const imp = useImportStore()
+    const chat = new File(['x'], 'a.txt', { type: 'text/plain' })
+    const contacts = new File([contactsJson], 'contacts.json', { type: 'application/json' })
+    await imp.run([chat, contacts], 2025)
+    expect(imp.status).toBe('done')
+    const data = useDataStore()
+    expect(data.friends).toHaveLength(1)
+    expect(data.friends[0].name).toBe('周老师')          // remark 优先
+    expect(data.friends[0].userEdited.name).toBe('周老师') // 记入 userEdited
+  })
+
+  it('只导 contacts.json：给已有好友套名', async () => {
+    const imp = useImportStore()
+    await imp.run([new File(['x'], 'a.txt', { type: 'text/plain' })], 2025) // 先有好友 周彤(name=周彤)
+    const data = useDataStore()
+    expect(data.friends[0].name).toBe('周彤')
+    const contacts = new File([contactsJson], 'contacts.json', { type: 'application/json' })
+    await imp.run([contacts], 2025)
+    expect(imp.status).toBe('done')
+    expect(data.friends[0].name).toBe('周老师')
+  })
 })
