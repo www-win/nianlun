@@ -1,4 +1,5 @@
 import type { Conversation, Friend, ReportData, Relation } from '../model/types'
+import { mergeKeywords } from './global'
 
 export function buildReport(
   conversations: Conversation[],
@@ -39,7 +40,7 @@ export function buildReport(
     activeDays: days.size,
     topContacts,
     latestMessage: latest,
-    keywords: [],
+    keywords: mergeKeywords(friends, 50),
     relationBreakdown,
   }
 }
