@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { generateText, extractFromImage, type AiSettings } from '../aiClient'
 
 const settings: AiSettings = { baseUrl: 'https://api.x.com', apiKey: 'sk-1', model: 'claude-opus-4-8' }

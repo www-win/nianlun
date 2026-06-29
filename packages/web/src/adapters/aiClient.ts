@@ -1,4 +1,4 @@
-﻿export interface AiSettings {
+export interface AiSettings {
   baseUrl: string
   apiKey: string
   model: string
