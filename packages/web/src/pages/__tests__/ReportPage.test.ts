@@ -46,4 +46,16 @@ describe('ReportPage', () => {
     expect(ui.reportTheme).toBe('ink')
     expect(wrapper.find('.poster').attributes('data-theme')).toBe('ink')
   })
+
+  it('渲染全局时段柱状图与周×时热力图，并展示年度关键词', async () => {
+    const data = useDataStore()
+    const f = createFriend('A', 'A'); f.msgCount = 10; f.hourly[9] = 4; f.weekHour[34] = 4
+    data.friends = [f]
+    data.report = { year: 2025, totalMessages: 10, friendCount: 1, activeDays: 1, topContacts: [], latestMessage: null, keywords: [{ word: '开会', count: 4 }], relationBreakdown: [] }
+    const router = makeRouter(); router.push('/report'); await router.isReady()
+    const w = mount(ReportPage, { global: { plugins: [router] } })
+    expect(w.findAll('[data-h]')).toHaveLength(24)      // HourBars
+    expect(w.findAll('[data-cell]')).toHaveLength(168)  // 热力图
+    expect(w.text()).toContain('开会')                   // 既有年度关键词区块
+  })
 })

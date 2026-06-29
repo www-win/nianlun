@@ -13,7 +13,9 @@ import { generateText } from '../../adapters/aiClient'
 const friend: Friend = {
   id: 'f1', name: '阿强', alias: '', rel: '其他', role: '',
   firstContact: 0, lastContact: 0, msgCount: 100, sentRatio: 50,
-  peakPeriod: '', maxStreak: 0, monthly: new Array(12).fill(0), userEdited: {},
+  peakPeriod: '', maxStreak: 0, monthly: new Array(12).fill(0),
+  hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0), keywords: [],
+  userEdited: {},
 }
 
 function configure() {

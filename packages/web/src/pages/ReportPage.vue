@@ -5,13 +5,17 @@ import { useUiStore } from '../stores/ui'
 import TheTopbar from '../components/TheTopbar.vue'
 import TheFooter from '../components/TheFooter.vue'
 import AiPanel from '../components/AiPanel.vue'
-import { buildReportCopyPrompt } from '@nianlun/core'
+import { buildReportCopyPrompt, sumHourly, sumWeekHour } from '@nianlun/core'
+import HourBars from '../components/charts/HourBars.vue'
+import WeekHourHeatmap from '../components/charts/WeekHourHeatmap.vue'
 
 const data = useDataStore()
 const ui = useUiStore()
 const report = computed(() => data.report)
 const nameOf = (id: string) => data.friends.find((f) => f.id === id)?.name ?? id
 const maxStreak = computed(() => data.friends.reduce((m, f) => Math.max(m, f.maxStreak), 0))
+const globalHourly = computed(() => sumHourly(data.friends))
+const globalWeekHour = computed(() => sumWeekHour(data.friends))
 const themes = [
   { key: 'jade', label: '玉绿' }, { key: 'dusk', label: '暮橙' }, { key: 'ink', label: '夜墨' },
 ] as const
@@ -158,6 +162,18 @@ function reportPrompt() {
                 <span class="pc">{{ r.percent }}%</span>
               </div>
             </div>
+          </section>
+
+          <!-- global hour chart -->
+          <section class="p-sec">
+            <div class="p-kicker">一天里的活跃时段</div>
+            <HourBars :hourly="globalHourly" />
+          </section>
+
+          <!-- global week×hour heatmap -->
+          <section class="p-sec">
+            <div class="p-kicker">一周的活跃节律</div>
+            <WeekHourHeatmap :week-hour="globalWeekHour" />
           </section>
 
           <!-- closing -->
