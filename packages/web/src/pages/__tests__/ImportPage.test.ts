@@ -42,5 +42,6 @@ describe('ImportPage', () => {
     expect(input.attributes('accept')).toContain('.png')
     expect(input.attributes('accept')).toContain('.jpg')
     expect(wrapper.text()).toContain('上传')
+    expect(wrapper.text()).toContain('不再是纯本地处理')
   })
 })

@@ -70,7 +70,9 @@ function stageClass(index: number) {
               <span class="tag">.txt</span><span class="tag">.html</span><span class="tag">.csv</span><span class="tag">.png</span><span class="tag">.jpg</span><span class="tag">.webp</span>
             </div>
             <div class="or">最大约 500 MB · 多个文件可一次拖入</div>
-            <div class="privacy-notice">截图文件会上传至 AI 服务进行识别，不含其他数据。</div>
+            <div class="or" style="margin-top:6px; color:#b4690e;">
+              导入聊天截图（.png/.jpg）会调用 AI 识别，图片将上传到所配置的 AI 服务——不再是纯本地处理。
+            </div>
           </div>
           <input
             ref="fileInput"
@@ -169,7 +171,7 @@ function stageClass(index: number) {
             本地化承诺
           </h4>
           <p style="font-size:12.5px; color:var(--accent-strong); margin-top:8px; line-height:1.6;">
-            导入的文件只在你的设备内存中解析，不上传任何服务器。关闭页面后，未保存的解析结果即清除。
+            文本聊天记录只在你的设备内存中解析，不上传任何服务器；仅当你导入聊天截图时，图片会发送到所配置的 AI 服务做识别。关闭页面后，未保存的解析结果即清除。
           </p>
         </section>
       </aside>
