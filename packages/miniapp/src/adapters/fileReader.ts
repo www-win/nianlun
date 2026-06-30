@@ -5,7 +5,7 @@ export interface WxFileIO {
   unzip(zipPath: string): Promise<{ name: string; content: string }[]>
 }
 
-const TEXT_RE = /\.(csv|json|txt|html?)$/i
+const TEXT_RE = /\.(csv|json|jsonl|ndjson|txt|html?)$/i
 const ZIP_RE = /\.zip$/i
 // 微信只能解压 ZIP；这些压缩格式不支持，给出明确提示而非含糊的「无法识别」。
 const OTHER_ARCHIVE_RE = /\.(rar|7z|tar|gz|tgz|bz2|xz)$/i
@@ -67,7 +67,7 @@ const wxIO: WxFileIO = {
           walk(target)
           if (out.length === 0) {
             const list = seen.length ? seen.slice(0, 20).join('、') : '（空）'
-            reject(new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.txt）。内含：${list}`))
+            reject(new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.jsonl/.txt）。内含：${list}`))
           } else {
             resolve(out)
           }
