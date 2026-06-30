@@ -84,7 +84,7 @@ async function onImport() {
         </view>
         <view class="step">
           <text class="sn">4</text>
-          <text class="st">回到这里点「从文件传输助手导入」，选中该文件</text>
+          <text class="st">回到这里点「从文件传输助手导入」，选中该文件（也可直接选一个 zip 压缩包，会自动解压并导入里面的全部文件）</text>
         </view>
         <view class="note">
           想让好友/群显示真实名字？把 WeLive 的 contacts.json 也发到文件传输助手，再导入一次即可自动套用真名。

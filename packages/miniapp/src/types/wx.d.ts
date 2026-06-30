@@ -1,11 +1,20 @@
 // 仅声明本项目用到的 wx API，避免引入完整 @types/wechat。
 export interface ChosenFile { path: string; name: string; size: number }
+export interface WxStat { isDirectory(): boolean }
 export interface FileSystemManager {
   readFile(opts: {
     filePath: string; encoding?: string
     success?: (res: { data: string }) => void
     fail?: (err: { errMsg: string }) => void
   }): void
+  unzip(opts: {
+    zipFilePath: string; targetPath: string
+    success?: () => void
+    fail?: (err: { errMsg: string }) => void
+  }): void
+  readdirSync(dirPath: string): string[]
+  statSync(path: string): WxStat
+  readFileSync(path: string, encoding: string): string
 }
 declare global {
   const wx: {
@@ -15,6 +24,7 @@ declare global {
       fail?: (err: { errMsg: string }) => void
     }): void
     getFileSystemManager(): FileSystemManager
+    env: { USER_DATA_PATH: string }
     setStorageSync(key: string, data: unknown): void
     getStorageSync(key: string): unknown
     removeStorageSync(key: string): void
