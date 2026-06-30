@@ -19,6 +19,7 @@ declare global {
     getStorageSync(key: string): unknown
     removeStorageSync(key: string): void
     cloud: {
+      init(opts: { env: string }): void
       callFunction(opts: { name: string; data: unknown }): Promise<{ result: unknown }>
     }
     request(opts: {

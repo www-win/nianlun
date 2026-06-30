@@ -20,7 +20,8 @@ exports.main = async (event) => {
     if (!resp.ok) return { error: `AI 服务返回 HTTP ${resp.status}` }
     const data = await resp.json()
     const block = Array.isArray(data.content) ? data.content.find((b) => b.type === 'text') : null
-    return { text: (block && block.text) || '' }
+    if (!block || !block.text) return { error: 'AI 返回内容为空' }
+    return { text: block.text }
   } catch (e) {
     return { error: '云函数调用 AI 失败：' + e.message }
   }

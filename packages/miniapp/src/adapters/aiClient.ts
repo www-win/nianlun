@@ -27,6 +27,7 @@ const cloudTransport: Transport = async (prompt, maxTokens) => {
 }
 
 // —— 后端 B：公司服务器 HTTPS 反代 —— //
+// __AI_PROXY_URL__ 必须由构建期 vite define 注入（非运行时），后端 B 才生效。
 const PROXY_URL = (globalThis as any).__AI_PROXY_URL__ ?? ''
 const proxyTransport: Transport = (prompt, maxTokens) => new Promise((resolve, reject) => {
   // 惰性访问 wx，避免模块顶层触发
