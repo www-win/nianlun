@@ -35,6 +35,13 @@ describe('buildReportCopyPrompt', () => {
     const p = buildReportCopyPrompt(report, aliased)
     expect(p).toContain('明哥')
   })
+
+  it('把好友备注（role）带进提示词，供 AI 参考', () => {
+    const withNote = [{ ...friends[0], role: '大学室友' }]
+    const p = buildReportCopyPrompt(report, withNote)
+    expect(p).toContain('大学室友')
+    expect(p).toContain('备注')
+  })
 })
 
 const friendForAnalysis: Friend = {
