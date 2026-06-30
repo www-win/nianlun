@@ -7,7 +7,7 @@ onLaunch(() => {
   // @ts-ignore wx 由微信小程序运行时提供
   if (typeof wx !== 'undefined' && wx.cloud) {
     // @ts-ignore
-    wx.cloud.init({ env: 'your-cloud-env-id' })
+    wx.cloud.init({ env: 'cloud1-d4gzww8dp909b47cb' })
   }
   useDataStore().hydrate()
 })
