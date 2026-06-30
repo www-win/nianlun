@@ -62,6 +62,11 @@ async function onImport() {
       <view v-else-if="imp.status === 'error'" class="status err">
         导入失败：{{ imp.error }}
       </view>
+
+      <view v-if="imp.status === 'done' && imp.warnings.length" class="warns">
+        <view v-for="(w, i) in imp.warnings.slice(0, 8)" :key="i" class="warn-item">· {{ w }}</view>
+        <view v-if="imp.warnings.length > 8" class="warn-item muted">… 共 {{ imp.warnings.length }} 条</view>
+      </view>
     </view>
 
     <view class="card help" @click="showHelp = !showHelp">
@@ -131,6 +136,8 @@ async function onImport() {
 .status.ok { font-size: 27rpx; color: var(--accent-strong); font-weight: 550; }
 .status.ok .warn { color: var(--faint); font-weight: 400; }
 .status.err { font-size: 27rpx; color: var(--danger); }
+.warns { margin-top: 18rpx; padding: 18rpx 22rpx; background: var(--surface-2); border-radius: 14rpx; }
+.warn-item { font-size: 22rpx; color: var(--muted); line-height: 1.7; word-break: break-all; }
 
 .help { margin-top: 28rpx; padding: 32rpx 36rpx; }
 .help-head { display: flex; align-items: center; justify-content: space-between; }
