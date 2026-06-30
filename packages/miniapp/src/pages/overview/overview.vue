@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { sumWeekHour } from '@nianlun/core'
 import { useDataStore } from '../../stores/data'
+import { wordCloudItems, weekHourHeatmap } from '../../lib/insights'
 
 const data = useDataStore()
 
@@ -8,6 +10,19 @@ const REL_COLORS: Record<string, string> = {
   家人: '#d96a5a', 挚友: '#43a86a', 同事: '#5a7fd0', 同学: '#cf9a36', 客户: '#b066b0', 其他: '#8a8f99',
 }
 const relColor = (r: string) => REL_COLORS[r] || '#8a8f99'
+
+// 高频词标签云：字号/深浅按 tier（1–5）
+const FONT = { 1: 24, 2: 28, 3: 33, 4: 39, 5: 46 } as Record<number, number>
+const OPACITY = { 1: 0.45, 2: 0.6, 3: 0.72, 4: 0.86, 5: 1 } as Record<number, number>
+const words = computed(() => wordCloudItems(data.report?.keywords ?? []))
+
+// 活跃时段热力图（周一→周日 × 24 小时）
+const heat = computed(() => weekHourHeatmap(sumWeekHour(data.friends)))
+const HOUR_TICKS = [0, 6, 12, 18, 23]
+function cellAlpha(count: number): number {
+  if (heat.value.max === 0) return 0
+  return count === 0 ? 0 : 0.12 + (count / heat.value.max) * 0.88
+}
 
 const stats = computed(() => {
   const r = data.report
@@ -90,6 +105,40 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
           </view>
         </view>
       </view>
+
+      <view v-if="words.length" class="card block">
+        <text class="block-t">高频词</text>
+        <view class="cloud">
+          <text
+            v-for="w in words" :key="w.word"
+            class="word"
+            :style="{ fontSize: FONT[w.tier] + 'rpx', opacity: OPACITY[w.tier] }"
+          >{{ w.word }}</text>
+        </view>
+      </view>
+
+      <view v-if="heat.max > 0" class="card block">
+        <text class="block-t">活跃时段</text>
+        <view class="hm">
+          <view class="hm-axis">
+            <text class="hm-corner"></text>
+            <view class="hm-ticks">
+              <text v-for="h in 24" :key="h" class="hm-tick">{{ HOUR_TICKS.includes(h - 1) ? (h - 1) : '' }}</text>
+            </view>
+          </view>
+          <view v-for="row in heat.rows" :key="row.label" class="hm-row">
+            <text class="hm-day">{{ row.label }}</text>
+            <view class="hm-cells">
+              <view
+                v-for="(c, i) in row.cells" :key="i"
+                class="hm-cell"
+                :style="{ backgroundColor: 'rgba(16,163,122,' + cellAlpha(c) + ')' }"
+              ></view>
+            </view>
+          </view>
+        </view>
+        <text v-if="heat.peak" class="hm-peak muted">最活跃：周{{ heat.peak.label }} {{ heat.peak.hour }} 点（{{ heat.peak.count }} 条）</text>
+      </view>
     </template>
   </view>
 </template>
@@ -128,4 +177,18 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 .leg { display: flex; align-items: center; }
 .dot { width: 18rpx; height: 18rpx; border-radius: 50%; margin-right: 10rpx; }
 .leg-t { font-size: 24rpx; color: var(--muted); }
+
+/* 高频词标签云 */
+.cloud { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16rpx 24rpx; margin-top: 24rpx; }
+.word { color: var(--accent-strong); font-weight: 600; line-height: 1.2; }
+
+/* 活跃时段热力图 */
+.hm { margin-top: 24rpx; }
+.hm-axis, .hm-row { display: flex; align-items: center; }
+.hm-row { margin-top: 6rpx; }
+.hm-corner, .hm-day { flex: none; width: 40rpx; font-size: 22rpx; color: var(--faint); text-align: center; }
+.hm-ticks, .hm-cells { flex: 1; display: flex; gap: 4rpx; }
+.hm-tick { flex: 1; font-size: 18rpx; color: var(--faint); text-align: center; }
+.hm-cell { flex: 1; height: 26rpx; border-radius: 4rpx; background: var(--surface-2); }
+.hm-peak { display: block; margin-top: 20rpx; font-size: 23rpx; }
 </style>
