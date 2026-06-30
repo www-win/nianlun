@@ -24,9 +24,20 @@ export function createImportStore(deps: Deps = {}) {
       status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''
       try {
         const data = useData()
+        const prevReport = data.report
         const outcome = parseLocal(files, year, (p) => { progress.value = p })
         const merged = mergeFriends(data.friends, outcome.friends)
-        await data.setData(merged.friends, outcome.report)
+        // 报告的计数维度从「合并后的全部好友」重算，保证概览/报告与好友列表一致，
+        // 并且一次「没解析出聊天记录」的导入不会用空报告清零已有数据。
+        // activeDays/最新消息无法跨次精确并集，取已有报告与本次的较优值。
+        const report = {
+          ...outcome.report,
+          year,
+          friendCount: merged.friends.length,
+          totalMessages: merged.friends.reduce((sum, f) => sum + (f.msgCount || 0), 0),
+          activeDays: Math.max(prevReport?.activeDays ?? 0, outcome.report.activeDays),
+        }
+        await data.setData(merged.friends, report)
         const prevSamples = storage.loadSamples()
         storage.saveSamples({ ...prevSamples, ...outcome.samples })
         warnings.value = outcome.warnings
