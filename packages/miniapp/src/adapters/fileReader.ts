@@ -53,15 +53,24 @@ const wxIO: WxFileIO = {
       success: () => {
         try {
           const out: { name: string; content: string }[] = []
+          const seen: string[] = []
           const walk = (dir: string) => {
             for (const name of fs.readdirSync(dir)) {
               const p = `${dir}/${name}`
               if (fs.statSync(p).isDirectory()) walk(p)
-              else if (TEXT_RE.test(name)) out.push({ name, content: fs.readFileSync(p, 'utf8') })
+              else {
+                seen.push(name)
+                if (TEXT_RE.test(name)) out.push({ name, content: fs.readFileSync(p, 'utf8') })
+              }
             }
           }
           walk(target)
-          resolve(out)
+          if (out.length === 0) {
+            const list = seen.length ? seen.slice(0, 20).join('、') : '（空）'
+            reject(new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.txt）。内含：${list}`))
+          } else {
+            resolve(out)
+          }
         } catch (e) {
           reject(new Error(`读取压缩包内容失败：${(e as Error).message}`))
         }
