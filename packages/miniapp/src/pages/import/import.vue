@@ -77,7 +77,7 @@ async function onImport() {
       <view v-if="showHelp" class="steps">
         <view class="step">
           <text class="sn">1</text>
-          <text class="st">手机微信 → 设置 → 通用 → 聊天记录迁移与备份 → 迁移到电脑微信</text>
+          <text class="st">手机微信 → 我 → 设置 → 聊天记录管理 → 导入与导出 → 导出到电脑</text>
         </view>
         <view class="step">
           <text class="sn">2</text>
