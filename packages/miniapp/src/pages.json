@@ -1,0 +1,16 @@
+{
+  "pages": [
+    { "path": "pages/import/import", "style": { "navigationBarTitleText": "导入" } },
+    { "path": "pages/overview/overview", "style": { "navigationBarTitleText": "概览" } },
+    { "path": "pages/friends/friends", "style": { "navigationBarTitleText": "好友" } },
+    { "path": "pages/report/report", "style": { "navigationBarTitleText": "年度报告" } }
+  ],
+  "tabBar": {
+    "list": [
+      { "pagePath": "pages/import/import", "text": "导入" },
+      { "pagePath": "pages/overview/overview", "text": "概览" },
+      { "pagePath": "pages/friends/friends", "text": "好友" },
+      { "pagePath": "pages/report/report", "text": "报告" }
+    ]
+  }
+}
