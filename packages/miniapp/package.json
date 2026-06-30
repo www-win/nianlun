@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@nianlun/core": "workspace:*",
-    "pinia": "^2.1.0"
+    "pinia": "^2.1.0",
+    "vue": "^3.5.38"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
