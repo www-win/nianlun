@@ -37,6 +37,21 @@ describe('import store', () => {
     expect(imp.warnings.length).toBeGreaterThan(0)
   })
 
+  it('导入 contacts.json 给已有好友套用真实名字', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const useImport = createImportStore({ useData, storage: s })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    const fid = useData().friends[0].id
+    // welive contacts.json：username → nick_name（群名）/ remark
+    const contacts = `[{"username":"${fid}","nick_name":"真名群","local_type":2}]`
+    await imp.run([{ name: 'contacts.json', content: contacts }], 2025)
+    expect(useData().friends[0].name).toBe('真名群')
+    expect(useData().report?.totalMessages).toBeGreaterThan(0) // 报告不被联系人导入清零
+    expect(imp.warnings.some((w) => w.includes('已套用'))).toBe(true)
+  })
+
   it('第二次导入空/不可识别文件不会清零已有报告，且报告与好友列表一致', async () => {
     const s = memStorage()
     const useData = createDataStore(s)

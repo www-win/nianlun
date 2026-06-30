@@ -86,6 +86,9 @@ async function onImport() {
           <text class="sn">4</text>
           <text class="st">回到这里点「从文件传输助手导入」，选中该文件</text>
         </view>
+        <view class="note">
+          想让好友/群显示真实名字？把 WeLive 的 contacts.json 也发到文件传输助手，再导入一次即可自动套用真名。
+        </view>
       </view>
     </view>
   </view>
@@ -141,4 +144,9 @@ async function onImport() {
   font-size: 22rpx; font-weight: 700; text-align: center; line-height: 38rpx;
 }
 .st { flex: 1; font-size: 25rpx; color: var(--muted); line-height: 1.7; }
+.note {
+  margin-top: 24rpx; padding: 20rpx 24rpx; border-radius: 14rpx;
+  background: var(--accent-wash); color: var(--accent-strong);
+  font-size: 23rpx; line-height: 1.7;
+}
 </style>
