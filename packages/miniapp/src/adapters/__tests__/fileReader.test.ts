@@ -39,6 +39,16 @@ describe('fileReader 适配器', () => {
     ])
   })
 
+  it('选到 rar 等非 zip 压缩包时报明确错误', async () => {
+    const io = {
+      choose: vi.fn().mockResolvedValue([{ path: '/r', name: 'exports.rar' }]),
+      read: vi.fn(),
+      unzip: vi.fn(),
+    }
+    await expect(makeFileReader(io).pickAndRead()).rejects.toThrow(/只能解压 ZIP/)
+    expect(io.unzip).not.toHaveBeenCalled()
+  })
+
   it('zip 与普通文件混选时都能读出', async () => {
     const io = {
       choose: vi.fn().mockResolvedValue([

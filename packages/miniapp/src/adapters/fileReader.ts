@@ -7,6 +7,8 @@ export interface WxFileIO {
 
 const TEXT_RE = /\.(csv|json|txt|html?)$/i
 const ZIP_RE = /\.zip$/i
+// 微信只能解压 ZIP；这些压缩格式不支持，给出明确提示而非含糊的「无法识别」。
+const OTHER_ARCHIVE_RE = /\.(rar|7z|tar|gz|tgz|bz2|xz)$/i
 
 export function makeFileReader(io: WxFileIO) {
   return {
@@ -16,6 +18,9 @@ export function makeFileReader(io: WxFileIO) {
       for (const f of files) {
         if (ZIP_RE.test(f.name)) {
           out.push(...(await io.unzip(f.path)))
+        } else if (OTHER_ARCHIVE_RE.test(f.name)) {
+          const ext = (f.name.split('.').pop() || '').toLowerCase()
+          throw new Error(`暂不支持 .${ext} 压缩包，微信小程序只能解压 ZIP。请改用 .zip 格式重新打包后再导入。`)
         } else {
           out.push({ name: f.name, content: await io.read(f.path) })
         }
