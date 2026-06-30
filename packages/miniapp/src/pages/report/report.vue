@@ -1,8 +1,19 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useDataStore } from '../../stores/data'
+import { aiClient } from '../../adapters/aiClient'
 
 const data = useDataStore()
+
+const copy = ref('')
+const loadingCopy = ref(false)
+async function genCopy() {
+  if (!data.report) return
+  loadingCopy.value = true
+  try { copy.value = await aiClient.generateReportCopy(data.report, data.friends) }
+  catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none' }) }
+  finally { loadingCopy.value = false }
+}
 
 function draw() {
   const r = data.report
@@ -28,6 +39,7 @@ function save() {
         fail: () => uni.showToast({ title: '保存失败，请授权相册', icon: 'none' }),
       })
     },
+    fail: () => uni.showToast({ title: '生成图片失败，请重试', icon: 'none' }),
   })
 }
 
@@ -38,6 +50,8 @@ onMounted(draw)
   <view class="page">
     <view v-if="!data.report" class="empty">还没有数据，请先导入。</view>
     <template v-else>
+      <button size="mini" :loading="loadingCopy" @click="genCopy">AI 生成年度文案</button>
+      <view v-if="copy" class="copy">{{ copy }}</view>
       <canvas canvas-id="poster" style="width: 320px; height: 480px;" />
       <button type="primary" @click="save">保存到相册</button>
     </template>
