@@ -14,8 +14,10 @@ export function makeStorage(backend: StorageBackend) {
   return {
     saveFriends(friends: Friend[]): void { backend.set(K_FRIENDS, friends) },
     loadFriends(): Friend[] {
-      const raw = (backend.get(K_FRIENDS) as Friend[] | undefined) ?? []
-      return raw.map((f) => ({
+      // wx.getStorageSync 对缺失键返回 ''（非 undefined），?? 挡不住，故按类型兜底。
+      const raw = backend.get(K_FRIENDS)
+      const arr = Array.isArray(raw) ? (raw as Friend[]) : []
+      return arr.map((f) => ({
         ...f,
         hourly: f.hourly ?? new Array(24).fill(0),
         weekHour: f.weekHour ?? new Array(168).fill(0),
@@ -24,11 +26,13 @@ export function makeStorage(backend: StorageBackend) {
     },
     saveReport(report: ReportData): void { backend.set(K_REPORT, report) },
     loadReport(): ReportData | null {
-      return (backend.get(K_REPORT) as ReportData | undefined) ?? null
+      const raw = backend.get(K_REPORT)
+      return raw && typeof raw === 'object' ? (raw as ReportData) : null
     },
     saveSamples(samples: Record<string, string[]>): void { backend.set(K_SAMPLES, samples) },
     loadSamples(): Record<string, string[]> {
-      return (backend.get(K_SAMPLES) as Record<string, string[]> | undefined) ?? {}
+      const raw = backend.get(K_SAMPLES)
+      return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {}
     },
     clearAll(): void { backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES) },
   }

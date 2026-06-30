@@ -38,4 +38,14 @@ describe('storage 适配器', () => {
     expect(s.loadFriends()).toEqual([])
     expect(s.loadReport()).toBeNull()
   })
+
+  // wx.getStorageSync 对不存在的键返回空字符串 '' 而非 undefined，?? 兜底挡不住，
+  // 会导致 ''.map 崩溃。这里模拟该真机行为，确保按类型兜底。
+  it('后端对缺失键返回空字符串时安全兜底（模拟 wx.getStorageSync）', () => {
+    const wxLike = { get: (_k: string) => '', set: () => {}, remove: () => {} }
+    const s = makeStorage(wxLike)
+    expect(s.loadFriends()).toEqual([])
+    expect(s.loadReport()).toBeNull()
+    expect(s.loadSamples()).toEqual({})
+  })
 })
