@@ -25,9 +25,20 @@ const OPACITY = { 1: 0.45, 2: 0.6, 3: 0.72, 4: 0.86, 5: 1 } as Record<number, nu
 const HOUR_TICKS = [0, 6, 12, 18, 23]
 
 const trend = computed(() => monthlyTrend(friend.value ? [friend.value] : []))
-const heat = computed(() => weekHourHeatmap(friend.value?.weekHour ?? []))
-const words = computed(() => wordCloudItems(friend.value?.keywords ?? []))
-const chatSamples = computed(() => samples.loadSamplesFor(id.value))
+// 高频词 / 活跃时段 / 样本改为「最近一个月」：优先用导入时算好的近期数据；
+// 老数据（近期存储为空）时 recentInsight 为 null，回退到全年字段。
+const recentInsight = computed(() => samples.loadRecentInsightsFor(id.value))
+const isRecent = computed(() => recentInsight.value !== null)
+const heat = computed(() => weekHourHeatmap(
+  recentInsight.value ? recentInsight.value.weekHour : (friend.value?.weekHour ?? []),
+))
+const words = computed(() => wordCloudItems(
+  recentInsight.value ? recentInsight.value.keywords : (friend.value?.keywords ?? []),
+))
+// 样本存储为时间升序，展示时倒序 → 最近的聊天排最前。
+const chatSamples = computed(() =>
+  (samples.loadRecentSamplesFor(id.value) ?? samples.loadSamplesFor(id.value)).slice().reverse(),
+)
 const showSamples = ref(false)
 
 function cellAlpha(count: number): number {
@@ -133,7 +144,7 @@ async function analyzeSentiment() {
       </view>
 
       <view v-if="heat.max > 0" class="card block">
-        <text class="block-t">活跃时段</text>
+        <text class="block-t">活跃时段<text v-if="isRecent" class="block-sub">· 近一个月</text></text>
         <view class="hm">
           <view class="hm-axis">
             <text class="hm-corner"></text>
@@ -156,7 +167,7 @@ async function analyzeSentiment() {
       </view>
 
       <view v-if="words.length" class="card block">
-        <text class="block-t">高频词</text>
+        <text class="block-t">高频词<text v-if="isRecent" class="block-sub">· 近一个月</text></text>
         <view class="cloud">
           <text
             v-for="w in words" :key="w.word"
@@ -182,7 +193,7 @@ async function analyzeSentiment() {
 
       <view v-if="chatSamples.length" class="card block">
         <view class="block-head" @click="showSamples = !showSamples">
-          <text class="block-t">聊天样本（{{ chatSamples.length }}）</text>
+          <text class="block-t">聊天样本（{{ chatSamples.length }}）<text v-if="isRecent" class="block-sub">· 近一个月</text></text>
           <text class="chev">{{ showSamples ? '▴' : '▾' }}</text>
         </view>
         <view v-if="showSamples" class="samples">
@@ -210,6 +221,7 @@ async function analyzeSentiment() {
 
 .block { margin-top: 24rpx; padding: 32rpx 36rpx; }
 .block-t { font-size: 28rpx; font-weight: 600; color: var(--fg); }
+.block-sub { margin-left: 10rpx; font-size: 22rpx; font-weight: 400; color: var(--faint); }
 .block-head { display: flex; align-items: center; justify-content: space-between; }
 .chev { color: var(--faint); }
 

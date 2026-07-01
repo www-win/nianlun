@@ -1,8 +1,11 @@
 import type { Friend, ReportData } from '@nianlun/core'
+import type { RecentInsight } from './parseLocal'
 
 const K_FRIENDS = 'nianlun:friends'
 const K_REPORT = 'nianlun:report'
 const K_SAMPLES = 'nianlun:samples'
+const K_RECENT_INSIGHTS = 'nianlun:recentInsights'
+const K_RECENT_SAMPLES = 'nianlun:recentSamples'
 
 export interface StorageBackend {
   get(key: string): unknown
@@ -34,7 +37,20 @@ export function makeStorage(backend: StorageBackend) {
       const raw = backend.get(K_SAMPLES)
       return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {}
     },
-    clearAll(): void { backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES) },
+    saveRecentInsights(m: Record<string, RecentInsight>): void { backend.set(K_RECENT_INSIGHTS, m) },
+    loadRecentInsights(): Record<string, RecentInsight> {
+      const raw = backend.get(K_RECENT_INSIGHTS)
+      return raw && typeof raw === 'object' ? (raw as Record<string, RecentInsight>) : {}
+    },
+    saveRecentSamples(m: Record<string, string[]>): void { backend.set(K_RECENT_SAMPLES, m) },
+    loadRecentSamples(): Record<string, string[]> {
+      const raw = backend.get(K_RECENT_SAMPLES)
+      return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {}
+    },
+    clearAll(): void {
+      backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
+      backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES)
+    },
   }
 }
 

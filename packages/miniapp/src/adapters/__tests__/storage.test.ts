@@ -34,9 +34,27 @@ describe('storage 适配器', () => {
   it('clearAll 清空全部键', () => {
     const s = makeStorage(memBackend())
     s.saveFriends([FRIEND]); s.saveReport(REPORT)
+    s.saveRecentInsights({ f1: { keywords: [], weekHour: [] } })
+    s.saveRecentSamples({ f1: ['我：在'] })
     s.clearAll()
     expect(s.loadFriends()).toEqual([])
     expect(s.loadReport()).toBeNull()
+    expect(s.loadRecentInsights()).toEqual({})
+    expect(s.loadRecentSamples()).toEqual({})
+  })
+
+  it('saveRecentInsights/loadRecentInsights 往返，缺失返回空对象', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadRecentInsights()).toEqual({})
+    s.saveRecentInsights({ f1: { keywords: [{ word: '你好', count: 3 }], weekHour: [1, 2] } })
+    expect(s.loadRecentInsights().f1.keywords[0].word).toBe('你好')
+  })
+
+  it('saveRecentSamples/loadRecentSamples 往返，缺失返回空对象', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadRecentSamples()).toEqual({})
+    s.saveRecentSamples({ f1: ['我：在吗'] })
+    expect(s.loadRecentSamples().f1).toEqual(['我：在吗'])
   })
 
   // wx.getStorageSync 对不存在的键返回空字符串 '' 而非 undefined，?? 兜底挡不住，
@@ -47,5 +65,7 @@ describe('storage 适配器', () => {
     expect(s.loadFriends()).toEqual([])
     expect(s.loadReport()).toBeNull()
     expect(s.loadSamples()).toEqual({})
+    expect(s.loadRecentInsights()).toEqual({})
+    expect(s.loadRecentSamples()).toEqual({})
   })
 })

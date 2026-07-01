@@ -55,6 +55,9 @@ export function createImportStore(deps: Deps = {}) {
           await data.setData(named, report)
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
+          // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
+          storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
+          storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
           warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
         } else if (contactNames.length) {
           // 只导入了 contacts.json：给已有好友套真名，报告不变

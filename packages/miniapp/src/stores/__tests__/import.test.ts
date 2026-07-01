@@ -28,6 +28,17 @@ describe('import store', () => {
     expect(only.length).toBeGreaterThan(0)
   })
 
+  it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const useImport = createImportStore({ useData, storage: s })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    const fid = useData().friends[0].id
+    expect(Object.keys(s.loadRecentInsights())).toContain(fid)
+    expect(s.loadRecentSamples()[fid].length).toBeGreaterThan(0)
+  })
+
   it('无法识别文件时 warnings 非空但不抛、status 仍 done', async () => {
     const s = memStorage()
     const useImport = createImportStore({ useData: createDataStore(s), storage: s })

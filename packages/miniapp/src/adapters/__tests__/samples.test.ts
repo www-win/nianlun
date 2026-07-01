@@ -40,3 +40,25 @@ describe('samples 读取', () => {
     expect(out).toEqual(['a1', 'a2'])
   })
 })
+
+describe('最近一个月读取（含回退）', () => {
+  it('最近月存储整体为空时 loadRecent* 返回 null（触发页面回退到全年）', () => {
+    const s = memStorage()
+    const sm = makeSamples(s)
+    expect(sm.loadRecentInsightsFor('f1')).toBeNull()
+    expect(sm.loadRecentSamplesFor('f1')).toBeNull()
+  })
+
+  it('存储非空时按 id 返回；该好友近期无往来则返回空默认（区块隐藏）', () => {
+    const s = memStorage()
+    s.saveRecentInsights({ f1: { keywords: [{ word: '近期', count: 2 }], weekHour: new Array(168).fill(0) } })
+    s.saveRecentSamples({ f1: ['我：最近在忙'] })
+    const sm = makeSamples(s)
+    // 有记录的好友
+    expect(sm.loadRecentInsightsFor('f1')!.keywords[0].word).toBe('近期')
+    expect(sm.loadRecentSamplesFor('f1')).toEqual(['我：最近在忙'])
+    // 存储非空但该 id 无记录（近期无往来）→ 空默认，不再回退全年
+    expect(sm.loadRecentInsightsFor('f2')).toEqual({ keywords: [], weekHour: new Array(168).fill(0) })
+    expect(sm.loadRecentSamplesFor('f2')).toEqual([])
+  })
+})
