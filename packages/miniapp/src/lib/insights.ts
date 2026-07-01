@@ -1,4 +1,5 @@
-// 概览页「高频词 + 活跃时段」的纯展示映射函数。无副作用、可单测。
+// 概览页「高频词 + 活跃时段 + 月度趋势」的纯展示映射函数。无副作用、可单测。
+import type { Friend } from '@nianlun/core'
 
 export interface WordCloudItem { word: string; count: number; tier: number }
 
@@ -54,4 +55,34 @@ export function weekHourHeatmap(weekHour: number[]): Heatmap {
     : null
 
   return { rows, max, peak }
+}
+
+export interface MonthlyTrend {
+  months: Array<{ label: string; count: number; pct: number }>
+  max: number
+  total: number
+  peak: { label: string; count: number } | null
+}
+
+/**
+ * 把所有好友的 monthly(12) 按月累加 → 月度趋势视图模型。
+ * pct = count/max*100（供柱高）；peak = 最活跃月份，全 0 时 null。
+ */
+export function monthlyTrend(friends: Friend[]): MonthlyTrend {
+  const sums = new Array(12).fill(0) as number[]
+  for (const f of friends) {
+    const m = f.monthly ?? []
+    for (let i = 0; i < 12; i++) sums[i] += m[i] ?? 0
+  }
+  const max = Math.max(...sums, 0)
+  const total = sums.reduce((a, b) => a + b, 0)
+  const months = sums.map((count, i) => ({
+    label: `${i + 1}月`,
+    count,
+    pct: max === 0 ? 0 : Math.round((count / max) * 100),
+  }))
+  let peakI = -1
+  for (let i = 0; i < 12; i++) if (sums[i] > (peakI === -1 ? 0 : sums[peakI])) peakI = i
+  const peak = peakI === -1 ? null : { label: months[peakI].label, count: sums[peakI] }
+  return { months, max, total, peak }
 }

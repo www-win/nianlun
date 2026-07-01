@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { sumWeekHour } from '@nianlun/core'
 import { useDataStore } from '../../stores/data'
-import { wordCloudItems, weekHourHeatmap } from '../../lib/insights'
+import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
 
 const data = useDataStore()
 
@@ -15,6 +15,9 @@ const relColor = (r: string) => REL_COLORS[r] || '#8a8f99'
 const FONT = { 1: 24, 2: 28, 3: 33, 4: 39, 5: 46 } as Record<number, number>
 const OPACITY = { 1: 0.45, 2: 0.6, 3: 0.72, 4: 0.86, 5: 1 } as Record<number, number>
 const words = computed(() => wordCloudItems(data.report?.keywords ?? []))
+
+// 月度互动趋势（12 根柱）
+const trend = computed(() => monthlyTrend(data.friends))
 
 // 活跃时段热力图（周一→周日 × 24 小时）
 const heat = computed(() => weekHourHeatmap(sumWeekHour(data.friends)))
@@ -106,6 +109,19 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
         </view>
       </view>
 
+      <view v-if="trend.total > 0" class="card block">
+        <text class="block-t">月度趋势</text>
+        <view class="bars">
+          <view v-for="m in trend.months" :key="m.label" class="bar-col">
+            <view class="bar-track">
+              <view class="bar-fill" :style="{ height: m.pct + '%' }"></view>
+            </view>
+            <text class="bar-lbl">{{ m.label.replace('月', '') }}</text>
+          </view>
+        </view>
+        <text v-if="trend.peak" class="hm-peak muted">最活跃：{{ trend.peak.label }}（{{ trend.peak.count }} 条）</text>
+      </view>
+
       <view v-if="words.length" class="card block">
         <text class="block-t">高频词</text>
         <view class="cloud">
@@ -177,6 +193,13 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 .leg { display: flex; align-items: center; }
 .dot { width: 18rpx; height: 18rpx; border-radius: 50%; margin-right: 10rpx; }
 .leg-t { font-size: 24rpx; color: var(--muted); }
+
+/* 月度趋势柱状图 */
+.bars { display: flex; align-items: flex-end; gap: 10rpx; height: 220rpx; margin-top: 28rpx; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.bar-fill { width: 100%; min-height: 4rpx; background: var(--accent); border-radius: 6rpx 6rpx 0 0; }
+.bar-lbl { margin-top: 10rpx; font-size: 20rpx; color: var(--faint); }
 
 /* 高频词标签云 */
 .cloud { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16rpx 24rpx; margin-top: 24rpx; }

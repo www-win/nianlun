@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { wordCloudItems, weekHourHeatmap } from '../insights'
+import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../insights'
+import type { Friend } from '@nianlun/core'
+
+const mkFriend = (monthly: number[]): Friend => ({ monthly } as unknown as Friend)
 
 describe('wordCloudItems', () => {
   it('空数组返回空', () => {
@@ -61,5 +64,30 @@ describe('weekHourHeatmap', () => {
     expect(r.rows[0].cells[20]).toBe(5)
     // 末行是周日，第 9 格应为 3
     expect(r.rows[6].cells[9]).toBe(3)
+  })
+})
+
+describe('monthlyTrend', () => {
+  it('无好友时 12 个月全 0、max/total 为 0、peak 为 null', () => {
+    const r = monthlyTrend([])
+    expect(r.months).toHaveLength(12)
+    expect(r.months[0]).toMatchObject({ label: '1月', count: 0 })
+    expect(r.max).toBe(0)
+    expect(r.total).toBe(0)
+    expect(r.peak).toBeNull()
+  })
+
+  it('跨好友按月累加，算出 pct/total/peak', () => {
+    const a = mkFriend([10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]) // 1月10, 12月5
+    const b = mkFriend([0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]) // 3月20
+    const r = monthlyTrend([a, b])
+    expect(r.months[0].count).toBe(10) // 1月
+    expect(r.months[2].count).toBe(20) // 3月
+    expect(r.months[11].count).toBe(5) // 12月
+    expect(r.total).toBe(35)
+    expect(r.max).toBe(20)
+    expect(r.months[2].pct).toBe(100) // 3月是峰值
+    expect(r.months[0].pct).toBe(50) // 10/20
+    expect(r.peak).toEqual({ label: '3月', count: 20 })
   })
 })
