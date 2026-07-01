@@ -1,5 +1,5 @@
 {
   "name": "年轮",
-  "appid": "",
-  "mp-weixin": { "appid": "", "setting": { "urlCheck": false }, "usingComponents": true }
+  "appid": "wx5e6c62b1e316ae99",
+  "mp-weixin": { "appid": "wx5e6c62b1e316ae99", "setting": { "urlCheck": false }, "usingComponents": true }
 }
