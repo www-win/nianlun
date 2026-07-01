@@ -1,7 +1,8 @@
 import {
   buildReportCopyPrompt, buildFriendSuggestionPrompt, parseFriendSuggestion,
+  buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment,
 } from '@nianlun/core'
-import type { Friend, ReportData, FriendSuggestion } from '@nianlun/core'
+import type { Friend, ReportData, FriendSuggestion, Sentiment } from '@nianlun/core'
 
 export type Transport = (prompt: string, maxTokens: number) => Promise<string>
 
@@ -13,6 +14,13 @@ export function makeAiClient(transport: Transport) {
     async suggestFriend(friend: Friend, samples: string[]): Promise<FriendSuggestion> {
       const text = await transport(buildFriendSuggestionPrompt(friend, samples), 1024)
       return parseFriendSuggestion(text)
+    },
+    async analyzeFriendSentiment(friend: Friend, samples: string[]): Promise<Sentiment> {
+      const text = await transport(buildFriendSentimentPrompt(friend, samples), 512)
+      return parseSentiment(text)
+    },
+    async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
+      return transport(buildYearSentimentPrompt(report, sampleLines), 1024)
     },
   }
 }

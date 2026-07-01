@@ -65,6 +65,31 @@ async function suggest() {
     }
   } catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none' }) }
 }
+
+const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
+const loadingSent = ref(false)
+async function analyzeSentiment() {
+  const f = friend.value
+  if (!f) return
+  const s = samples.loadSamplesFor(f.id)
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: 'AI 情绪分析',
+      content: `将发送约 ${s.length} 条聊天片段到 AI 服务分析情绪基调，是否继续？`,
+      success: (r) => resolve(r.confirm),
+    })
+  })
+  if (!ok) return
+  loadingSent.value = true
+  try {
+    const r = await aiClient.analyzeFriendSentiment(f, s)
+    sentiment.value = (r.tone || r.summary) ? r : { summary: 'AI 无法判断情绪' }
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    loadingSent.value = false
+  }
+}
 </script>
 
 <template>
@@ -145,8 +170,14 @@ async function suggest() {
         <view class="edit-row">
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
           <text class="act act-ai" @click="suggest">✦ 智能建议</text>
+          <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : '✦ 情绪分析' }}</text>
         </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
+        <view v-if="sentiment" class="senti">
+          <view v-if="sentiment.tone" class="senti-tone">{{ sentiment.tone }}</view>
+          <text v-if="sentiment.summary" class="senti-sum">{{ sentiment.summary }}</text>
+          <text class="senti-note faint">AI 推测，仅供参考</text>
+        </view>
       </view>
 
       <view v-if="chatSamples.length" class="card block">
@@ -214,6 +245,10 @@ async function suggest() {
 .act-ai { color: var(--accent-strong); background: var(--accent-wash); }
 .role-input { margin-top: 18rpx; height: 64rpx; padding: 0 20rpx; font-size: 25rpx; color: var(--fg); background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx; }
 .ph { color: var(--faint); }
+.senti { margin-top: 24rpx; padding: 24rpx; background: var(--accent-wash); border-radius: 16rpx; }
+.senti-tone { display: inline-block; padding: 6rpx 22rpx; border-radius: 999rpx; background: var(--accent); color: #fff; font-size: 26rpx; font-weight: 600; }
+.senti-sum { display: block; margin-top: 16rpx; font-size: 27rpx; color: var(--fg); line-height: 1.7; }
+.senti-note { display: block; margin-top: 12rpx; font-size: 21rpx; }
 
 .samples { margin-top: 20rpx; }
 .sample { display: block; padding: 14rpx 0; border-top: 1rpx solid var(--border); font-size: 25rpx; color: var(--muted); line-height: 1.6; }

@@ -15,6 +15,8 @@ export { tokenize, countWords } from './stats/segment'
 export { buildEgoGraph } from './stats/egoGraph'
 export type { EgoNode, EgoGraph } from './stats/egoGraph'
 export { buildReportCopyPrompt, buildFriendAnalysisPrompt } from './ai/prompts'
+export { buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment } from './ai/sentiment'
+export type { Sentiment } from './ai/sentiment'
 export {
   extractFriendSamples, buildFriendSuggestionPrompt, parseFriendSuggestion,
 } from './ai/suggestion'

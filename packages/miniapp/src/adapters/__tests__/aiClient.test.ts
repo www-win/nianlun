@@ -19,4 +19,19 @@ describe('aiClient', () => {
     expect(out.rel).toBe('同事')
     expect(out.role).toBe('产品经理')
   })
+
+  it('analyzeFriendSentiment 解析 tone/summary', async () => {
+    const transport = vi.fn().mockResolvedValue('{"tone":"热络","summary":"你们无话不谈"}')
+    const out = await makeAiClient(transport).analyzeFriendSentiment(FRIEND, ['我：哈哈', '对方：笑死'])
+    expect(out.tone).toBe('热络')
+    expect(out.summary).toBe('你们无话不谈')
+    expect(transport.mock.calls[0][0]).toContain('张三')
+  })
+
+  it('analyzeYearSentiment 回传整段文本', async () => {
+    const transport = vi.fn().mockResolvedValue('这一年整体热络、以正向互动为主。')
+    const out = await makeAiClient(transport).analyzeYearSentiment(REPORT, ['对方：新年快乐'])
+    expect(out).toContain('热络')
+    expect(transport.mock.calls[0][0]).toContain('2025')
+  })
 })

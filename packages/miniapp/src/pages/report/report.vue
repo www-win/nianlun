@@ -2,12 +2,36 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDataStore } from '../../stores/data'
 import { aiClient } from '../../adapters/aiClient'
+import { samples } from '../../adapters/samples'
 
 const data = useDataStore()
 const report = computed(() => data.report)
 
 const copy = ref('')
 const loadingCopy = ref(false)
+
+const mood = ref('')
+const loadingMood = ref(false)
+async function genMood() {
+  if (!report.value) return
+  const lines = samples.gatherTopSamples(data.friends)
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: 'AI 全年情绪',
+      content: `将发送约 ${lines.length} 条聊天片段到 AI 服务分析全年情绪，是否继续？`,
+      success: (r) => resolve(r.confirm),
+    })
+  })
+  if (!ok) return
+  loadingMood.value = true
+  try {
+    mood.value = await aiClient.analyzeYearSentiment(report.value, lines)
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    loadingMood.value = false
+  }
+}
 
 async function genCopy() {
   if (!report.value) return
@@ -139,6 +163,16 @@ onMounted(draw)
         </view>
         <view class="btn-primary half" hover-class="hover" @click="save">保存到相册</view>
       </view>
+
+      <view class="card mood">
+        <view class="mood-head">
+          <text class="mood-t">全年情绪</text>
+          <text class="mood-btn" @click="genMood">{{ loadingMood ? '分析中…' : '✦ AI 分析' }}</text>
+        </view>
+        <text v-if="mood" class="mood-body">{{ mood }}</text>
+        <text v-else class="mood-body ph">点右上「AI 分析」，让 AI 说说你这一年的社交情绪基调</text>
+        <text v-if="mood" class="mood-note faint">AI 推测，仅供参考</text>
+      </view>
     </template>
 
     <!-- 离屏 canvas：仅用于出图存相册 -->
@@ -176,6 +210,14 @@ onMounted(draw)
 .actions { display: flex; gap: 20rpx; margin-top: 32rpx; }
 .half { flex: 1; }
 .g-hover { background: var(--surface-2); }
+
+.mood { margin-top: 24rpx; padding: 32rpx 36rpx; }
+.mood-head { display: flex; align-items: center; justify-content: space-between; }
+.mood-t { font-size: 28rpx; font-weight: 600; color: var(--fg); }
+.mood-btn { padding: 10rpx 22rpx; border-radius: 12rpx; background: var(--accent-wash); color: var(--accent-strong); font-size: 24rpx; font-weight: 550; }
+.mood-body { display: block; margin-top: 20rpx; font-size: 28rpx; line-height: 1.85; color: var(--fg); }
+.mood-body.ph { color: var(--faint); font-size: 26rpx; }
+.mood-note { display: block; margin-top: 14rpx; font-size: 21rpx; }
 
 .offscreen { position: fixed; left: -9999px; top: 0; }
 </style>
