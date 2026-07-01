@@ -79,8 +79,15 @@ export const weliveParser: Parser = {
       const bt = baseType(r.local_type)
       const type = TYPE_MAP[bt] ?? 'other'
       const sender = String(r.sender_username ?? '')
-      // 系统消息(>=10000)归 them;否则空 sender 视为自己
-      const from: Message['from'] = bt >= 10000 ? 'them' : sender === '' ? 'me' : 'them'
+      // 判定收发方向：
+      //  - 系统消息(>=10000)一律归 them；
+      //  - 单聊里 sessionId 就是对方 wxid，故 sender===sessionId 为对方，其余(我的真实 wxid 或空)为我；
+      //  - 群聊无单一对方，无法从 sessionId 认出「我」，沿用空 sender 视为自己的旧启发式。
+      const from: Message['from'] = bt >= 10000
+        ? 'them'
+        : isGroup
+          ? (sender === '' ? 'me' : 'them')
+          : (sender === sessionId ? 'them' : 'me')
 
       let text = ''
       if (type === 'text') {

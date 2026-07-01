@@ -28,6 +28,41 @@ describe('aggregate', () => {
   })
 })
 
+describe('aggregate 最长连续聊天天数', () => {
+  it('按有消息的日期算最长连续天数，同一天多条不重复计', () => {
+    const c: Conversation = {
+      id: 'S', peerName: 'S', isGroup: false,
+      messages: [
+        { ts: t('2025-01-10T10:00:00'), from: 'them', type: 'text', text: 'a' },
+        { ts: t('2025-01-11T09:00:00'), from: 'me', type: 'text', text: 'b' },
+        { ts: t('2025-01-11T20:00:00'), from: 'me', type: 'text', text: 'b2' }, // 同天
+        { ts: t('2025-01-12T08:00:00'), from: 'them', type: 'text', text: 'c' },
+        { ts: t('2025-03-14T02:00:00'), from: 'me', type: 'text', text: 'd' },   // 断开
+      ],
+    }
+    expect(aggregate([c])[0].maxStreak).toBe(3)
+  })
+})
+
+describe('aggregate 活跃时段(peakPeriod)', () => {
+  const at = (hour: number): Conversation => ({
+    id: 'P', peerName: 'P', isGroup: false,
+    messages: [
+      { ts: t(`2025-01-10T${String(hour).padStart(2, '0')}:00:00`), from: 'me', type: 'text', text: 'x' },
+      { ts: t(`2025-01-11T${String(hour).padStart(2, '0')}:30:00`), from: 'me', type: 'text', text: 'y' },
+    ],
+  })
+  it('把峰值小时映射成中文时段标签', () => {
+    expect(aggregate([at(20)])[0].peakPeriod).toBe('晚上') // 19–23
+    expect(aggregate([at(2)])[0].peakPeriod).toBe('凌晨')  // 0–5
+    expect(aggregate([at(10)])[0].peakPeriod).toBe('上午') // 6–11
+    expect(aggregate([at(15)])[0].peakPeriod).toBe('下午') // 14–18
+  })
+  it('无消息时为空字符串', () => {
+    expect(aggregate([{ id: 'E', peerName: 'E', isGroup: false, messages: [] }])[0].peakPeriod).toBe('')
+  })
+})
+
 describe('aggregate 时段/热力/词频', () => {
   it('按小时与星期分桶，并算词频', () => {
     const c = {

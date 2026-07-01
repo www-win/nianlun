@@ -67,6 +67,16 @@ describe('weliveParser.parse — private chat', () => {
     expect(m[0].from).toBe('them')
     expect(m[1].from).toBe('me')
   })
+  it('单聊里我方消息带自己的真实 wxid（≠会话id）也判为 me', () => {
+    // 真实 WeLive：我方 sender_username 是我的 wxid，不是空。对方 sender = 会话 id。
+    const real = [
+      line({ create_time: '1782207175', local_type: '1', message_content: '你好', sender_username: 'wxid_peer' }),
+      line({ create_time: '1782207200', local_type: '1', message_content: '在的', sender_username: 'wxid_me' }),
+    ].join('\n')
+    const m = weliveParser.parse(real, undefined, 'wxid_peer_aabbccdd.jsonl').conversations[0].messages
+    expect(m[0].from).toBe('them') // 对方 = 会话 id
+    expect(m[1].from).toBe('me')   // 我的 wxid ≠ 会话 id
+  })
   it('converts Unix seconds to milliseconds and keeps text', () => {
     const m = weliveParser.parse(content, undefined, 'wxid_peer_aabbccdd.jsonl').conversations[0].messages
     expect(m[0].ts).toBe(1782207175 * 1000)
