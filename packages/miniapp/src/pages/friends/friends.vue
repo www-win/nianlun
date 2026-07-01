@@ -16,6 +16,10 @@ const REL_COLORS: Record<string, string> = {
 const relColor = (r: string) => REL_COLORS[r] || '#8a8f99'
 const initials = (n: string) => n.slice(n.length > 1 ? n.length - 2 : 0)
 
+function openDetail(id: string) {
+  uni.navigateTo({ url: `/pages/friend-detail/friend-detail?id=${encodeURIComponent(id)}` })
+}
+
 const rows = computed(() => {
   const q = kw.value.trim()
   return data.friends
@@ -77,7 +81,7 @@ async function suggest(f: { id: string }) {
       <text class="count faint">共 {{ rows.length }} 位好友</text>
 
       <view v-for="f in rows" :key="f.id" class="card frow">
-        <view class="top">
+        <view class="top" @click="openDetail(f.id)">
           <view class="avatar" :style="{ background: relColor(f.rel) }">{{ initials(f.alias || f.name) }}</view>
           <view class="info">
             <text class="name">{{ f.alias || f.name }}</text>
@@ -87,6 +91,7 @@ async function suggest(f: { id: string }) {
               <text v-if="f.role" class="role-tag">{{ f.role }}</text>
             </view>
           </view>
+          <text class="chevron">›</text>
         </view>
         <view class="acts">
           <picker class="act" :range="RELS" @change="(e) => onRel(f.id, e)">
@@ -132,6 +137,7 @@ async function suggest(f: { id: string }) {
   color: #fff; font-size: 28rpx; font-weight: 600;
 }
 .info { flex: 1; min-width: 0; }
+.chevron { flex: none; margin-left: 12rpx; color: var(--faint); font-size: 40rpx; line-height: 1; }
 .name { font-size: 30rpx; font-weight: 600; color: var(--fg); }
 .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 14rpx; margin-top: 8rpx; }
 .meta .num { font-size: 25rpx; color: var(--muted); font-weight: 600; }
