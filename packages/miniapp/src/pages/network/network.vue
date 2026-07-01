@@ -48,25 +48,31 @@ function openDetail(id: string) {
         >{{ r }}</text>
       </view>
 
-      <view class="graph" :style="{ width: SIZE + 'rpx', height: SIZE + 'rpx' }">
-        <!-- 关系环参考圈 -->
-        <view class="ring ring1"></view>
-        <view class="ring ring2"></view>
-        <!-- 中心「我」 -->
-        <view class="me">我</view>
-        <!-- 好友节点 -->
-        <view
-          v-for="n in nodes" :key="n.id"
-          class="node"
-          :style="{ left: n.x + 'rpx', top: n.y + 'rpx' }"
-          @click="openDetail(n.id)"
+      <movable-area class="area" :style="{ height: SIZE + 'rpx' }" scale-area>
+        <movable-view
+          class="graph"
+          direction="all" inertia scale scale-min="0.6" scale-max="3"
+          :style="{ width: SIZE + 'rpx', height: SIZE + 'rpx' }"
         >
-          <view class="dot" :style="{ width: (n.r * 2) + 'rpx', height: (n.r * 2) + 'rpx', background: n.color }"></view>
-          <text class="nlabel">{{ n.name.slice(0, 4) }}</text>
-        </view>
-      </view>
+          <!-- 关系环参考圈 -->
+          <view class="ring ring1"></view>
+          <view class="ring ring2"></view>
+          <!-- 中心「我」 -->
+          <view class="me">我</view>
+          <!-- 好友节点 -->
+          <view
+            v-for="n in nodes" :key="n.id"
+            class="node"
+            :style="{ left: n.x + 'rpx', top: n.y + 'rpx' }"
+            @click="openDetail(n.id)"
+          >
+            <view class="dot" :style="{ width: (n.r * 2) + 'rpx', height: (n.r * 2) + 'rpx', background: n.color }"></view>
+            <text class="nlabel">{{ n.name.slice(0, 4) }}</text>
+          </view>
+        </movable-view>
+      </movable-area>
 
-      <text class="hint faint">以你为中心 · 越近往来越多 · 显示往来最多的 30 位 · 点圆点看详情</text>
+      <text class="hint faint">以你为中心 · 单指拖动 · 双指缩放 · 点圆点看详情（显示往来最多的 30 位）</text>
     </template>
   </view>
 </template>
@@ -80,7 +86,12 @@ function openDetail(id: string) {
   color: var(--muted); background: var(--surface-2); border: 1rpx solid var(--border);
 }
 
-.graph { position: relative; margin: 0 auto; }
+.area {
+  position: relative; width: 100%;
+  background: var(--surface); border: 1rpx solid var(--border);
+  border-radius: 24rpx; overflow: hidden;
+}
+.graph { position: relative; }
 .ring { position: absolute; border-radius: 50%; border: 1rpx dashed var(--border-2); }
 .ring1 { inset: 4%; }
 .ring2 { inset: 20%; }
