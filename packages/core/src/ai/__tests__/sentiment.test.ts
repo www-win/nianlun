@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Friend, ReportData } from '../../model/types'
-import { buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment } from '../sentiment'
+import { buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment, buildFriendDeepSentimentPrompt } from '../sentiment'
 
 const friend: Friend = {
   id: 'f1', name: '小美', alias: '', rel: '挚友', role: '大学室友',
@@ -45,5 +45,19 @@ describe('buildYearSentimentPrompt', () => {
     expect(p).toContain('2025')
     expect(p).toContain('新年快乐')
     expect(p).toContain('一段')
+  })
+})
+
+describe('buildFriendDeepSentimentPrompt', () => {
+  it('含好友名、逐月消息数，并要求输出 timeline 与 me/them', () => {
+    const f: Friend = { ...friend, monthly: [3, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 2] }
+    const p = buildFriendDeepSentimentPrompt(f, ['我：在吗', '对方：在的~'])
+    expect(p).toContain('小美')
+    expect(p).toContain('timeline')
+    expect(p).toContain('me')
+    expect(p).toContain('them')
+    expect(p).toContain('score')
+    expect(p).toContain('1月:3')   // 逐月消息数已写入
+    expect(p).toContain('null')    // 提示无往来月用 null
   })
 })
