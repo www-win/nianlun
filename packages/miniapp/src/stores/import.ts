@@ -62,6 +62,8 @@ export function createImportStore(deps: Deps = {}) {
             activeDays: Math.max(prevReport?.activeDays ?? 0, outcome.report.activeDays),
           }
           await data.setData(named, report)
+          const prevSamples = storage.loadSamples()
+          storage.saveSamples({ ...prevSamples, ...outcome.samples })
           // 导入成功后：对新好友（不在已分析集合）自动推断关系/职务并写入
           const updatedIds = await analyzeRolesForNew({
             friends: named,
@@ -73,8 +75,6 @@ export function createImportStore(deps: Deps = {}) {
           })
           storage.saveAnalyzedIds(updatedIds)
           analyzing.value = null
-          const prevSamples = storage.loadSamples()
-          storage.saveSamples({ ...prevSamples, ...outcome.samples })
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
@@ -97,7 +97,7 @@ export function createImportStore(deps: Deps = {}) {
         analyzing.value = null
       }
     }
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = '' }
+    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null }
     return { status, progress, warnings, error, analyzing, run, reset }
   })
 }

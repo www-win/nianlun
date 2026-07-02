@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { makeStorage } from '../../adapters/storage'
+import { makeSamples } from '../../adapters/samples'
 import { createDataStore } from '../data'
 import { createImportStore } from '../import'
 
@@ -100,5 +101,20 @@ describe('import store', () => {
     suggest.mockClear()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
     expect(suggest).not.toHaveBeenCalled()
+  })
+
+  it('分析新好友时已能读到刚导入的样本（suggest 收到非空样本）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const seen: string[][] = []
+    const suggest = vi.fn(async (_f: unknown, samples: string[]) => { seen.push(samples); return {} })
+    const useImport = createImportStore({
+      useData, storage: s, suggest,
+      loadSamples: makeSamples(s).loadSamplesFor, // 真实：读回同一 memStorage
+    })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    expect(seen.length).toBe(1)
+    expect(seen[0].length).toBeGreaterThan(0) // 分析时样本已落盘、非空
   })
 })
