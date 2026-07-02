@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { makeStorage } from '../../adapters/storage'
 import { createDataStore } from '../data'
@@ -16,7 +16,7 @@ describe('import store', () => {
   it('run 解析并写入 data store，status 变 done', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const useImport = createImportStore({ useData, storage: s })
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
     const imp = useImport()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
     expect(imp.status).toBe('done')
@@ -31,7 +31,7 @@ describe('import store', () => {
   it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const useImport = createImportStore({ useData, storage: s })
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
     const imp = useImport()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
     const fid = useData().friends[0].id
@@ -41,7 +41,9 @@ describe('import store', () => {
 
   it('无法识别文件时 warnings 非空但不抛、status 仍 done', async () => {
     const s = memStorage()
-    const useImport = createImportStore({ useData: createDataStore(s), storage: s })
+    const useImport = createImportStore({
+      useData: createDataStore(s), storage: s, suggest: async () => ({}), loadSamples: () => [],
+    })
     const imp = useImport()
     await imp.run([{ name: 'x.bin', content: '###' }], 2025)
     expect(imp.status).toBe('done')
@@ -51,7 +53,7 @@ describe('import store', () => {
   it('导入 contacts.json 给已有好友套用真实名字', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const useImport = createImportStore({ useData, storage: s })
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
     const imp = useImport()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
     const fid = useData().friends[0].id
@@ -66,7 +68,7 @@ describe('import store', () => {
   it('第二次导入空/不可识别文件不会清零已有报告，且报告与好友列表一致', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const useImport = createImportStore({ useData, storage: s })
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
     const imp = useImport()
     // 先导入有效聊天 → 报告应有消息数
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
@@ -78,5 +80,25 @@ describe('import store', () => {
     expect(useData().friends.length).toBe(1)
     expect(useData().report?.totalMessages).toBe(friendMsgs)
     expect(useData().report?.friendCount).toBe(1)
+  })
+
+  it('导入后自动分析新好友的关系/职务并记住，已分析的不重复调用', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({ rel: '同事', role: '产品经理' })
+    const useImport = createImportStore({
+      useData, storage: s, suggest, loadSamples: () => ['我：在吗', '对方：在'],
+    })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    const f = useData().friends[0]
+    expect(f.rel).toBe('同事')
+    expect(f.role).toBe('产品经理')
+    expect(s.loadAnalyzedIds()).toContain(f.id)
+    expect(imp.analyzing).toBe(null)          // 结束后清空
+    // 第二次导入同数据：该好友已在集合，不再调用 suggest
+    suggest.mockClear()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    expect(suggest).not.toHaveBeenCalled()
   })
 })

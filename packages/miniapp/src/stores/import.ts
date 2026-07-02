@@ -3,24 +3,33 @@ import { ref } from 'vue'
 import {
   mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
 } from '@nianlun/core'
+import type { Friend, FriendSuggestion } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
 import { useDataStore as defaultUseData, createDataStore } from './data'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
+import { aiClient } from '../adapters/aiClient'
+import { samples as defaultSamples } from '../adapters/samples'
+import { analyzeRolesForNew } from '../adapters/roleAnalysis'
 
 type Deps = {
   useData?: ReturnType<typeof createDataStore>
   storage?: ReturnType<typeof makeStorage>
+  suggest?: (f: Friend, s: string[]) => Promise<FriendSuggestion>
+  loadSamples?: (id: string) => string[]
 }
 export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 
 export function createImportStore(deps: Deps = {}) {
   const useData = deps.useData ?? defaultUseData
   const storage = deps.storage ?? defaultStorage
+  const suggest = deps.suggest ?? aiClient.suggestFriend
+  const loadSamples = deps.loadSamples ?? defaultSamples.loadSamplesFor
   return defineStore('import', () => {
     const status = ref<ImportStatus>('idle')
     const progress = ref(0)
     const warnings = ref<string[]>([])
     const error = ref('')
+    const analyzing = ref<{ done: number; total: number } | null>(null)
 
     async function run(files: LocalFile[], year: number) {
       status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''
@@ -53,6 +62,17 @@ export function createImportStore(deps: Deps = {}) {
             activeDays: Math.max(prevReport?.activeDays ?? 0, outcome.report.activeDays),
           }
           await data.setData(named, report)
+          // 导入成功后：对新好友（不在已分析集合）自动推断关系/职务并写入
+          const updatedIds = await analyzeRolesForNew({
+            friends: named,
+            analyzedIds: storage.loadAnalyzedIds(),
+            loadSamples,
+            suggest,
+            applyRole: (id, patch) => data.updateFriend(id, patch),
+            onProgress: (done, total) => { analyzing.value = total ? { done, total } : null },
+          })
+          storage.saveAnalyzedIds(updatedIds)
+          analyzing.value = null
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
@@ -74,10 +94,11 @@ export function createImportStore(deps: Deps = {}) {
       } catch (e) {
         error.value = (e as Error).message
         status.value = 'error'
+        analyzing.value = null
       }
     }
     function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = '' }
-    return { status, progress, warnings, error, run, reset }
+    return { status, progress, warnings, error, analyzing, run, reset }
   })
 }
 
