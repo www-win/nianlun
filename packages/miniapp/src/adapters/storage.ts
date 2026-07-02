@@ -6,6 +6,7 @@ const K_REPORT = 'nianlun:report'
 const K_SAMPLES = 'nianlun:samples'
 const K_RECENT_INSIGHTS = 'nianlun:recentInsights'
 const K_RECENT_SAMPLES = 'nianlun:recentSamples'
+const K_ANALYZED = 'nianlun:analyzedIds'
 
 export interface StorageBackend {
   get(key: string): unknown
@@ -47,9 +48,14 @@ export function makeStorage(backend: StorageBackend) {
       const raw = backend.get(K_RECENT_SAMPLES)
       return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {}
     },
+    saveAnalyzedIds(ids: string[]): void { backend.set(K_ANALYZED, ids) },
+    loadAnalyzedIds(): string[] {
+      const raw = backend.get(K_ANALYZED)
+      return Array.isArray(raw) ? (raw as string[]) : []
+    },
     clearAll(): void {
       backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
-      backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES)
+      backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES); backend.remove(K_ANALYZED)
     },
   }
 }

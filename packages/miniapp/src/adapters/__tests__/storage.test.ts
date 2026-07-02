@@ -68,4 +68,14 @@ describe('storage 适配器', () => {
     expect(s.loadRecentInsights()).toEqual({})
     expect(s.loadRecentSamples()).toEqual({})
   })
+
+  it('analyzedIds 存取；缺键返回 []，clearAll 清除', () => {
+    const m = new Map<string, unknown>()
+    const s = makeStorage({ get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k) })
+    expect(s.loadAnalyzedIds()).toEqual([])
+    s.saveAnalyzedIds(['a', 'b'])
+    expect(s.loadAnalyzedIds()).toEqual(['a', 'b'])
+    s.clearAll()
+    expect(s.loadAnalyzedIds()).toEqual([])
+  })
 })
