@@ -54,21 +54,6 @@ function onRole(e: { detail: { value: string } }) {
   if (friend.value) data.updateFriend(friend.value.id, { role: e.detail.value })
 }
 
-async function suggest() {
-  const f = friend.value
-  if (!f) return
-  const s = samples.loadSamplesFor(f.id)
-  try {
-    const sug = await aiClient.suggestFriend(f, s)
-    if (sug.rel || sug.role) {
-      await data.updateFriend(f.id, { rel: sug.rel, role: sug.role })
-      uni.showToast({ title: '已应用建议' })
-    } else {
-      uni.showToast({ title: 'AI 无法判断', icon: 'none' })
-    }
-  } catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none' }) }
-}
-
 const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
 const loadingSent = ref(false)
 async function analyzeSentiment() {
@@ -183,7 +168,6 @@ async function analyzeProfile() {
       <view class="card block">
         <view class="edit-row">
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
-          <text class="act act-ai" @click="suggest">✦ 智能建议</text>
           <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : '✦ 情绪分析' }}</text>
           <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : '✦ 好友画像' }}</text>
         </view>

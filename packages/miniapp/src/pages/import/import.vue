@@ -52,8 +52,13 @@ async function onImport() {
       </button>
 
       <view v-if="imp.status === 'parsing'" class="status">
-        <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
-        <text class="status-t muted">解析中… {{ pct }}%</text>
+        <template v-if="imp.analyzing">
+          <text class="status-t muted">正在分析关系/职务… {{ imp.analyzing.done }}/{{ imp.analyzing.total }}</text>
+        </template>
+        <template v-else>
+          <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
+          <text class="status-t muted">解析中… {{ pct }}%</text>
+        </template>
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
         <text>✅ 已导入 · 好友 {{ data.friends.length }} 位</text>

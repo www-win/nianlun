@@ -2,8 +2,6 @@
 import { ref, computed } from 'vue'
 import { useDataStore } from '../../stores/data'
 import type { Relation } from '@nianlun/core'
-import { aiClient } from '../../adapters/aiClient'
-import { samples } from '../../adapters/samples'
 
 const data = useDataStore()
 const kw = ref('')
@@ -33,29 +31,6 @@ function onRel(id: string, e: { detail: { value: number } }) {
 }
 function onRole(id: string, e: { detail: { value: string } }) {
   data.updateFriend(id, { role: e.detail.value })
-}
-
-async function suggest(f: { id: string }) {
-  const s = samples.loadSamplesFor(f.id)
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '使用 AI 智能建议',
-      content: `将发送约 ${s.length} 条聊天片段到 AI 服务用于推断关系，是否继续？`,
-      success: (r) => resolve(r.confirm),
-    })
-  })
-  if (!ok) return
-  const friend = data.friends.find((x) => x.id === f.id)
-  if (!friend) return
-  try {
-    const sug = await aiClient.suggestFriend(friend, s)
-    if (sug.rel || sug.role) {
-      await data.updateFriend(f.id, { rel: sug.rel, role: sug.role })
-      uni.showToast({ title: '已应用建议' })
-    } else {
-      uni.showToast({ title: 'AI 无法判断', icon: 'none' })
-    }
-  } catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none' }) }
 }
 </script>
 
@@ -97,7 +72,6 @@ async function suggest(f: { id: string }) {
           <picker class="act" :range="RELS" @change="(e) => onRel(f.id, e)">
             <text class="act-t">改关系</text>
           </picker>
-          <text class="act act-ai" @click="suggest(f)">✦ 智能建议</text>
           <input
             class="role-input" :value="f.role" placeholder="职务 / 备注"
             placeholder-class="ph" @blur="(e) => onRole(f.id, e)"
