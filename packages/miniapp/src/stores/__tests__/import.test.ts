@@ -117,4 +117,19 @@ describe('import store', () => {
     expect(seen.length).toBe(1)
     expect(seen[0].length).toBeGreaterThan(0) // 分析时样本已落盘、非空
   })
+
+  it('分析失败时在 warnings 里现形（不再静默吞错）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockRejectedValue(new Error('AI 服务未部署'))
+    const useImport = createImportStore({
+      useData, storage: s, suggest, loadSamples: () => ['我：在吗'],
+    })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    expect(imp.status).toBe('done')
+    expect(imp.warnings.some((w) => w.includes('失败') && w.includes('AI 服务未部署'))).toBe(true)
+    // 失败的好友不计入已分析集合，下次导入会重试
+    expect(s.loadAnalyzedIds()).toEqual([])
+  })
 })

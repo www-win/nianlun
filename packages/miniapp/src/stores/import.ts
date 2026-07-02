@@ -9,7 +9,17 @@ import { useDataStore as defaultUseData, createDataStore } from './data'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
 import { aiClient } from '../adapters/aiClient'
 import { samples as defaultSamples } from '../adapters/samples'
-import { analyzeRolesForNew } from '../adapters/roleAnalysis'
+import { analyzeRolesForNew, type AnalyzeRolesResult } from '../adapters/roleAnalysis'
+
+/** 把批量分析统计拼成一条导入页提示，让失败/无结果现形。全 0（无新好友）时返回空数组。 */
+function analysisWarn(r: AnalyzeRolesResult): string[] {
+  const { succeeded, failed, empty, firstError } = r
+  if (!succeeded && !failed && !empty) return []
+  const parts = [`已自动分析 ${succeeded} 位好友的关系/职务`]
+  if (empty) parts.push(`${empty} 位无结果`)
+  if (failed) parts.push(`${failed} 位失败${firstError ? '：' + firstError : ''}`)
+  return [parts.join('；')]
+}
 
 type Deps = {
   useData?: ReturnType<typeof createDataStore>
@@ -65,7 +75,7 @@ export function createImportStore(deps: Deps = {}) {
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
           // 导入成功后：对新好友（不在已分析集合）自动推断关系/职务并写入
-          const updatedIds = await analyzeRolesForNew({
+          const analysis = await analyzeRolesForNew({
             friends: named,
             analyzedIds: storage.loadAnalyzedIds(),
             loadSamples,
@@ -73,12 +83,16 @@ export function createImportStore(deps: Deps = {}) {
             applyRole: (id, patch) => data.updateFriend(id, patch),
             onProgress: (done, total) => { analyzing.value = total ? { done, total } : null },
           })
-          storage.saveAnalyzedIds(updatedIds)
+          storage.saveAnalyzedIds(analysis.analyzedIds)
           analyzing.value = null
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
-          warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
+          warnings.value = [
+            ...outcome.warnings,
+            ...contactWarn(appliedCount(named)),
+            ...analysisWarn(analysis),
+          ]
         } else if (contactNames.length) {
           // 只导入了 contacts.json：给已有好友套真名，报告不变
           if (!prevReport) {
