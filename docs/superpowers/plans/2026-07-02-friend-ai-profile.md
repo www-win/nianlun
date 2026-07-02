@@ -347,15 +347,15 @@ Expected: FAIL（`analyzeFriendProfile is not a function`）
 
 改 `packages/miniapp/src/adapters/aiClient.ts`：
 
-顶部 import 增补 `buildFriendProfilePrompt, parseFriendProfile`，type import 增补 `FriendProfile`：
+顶部 import 增补 `buildFriendProfilePrompt, parseFriendProfile`，type import 增补 `FriendProfile`（在现有 import 基础上加一行，保留原有各项）：
 
 ```typescript
 import {
   buildReportCopyPrompt, buildFriendSuggestionPrompt, parseFriendSuggestion,
-  buildYearSentimentPrompt, buildFriendDeepSentimentPrompt, parseDeepSentiment,
+  buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment,
   buildFriendProfilePrompt, parseFriendProfile,
 } from '@nianlun/core'
-import type { Friend, ReportData, FriendSuggestion, DeepSentiment, FriendProfile } from '@nianlun/core'
+import type { Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile } from '@nianlun/core'
 ```
 
 在 `makeAiClient` 返回对象里、`analyzeFriendSentiment` 之后加：
@@ -393,10 +393,10 @@ git commit -m "feat(miniapp): aiClient 新增 analyzeFriendProfile"
 
 - [ ] **Step 1: script —— 类型 import + 状态 + 方法**
 
-`friend-detail.vue` 顶部 type import 增补 `FriendProfile`：
+`friend-detail.vue` 顶部 type import 增补 `FriendProfile`（现有为 `import type { Relation } from '@nianlun/core'`，改为）：
 
 ```typescript
-import type { Relation, DeepSentiment, FriendProfile } from '@nianlun/core'
+import type { Relation, FriendProfile } from '@nianlun/core'
 ```
 
 在 `analyzeSentiment` 函数之后追加：
