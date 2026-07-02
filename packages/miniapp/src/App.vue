@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
-onLaunch(() => {
+import { useImportStore } from './stores/import'
+onLaunch(async () => {
   // 后端 A（云函数）需要云开发初始化；部署前把 env 换成你的云开发环境 ID。
   // 用后端 B（公司反代）时无需此步，可删。
   // @ts-ignore wx 由微信小程序运行时提供
@@ -9,7 +10,9 @@ onLaunch(() => {
     // @ts-ignore
     wx.cloud.init({ env: 'cloud1-d4gzww8dp909b47cb' })
   }
-  useDataStore().hydrate()
+  await useDataStore().hydrate()
+  // 启动后台补分析：存量里「消息达标且未分析」的好友，串行渐进补关系/职务，不阻塞启动。
+  void useImportStore().analyzePendingRoles()
 })
 </script>
 

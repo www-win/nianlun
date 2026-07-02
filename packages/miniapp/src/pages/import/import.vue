@@ -52,13 +52,8 @@ async function onImport() {
       </button>
 
       <view v-if="imp.status === 'parsing'" class="status">
-        <template v-if="imp.analyzing">
-          <text class="status-t muted">正在分析关系/职务… {{ imp.analyzing.done }}/{{ imp.analyzing.total }}</text>
-        </template>
-        <template v-else>
-          <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
-          <text class="status-t muted">解析中… {{ pct }}%</text>
-        </template>
+        <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
+        <text class="status-t muted">解析中… {{ pct }}%</text>
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
         <text>✅ 已导入 · 好友 {{ data.friends.length }} 位</text>
@@ -66,6 +61,9 @@ async function onImport() {
       </view>
       <view v-else-if="imp.status === 'error'" class="status err">
         导入失败：{{ imp.error }}
+      </view>
+      <view v-if="imp.analyzing" class="status">
+        <text class="status-t muted">正在分析关系/职务… {{ imp.analyzing.done }}/{{ imp.analyzing.total }}</text>
       </view>
 
       <view v-if="imp.status === 'done' && imp.warnings.length" class="warns">
