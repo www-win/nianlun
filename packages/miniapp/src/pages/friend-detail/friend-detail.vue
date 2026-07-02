@@ -58,14 +58,6 @@ async function suggest() {
   const f = friend.value
   if (!f) return
   const s = samples.loadSamplesFor(f.id)
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '使用 AI 智能建议',
-      content: `将发送约 ${s.length} 条聊天片段到 AI 服务用于推断关系，是否继续？`,
-      success: (r) => resolve(r.confirm),
-    })
-  })
-  if (!ok) return
   try {
     const sug = await aiClient.suggestFriend(f, s)
     if (sug.rel || sug.role) {
@@ -83,14 +75,6 @@ async function analyzeSentiment() {
   const f = friend.value
   if (!f) return
   const s = samples.loadSamplesFor(f.id)
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: 'AI 情绪分析',
-      content: `将发送约 ${s.length} 条聊天片段到 AI 服务分析情绪基调，是否继续？`,
-      success: (r) => resolve(r.confirm),
-    })
-  })
-  if (!ok) return
   loadingSent.value = true
   try {
     const r = await aiClient.analyzeFriendSentiment(f, s)
@@ -108,14 +92,6 @@ async function analyzeProfile() {
   const f = friend.value
   if (!f) return
   const s = samples.loadSamplesFor(f.id)
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: 'AI 好友画像',
-      content: `将发送约 ${s.length} 条聊天片段到 AI 服务生成好友画像，是否继续？`,
-      success: (r) => resolve(r.confirm),
-    })
-  })
-  if (!ok) return
   loadingProfile.value = true
   try {
     const r = await aiClient.analyzeFriendProfile(f, s)
