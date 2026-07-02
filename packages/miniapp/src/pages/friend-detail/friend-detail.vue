@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import type { Relation, FriendProfile } from '@nianlun/core'
+import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
@@ -100,6 +101,7 @@ async function analyzeProfile() {
 
     <template v-else>
       <view class="card head">
+        <AntennaBuddy class="head-buddy" :color="relColor(friend.rel)" antenna="rod" :scale="0.6" />
         <view class="avatar" :style="{ background: relColor(friend.rel) }">{{ initials(friend.alias || friend.name) }}</view>
         <text class="name">{{ friend.alias || friend.name }}</text>
         <view class="tags">
@@ -146,7 +148,7 @@ async function analyzeProfile() {
               <view
                 v-for="(c, i) in row.cells" :key="i"
                 class="hm-cell"
-                :style="{ backgroundColor: 'rgba(16,163,122,' + cellAlpha(c) + ')' }"
+                :style="{ backgroundColor: 'rgba(67,196,99,' + cellAlpha(c) + ')' }"
               ></view>
             </view>
           </view>
@@ -215,7 +217,8 @@ async function analyzeProfile() {
 <style scoped>
 .page { padding: 32rpx 28rpx 64rpx; }
 
-.head { display: flex; flex-direction: column; align-items: center; padding: 44rpx 32rpx; }
+.head { position: relative; display: flex; flex-direction: column; align-items: center; padding: 44rpx 32rpx; overflow: hidden; }
+.head-buddy { position: absolute; top: 10rpx; right: 20rpx; opacity: 0.9; }
 .avatar {
   width: 120rpx; height: 120rpx; border-radius: 32rpx;
   display: flex; align-items: center; justify-content: center;
