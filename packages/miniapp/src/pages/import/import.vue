@@ -34,7 +34,7 @@ async function onImport() {
         <view class="ring r2"></view>
         <view class="ring r3"></view>
       </view>
-      <view class="title">年轮</view>
+      <view class="title">天线宝宝</view>
       <view class="subtitle">把一年的微信聊天，凝成一页年度报告</view>
       <view class="privacy">🔒 全程本地处理 · 不上传任何数据</view>
     </view>

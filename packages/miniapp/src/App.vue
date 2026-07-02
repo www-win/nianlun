@@ -19,7 +19,7 @@ onLaunch(async () => {
 <template><slot /></template>
 
 <style>
-/* 年轮 设计系统（玉色点缀 · 暖中性 · 本地隐私）—— 全局令牌与共享类 */
+/* 天线宝宝 设计系统（玉色点缀 · 暖中性 · 本地隐私）—— 全局令牌与共享类 */
 page {
   --bg: #f5f7f6;
   --surface: #ffffff;

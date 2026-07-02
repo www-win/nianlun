@@ -75,7 +75,7 @@ function draw() {
 
   ctx.setTextAlign('left')
   ctx.setFillStyle('#0b7d5d'); ctx.setFontSize(22)
-  ctx.fillText('年轮 · NIANLUN', 56, 96)
+  ctx.fillText('天线宝宝 · TELETUBBIES', 56, 96)
 
   ctx.setFillStyle('#3a3632'); ctx.setFontSize(120)
   ctx.fillText(String(r.year), 52, 230)
@@ -137,7 +137,7 @@ onMounted(draw)
 
     <template v-else>
       <view class="poster">
-        <text class="p-brand">年轮 · NIANLUN</text>
+        <text class="p-brand">天线宝宝 · TELETUBBIES</text>
         <text class="p-year num">{{ report.year }}</text>
         <text class="p-sub">年度社交报告</text>
         <view class="p-divider"></view>
