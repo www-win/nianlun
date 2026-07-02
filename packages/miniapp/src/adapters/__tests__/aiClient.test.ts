@@ -28,6 +28,22 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][0]).toContain('张三')
   })
 
+  it('analyzeFriendProfile 走画像 prompt 并解析 5 侧面 + 投资子维度', async () => {
+    const transport = vi.fn().mockResolvedValue(JSON.stringify({
+      identity: '某城商行支行长', family: '已婚有一子', romance: '婚姻稳定',
+      lifestyle: '爱打高尔夫', investment: {
+        summary: '整体稳健', risk: '稳健型', categories: '基金、理财',
+        wealth: '资金充裕', style: '长线为主',
+      },
+    }))
+    const out = await makeAiClient(transport).analyzeFriendProfile(FRIEND, ['我：最近买基金了', '对方：稳健点好'])
+    expect(out.identity).toBe('某城商行支行长')
+    expect(out.investment?.risk).toBe('稳健型')
+    expect(out.investment?.style).toBe('长线为主')
+    expect(transport.mock.calls[0][0]).toContain('investment')
+    expect(transport.mock.calls[0][0]).toContain('张三')
+  })
+
   it('analyzeYearSentiment 回传整段文本', async () => {
     const transport = vi.fn().mockResolvedValue('这一年整体热络、以正向互动为主。')
     const out = await makeAiClient(transport).analyzeYearSentiment(REPORT, ['对方：新年快乐'])
