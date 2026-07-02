@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import type { Friend, ReportData } from '@nianlun/core'
 import { makeStorage } from '../../adapters/storage'
 import { makeSamples } from '../../adapters/samples'
 import { createDataStore } from '../data'
@@ -10,6 +11,19 @@ function memStorage() {
   return makeStorage({ get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k) })
 }
 const TXT = `2025-03-01 09:00:00 李四\n早\n\n2025-03-01 09:01:00 我\n早呀`
+
+// 造一位 ≥20 条消息的好友，触发分析门槛（李四发 20 条）
+const BIG_TXT = Array.from({ length: 20 }, (_, i) =>
+  `2025-03-0${(i % 9) + 1} 09:${String(i).padStart(2, '0')}:00 李四\n消息${i}`,
+).join('\n\n')
+
+const mkFriend = (id: string, msgCount: number): Friend => ({
+  id, name: id, alias: '', rel: '其他', role: '', firstContact: 0, lastContact: 0,
+  msgCount, sentRatio: 0, peakPeriod: '', maxStreak: 0,
+  monthly: new Array(12).fill(0), hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0),
+  keywords: [], userEdited: {},
+})
+const REPORT = { year: 2025, totalMessages: 0, friendCount: 0, activeDays: 0, topContacts: [], relationBreakdown: [] } as unknown as ReportData
 
 describe('import store', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -83,53 +97,96 @@ describe('import store', () => {
     expect(useData().report?.friendCount).toBe(1)
   })
 
-  it('导入后自动分析新好友的关系/职务并记住，已分析的不重复调用', async () => {
+})
+
+describe('analyzePendingRoles（门槛 + 后台分析）', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('只分析 msgCount>=20 且未分析的好友，写入 rel/role 并计入集合', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
     const suggest = vi.fn().mockResolvedValue({ rel: '同事', role: '产品经理' })
-    const useImport = createImportStore({
-      useData, storage: s, suggest, loadSamples: () => ['我：在吗', '对方：在'],
-    })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => ['我：在吗'] })
     const imp = useImport()
-    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
-    const f = useData().friends[0]
-    expect(f.rel).toBe('同事')
-    expect(f.role).toBe('产品经理')
-    expect(s.loadAnalyzedIds()).toContain(f.id)
-    expect(imp.analyzing).toBe(null)          // 结束后清空
-    // 第二次导入同数据：该好友已在集合，不再调用 suggest
-    suggest.mockClear()
-    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    await useData().setData([mkFriend('big', 30), mkFriend('small', 5)], REPORT)
+    await imp.analyzePendingRoles()
+    expect(suggest).toHaveBeenCalledTimes(1)                     // 只 big（small 低于门槛）
+    expect(useData().friends.find((f) => f.id === 'big')!.role).toBe('产品经理')
+    expect(useData().friends.find((f) => f.id === 'big')!.rel).toBe('同事')
+    expect(useData().friends.find((f) => f.id === 'small')!.role).toBe('')
+    expect(s.loadAnalyzedIds()).toEqual(['big'])
+    expect(imp.analyzing).toBe(null)
+  })
+
+  it('已在集合里的达标好友不再分析', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    s.saveAnalyzedIds(['big'])
+    const suggest = vi.fn().mockResolvedValue({ role: 'PM' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await useData().setData([mkFriend('big', 30)], REPORT)
+    await imp.analyzePendingRoles()
     expect(suggest).not.toHaveBeenCalled()
   })
 
-  it('分析新好友时已能读到刚导入的样本（suggest 收到非空样本）', async () => {
+  it('重入保护：analyzing 非 null 时直接返回、不分析', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const seen: string[][] = []
-    const suggest = vi.fn(async (_f: unknown, samples: string[]) => { seen.push(samples); return {} })
-    const useImport = createImportStore({
-      useData, storage: s, suggest,
-      loadSamples: makeSamples(s).loadSamplesFor, // 真实：读回同一 memStorage
-    })
+    const suggest = vi.fn().mockResolvedValue({ role: 'PM' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
     const imp = useImport()
-    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
-    expect(seen.length).toBe(1)
-    expect(seen[0].length).toBeGreaterThan(0) // 分析时样本已落盘、非空
+    await useData().setData([mkFriend('big', 30)], REPORT)
+    imp.analyzing = { done: 1, total: 5 } // 模拟已有分析在跑（Pinia setup store 属性可直接赋值）
+    await imp.analyzePendingRoles()
+    expect(suggest).not.toHaveBeenCalled()
   })
 
-  it('分析失败时在 warnings 里现形（不再静默吞错）', async () => {
+  it('失败在 warnings 里现形（不再静默）', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
     const suggest = vi.fn().mockRejectedValue(new Error('AI 服务未部署'))
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => ['我：hi'] })
+    const imp = useImport()
+    await useData().setData([mkFriend('big', 30)], REPORT)
+    await imp.analyzePendingRoles()
+    expect(imp.warnings.some((w) => w.includes('失败') && w.includes('AI 服务未部署'))).toBe(true)
+    expect(s.loadAnalyzedIds()).toEqual([])       // 失败不入集合
+    expect(imp.analyzing).toBe(null)
+  })
+})
+
+describe('run 导入后非阻塞触发分析', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('导入达标好友：status 先 done，分析在其后写入且样本已就绪（非空）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const seen: string[][] = []
+    const suggest = vi.fn(async (_f: unknown, samples: string[]) => { seen.push(samples); return { rel: '同事', role: 'PM' } })
     const useImport = createImportStore({
-      useData, storage: s, suggest, loadSamples: () => ['我：在吗'],
+      useData, storage: s, suggest,
+      loadSamples: makeSamples(s).loadSamplesFor,     // 真实：读回同一 memStorage
     })
     const imp = useImport()
-    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    await imp.run([{ name: 'c.txt', content: BIG_TXT }], 2025)
     expect(imp.status).toBe('done')
-    expect(imp.warnings.some((w) => w.includes('失败') && w.includes('AI 服务未部署'))).toBe(true)
-    // 失败的好友不计入已分析集合，下次导入会重试
+    const big = useData().friends[0]
+    expect(big.role).toBe('PM')                       // 后台分析已写入
+    expect(seen.length).toBe(1)
+    expect(seen[0].length).toBeGreaterThan(0)         // 分析时样本已落盘、非空（保留 Critical 回归）
+    expect(s.loadAnalyzedIds()).toContain(big.id)
+  })
+
+  it('导入的好友都低于门槛：不分析、集合为空、status done', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({ role: 'PM' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025) // 小 TXT：李四 2 条 < 20
+    expect(imp.status).toBe('done')
+    expect(suggest).not.toHaveBeenCalled()
     expect(s.loadAnalyzedIds()).toEqual([])
   })
 })

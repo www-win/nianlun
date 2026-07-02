@@ -21,6 +21,9 @@ function analysisWarn(r: AnalyzeRolesResult): string[] {
   return [parts.join('；')]
 }
 
+/** 只自动分析全年消息数达到该门槛的好友，过滤上千联系人里的长尾噪声。 */
+const ROLE_MIN_MSGS = 20
+
 type Deps = {
   useData?: ReturnType<typeof createDataStore>
   storage?: ReturnType<typeof makeStorage>
@@ -40,6 +43,35 @@ export function createImportStore(deps: Deps = {}) {
     const warnings = ref<string[]>([])
     const error = ref('')
     const analyzing = ref<{ done: number; total: number } | null>(null)
+
+    /**
+     * 对「消息数达标且不在已分析集合」的好友后台串行推断关系/职务并写入。
+     * 供「导入完成后」与「App 启动 hydrate 后」共用。重入保护避免并发重复。
+     */
+    async function analyzePendingRoles(): Promise<void> {
+      if (analyzing.value) return                              // 重入保护
+      const d = useData()
+      const analyzedSet = new Set(storage.loadAnalyzedIds())
+      const candidates = d.friends.filter(
+        (f) => f.msgCount >= ROLE_MIN_MSGS && !analyzedSet.has(f.id),
+      )
+      if (candidates.length === 0) return
+      analyzing.value = { done: 0, total: candidates.length }  // await 前置位守卫
+      try {
+        const result = await analyzeRolesForNew({
+          friends: candidates,
+          analyzedIds: [...analyzedSet],
+          loadSamples,
+          suggest,
+          applyRole: (id, patch) => d.updateFriend(id, patch),
+          onProgress: (done, total) => { analyzing.value = { done, total } },
+        })
+        storage.saveAnalyzedIds(result.analyzedIds)
+        warnings.value = [...warnings.value, ...analysisWarn(result)]
+      } finally {
+        analyzing.value = null
+      }
+    }
 
     async function run(files: LocalFile[], year: number) {
       status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''
@@ -74,25 +106,12 @@ export function createImportStore(deps: Deps = {}) {
           await data.setData(named, report)
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
-          // 导入成功后：对新好友（不在已分析集合）自动推断关系/职务并写入
-          const analysis = await analyzeRolesForNew({
-            friends: named,
-            analyzedIds: storage.loadAnalyzedIds(),
-            loadSamples,
-            suggest,
-            applyRole: (id, patch) => data.updateFriend(id, patch),
-            onProgress: (done, total) => { analyzing.value = total ? { done, total } : null },
-          })
-          storage.saveAnalyzedIds(analysis.analyzedIds)
-          analyzing.value = null
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
-          warnings.value = [
-            ...outcome.warnings,
-            ...contactWarn(appliedCount(named)),
-            ...analysisWarn(analysis),
-          ]
+          warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
+          status.value = 'done'                 // 导入完成：好友列表立即可用
+          await analyzePendingRoles()            // 之后后台补分析（达标未分析的），UI 已解锁
         } else if (contactNames.length) {
           // 只导入了 contacts.json：给已有好友套真名，报告不变
           if (!prevReport) {
@@ -112,7 +131,7 @@ export function createImportStore(deps: Deps = {}) {
       }
     }
     function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null }
-    return { status, progress, warnings, error, analyzing, run, reset }
+    return { status, progress, warnings, error, analyzing, run, analyzePendingRoles, reset }
   })
 }
 
