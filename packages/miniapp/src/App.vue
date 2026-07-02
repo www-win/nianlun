@@ -21,22 +21,28 @@ onLaunch(async () => {
 <style>
 /* 天线宝宝 设计系统（玉色点缀 · 暖中性 · 本地隐私）—— 全局令牌与共享类 */
 page {
-  --bg: #f5f7f6;
+  --bg: #eefaf0;
   --surface: #ffffff;
-  --surface-2: #eef2f0;
+  --surface-2: #eef6f0;
   --fg: #1e2a27;
   --muted: #5f6b66;
   --faint: #9aa39e;
-  --border: #e8ebe9;
-  --border-2: #dce2df;
-  --accent: #10a37a;
-  --accent-strong: #0b7d5d;
-  --accent-wash: #e6f5ef;
-  --accent-line: #bfe6d6;
+  --border: #e6efe9;
+  --border-2: #d6e6db;
+  --accent: #43c463;
+  --accent-strong: #2ea34a;
+  --accent-wash: #e3f7e8;
+  --accent-line: #bfe9c9;
   --danger: #e0533f;
-  --cream: #faf6ef;
-  --cream-2: #f1e7d6;
+  --cream: #fffdf6;
+  --cream-2: #f3ead3;
   --ink: #3a3632;
+  /* 天线宝宝主题：天空 + 四色小人 */
+  --sky: #5ec8f5;
+  --po: #ff6b6b;
+  --dipsy: #43c463;
+  --laa: #ffd23f;
+  --tinky: #a97be0;
 
   background: var(--bg);
   color: var(--fg);
@@ -56,16 +62,16 @@ page {
 .card {
   background: var(--surface);
   border: 1rpx solid var(--border);
-  border-radius: 28rpx;
+  border-radius: 36rpx;
   box-shadow: 0 2rpx 10rpx rgba(30, 42, 39, 0.04);
 }
 
 .btn-primary {
   display: flex; align-items: center; justify-content: center;
-  height: 92rpx; border-radius: 18rpx;
+  height: 92rpx; border-radius: 999rpx;
   background: var(--accent); color: #fff;
   font-size: 30rpx; font-weight: 600; letter-spacing: 0.02em;
-  box-shadow: 0 6rpx 18rpx rgba(16, 163, 122, 0.22);
+  box-shadow: 0 8rpx 20rpx rgba(67, 196, 99, 0.28);
 }
 .btn-primary.hover { background: var(--accent-strong); }
 .btn-ghost {

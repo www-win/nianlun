@@ -8,6 +8,10 @@
     { "path": "pages/report/report", "style": { "navigationBarTitleText": "年度报告" } }
   ],
   "tabBar": {
+    "color": "#9aa39e",
+    "selectedColor": "#2ea34a",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
     "list": [
       { "pagePath": "pages/import/import", "text": "导入" },
       { "pagePath": "pages/overview/overview", "text": "概览" },
