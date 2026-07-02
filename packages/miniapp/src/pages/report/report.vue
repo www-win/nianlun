@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useDataStore } from '../../stores/data'
 import { aiClient } from '../../adapters/aiClient'
 import { samples } from '../../adapters/samples'
+import AntennaBuddy from '../../components/AntennaBuddy.vue'
+import SunBaby from '../../components/SunBaby.vue'
+import GrassHills from '../../components/GrassHills.vue'
 
 const data = useDataStore()
 const report = computed(() => data.report)
@@ -106,6 +109,23 @@ function draw() {
     for (const ln of lines.slice(0, 8)) { ctx.fillText(ln, 56, y); y += 46 }
   }
 
+  // 底部草坡（三段圆弧）
+  const hillY = CH - 130
+  const hills = [['#7fd694', 120, 90], ['#43c463', 300, 100], ['#5fc47a', 470, 84]]
+  hills.forEach(([c, cx, r]) => {
+    ctx.setFillStyle(c); ctx.beginPath()
+    ctx.arc(cx, hillY + 60, r, Math.PI, 2 * Math.PI); ctx.fill()
+  })
+  // 太阳
+  ctx.setFillStyle('#ffcf33'); ctx.beginPath(); ctx.arc(CW - 90, 150, 30, 0, 2 * Math.PI); ctx.fill()
+  // 四色小人（圆身 + 天线杆）
+  const buddies = [['#a97be0', 180], ['#43c463', 270], ['#ffd23f', 360], ['#ff6b6b', 450]]
+  buddies.forEach(([c, bx]) => {
+    ctx.setStrokeStyle('#6b6b6b'); ctx.setLineWidth(3)
+    ctx.beginPath(); ctx.moveTo(bx, hillY - 16); ctx.lineTo(bx, hillY - 44); ctx.stroke()
+    ctx.setFillStyle(c); ctx.beginPath(); ctx.arc(bx, hillY + 6, 22, 0, 2 * Math.PI); ctx.fill()
+  })
+
   ctx.setFillStyle('#9a917f'); ctx.setFontSize(22)
   ctx.fillText('本地生成 · 数据从未离开你的手机', 56, CH - 60)
   ctx.draw()
@@ -154,6 +174,16 @@ onMounted(draw)
         </view>
         <text v-if="copy" class="p-copy">{{ copy }}</text>
         <text v-else class="p-copy ph">点下方「生成年度文案」，让 AI 为这一年写句话…</text>
+        <view class="p-scene">
+          <SunBaby class="p-sun" :size="72" />
+          <view class="p-buddies">
+            <AntennaBuddy :color="'var(--tinky)'" antenna="triangle" :scale="0.5" />
+            <AntennaBuddy :color="'var(--dipsy)'" antenna="rod" :scale="0.58" />
+            <AntennaBuddy :color="'var(--laa)'" antenna="curl" :scale="0.58" />
+            <AntennaBuddy :color="'var(--po)'" antenna="ring" :scale="0.5" />
+          </view>
+          <GrassHills :height="72" />
+        </view>
         <text class="p-foot">本地生成 · 数据从未离开你的手机</text>
       </view>
 
@@ -206,6 +236,9 @@ onMounted(draw)
 .p-copy { margin-top: 36rpx; font-size: 29rpx; line-height: 1.85; color: #4a443c; }
 .p-copy.ph { color: #b3a98f; }
 .p-foot { margin-top: 40rpx; font-size: 22rpx; color: #a99f88; }
+.p-scene { position: relative; margin-top: 32rpx; }
+.p-sun { position: absolute; top: -8rpx; right: 8rpx; }
+.p-buddies { display: flex; align-items: flex-end; justify-content: center; gap: 2rpx; height: 96rpx; }
 
 .actions { display: flex; gap: 20rpx; margin-top: 32rpx; }
 .half { flex: 1; }
