@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useDataStore } from '../../stores/data'
 import type { Relation } from '@nianlun/core'
+import AntennaBuddy from '../../components/AntennaBuddy.vue'
 
 const data = useDataStore()
 const kw = ref('')
@@ -53,7 +54,10 @@ function onRole(id: string, e: { detail: { value: string } }) {
         </view>
       </view>
 
-      <text class="count faint">共 {{ rows.length }} 位好友</text>
+      <view class="count-row">
+        <text class="count faint">共 {{ rows.length }} 位好友</text>
+        <AntennaBuddy :color="'var(--laa)'" antenna="curl" :scale="0.5" />
+      </view>
 
       <view v-for="f in rows" :key="f.id" class="card frow">
         <view class="top" @click="openDetail(f.id)">
@@ -133,4 +137,6 @@ function onRole(id: string, e: { detail: { value: string } }) {
   font-size: 24rpx; color: var(--fg);
   background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx;
 }
+
+.count-row { display: flex; align-items: center; justify-content: space-between; }
 </style>

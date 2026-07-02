@@ -100,7 +100,7 @@ function openDetail(id: string) {
   width: 120rpx; height: 120rpx; border-radius: 50%;
   background: var(--accent); color: #fff; font-size: 32rpx; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6rpx 18rpx rgba(16, 163, 122, 0.3);
+  box-shadow: 0 6rpx 18rpx rgba(67, 196, 99, 0.34);
 }
 .node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
 .dot { border-radius: 50%; box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.12); }

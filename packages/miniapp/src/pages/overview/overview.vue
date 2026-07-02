@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { sumWeekHour } from '@nianlun/core'
 import { useDataStore } from '../../stores/data'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
+import AntennaBuddy from '../../components/AntennaBuddy.vue'
 
 const data = useDataStore()
 
@@ -67,8 +68,11 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 
     <template v-else>
       <view class="head">
-        <text class="eyebrow">年度概览</text>
-        <text class="year num">{{ data.report.year }}</text>
+        <view class="head-l">
+          <text class="eyebrow">年度概览</text>
+          <text class="year num">{{ data.report.year }}</text>
+        </view>
+        <AntennaBuddy :color="'var(--dipsy)'" antenna="rod" :scale="0.66" />
       </view>
 
       <view class="stats">
@@ -148,7 +152,7 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
               <view
                 v-for="(c, i) in row.cells" :key="i"
                 class="hm-cell"
-                :style="{ backgroundColor: 'rgba(16,163,122,' + cellAlpha(c) + ')' }"
+                :style="{ backgroundColor: 'rgba(67,196,99,' + cellAlpha(c) + ')' }"
               ></view>
             </view>
           </view>
@@ -162,7 +166,8 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 <style scoped>
 .page { padding: 40rpx 36rpx 64rpx; }
 
-.head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28rpx; }
+.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28rpx; }
+.head-l { display: flex; flex-direction: column; }
 .year { font-size: 40rpx; font-weight: 700; color: var(--fg); }
 
 .stats { display: flex; gap: 20rpx; }
