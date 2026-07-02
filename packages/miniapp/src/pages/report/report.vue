@@ -71,13 +71,13 @@ function draw() {
   if (!r) return
   const ctx = uni.createCanvasContext('poster')
   // 背景
-  ctx.setFillStyle('#faf6ef'); ctx.fillRect(0, 0, CW, CH)
+  ctx.setFillStyle('#fffdf6'); ctx.fillRect(0, 0, CW, CH)
   // 细描边
-  ctx.setStrokeStyle('#e7dcc8'); ctx.setLineWidth(2)
+  ctx.setStrokeStyle('#f3ead3'); ctx.setLineWidth(2)
   ctx.strokeRect(24, 24, CW - 48, CH - 48)
 
   ctx.setTextAlign('left')
-  ctx.setFillStyle('#0b7d5d'); ctx.setFontSize(22)
+  ctx.setFillStyle('#2ea34a'); ctx.setFontSize(22)
   ctx.fillText('天线宝宝 · TELETUBBIES', 56, 96)
 
   ctx.setFillStyle('#3a3632'); ctx.setFontSize(120)
@@ -85,7 +85,7 @@ function draw() {
   ctx.setFontSize(30); ctx.setFillStyle('#6b655c')
   ctx.fillText('年度社交报告', 56, 286)
 
-  ctx.setStrokeStyle('#e7dcc8'); ctx.setLineWidth(1)
+  ctx.setStrokeStyle('#f3ead3'); ctx.setLineWidth(1)
   ctx.beginPath(); ctx.moveTo(56, 330); ctx.lineTo(CW - 56, 330); ctx.stroke()
 
   const stats = [
@@ -95,7 +95,7 @@ function draw() {
   ]
   let sx = 56
   stats.forEach(([v, l]) => {
-    ctx.setFillStyle('#10a37a'); ctx.setFontSize(56)
+    ctx.setFillStyle('#43c463'); ctx.setFontSize(56)
     ctx.fillText(v, sx, 410)
     ctx.setFillStyle('#6b655c'); ctx.setFontSize(24)
     ctx.fillText(l, sx, 448)
