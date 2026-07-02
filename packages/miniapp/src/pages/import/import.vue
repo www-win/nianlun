@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import AntennaBuddy from '../../components/AntennaBuddy.vue'
+import SunBaby from '../../components/SunBaby.vue'
+import GrassHills from '../../components/GrassHills.vue'
 import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
@@ -29,11 +32,14 @@ async function onImport() {
 <template>
   <view class="page">
     <view class="hero">
-      <view class="rings">
-        <view class="ring r1"></view>
-        <view class="ring r2"></view>
-        <view class="ring r3"></view>
+      <SunBaby class="sun" :size="120" />
+      <view class="buddies">
+        <AntennaBuddy :color="'var(--tinky)'" antenna="triangle" :scale="0.72" />
+        <AntennaBuddy :color="'var(--dipsy)'" antenna="rod" :scale="0.86" />
+        <AntennaBuddy :color="'var(--laa)'" antenna="curl" :scale="0.86" />
+        <AntennaBuddy :color="'var(--po)'" antenna="ring" :scale="0.72" />
       </view>
+      <GrassHills class="hills" :height="90" />
       <view class="title">天线宝宝</view>
       <view class="subtitle">把一年的微信聊天，凝成一页年度报告</view>
       <view class="privacy">🔒 全程本地处理 · 不上传任何数据</view>
@@ -105,12 +111,15 @@ async function onImport() {
 <style scoped>
 .page { padding: 48rpx 36rpx 64rpx; }
 
-.hero { text-align: center; padding: 40rpx 0 56rpx; }
-.rings { width: 96rpx; height: 96rpx; margin: 0 auto 24rpx; position: relative; }
-.ring { position: absolute; border-radius: 50%; border: 3rpx solid var(--accent); }
-.ring.r1 { inset: 0; opacity: 0.9; }
-.ring.r2 { inset: 18rpx; opacity: 0.6; }
-.ring.r3 { inset: 36rpx; opacity: 0.35; }
+.hero {
+  position: relative; text-align: center;
+  padding: 36rpx 0 40rpx; margin-bottom: 8rpx;
+  background: linear-gradient(180deg, #d6f0ff 0%, #eefaf0 78%);
+  border-radius: 40rpx;
+}
+.hero .sun { position: absolute; top: 24rpx; right: 40rpx; }
+.buddies { display: flex; align-items: flex-end; justify-content: center; gap: 4rpx; padding-top: 24rpx; height: 150rpx; }
+.hero .hills { margin-top: -20rpx; }
 .title { font-size: 56rpx; font-weight: 700; letter-spacing: 0.08em; color: var(--fg); }
 .subtitle { margin-top: 12rpx; font-size: 28rpx; color: var(--muted); }
 .privacy {
