@@ -154,6 +154,31 @@ describe('analyzePendingRoles（门槛 + 后台分析）', () => {
     expect(s.loadAnalyzedIds()).toEqual([])       // 失败不入集合
     expect(imp.analyzing).toBe(null)
   })
+
+  it('存储写入抛异常时不 reject、转为 warning、不翻已完成状态', async () => {
+    const s = memStorage()
+    s.saveAnalyzedIds = () => { throw new Error('存储写入失败') } // 模拟 wx 存储抛错
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({ role: 'PM' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => ['我：hi'] })
+    const imp = useImport()
+    await useData().setData([mkFriend('big', 30)], REPORT)
+    await expect(imp.analyzePendingRoles()).resolves.toBeUndefined() // 绝不 reject
+    expect(imp.warnings.some((w) => w.includes('自动分析未完成') && w.includes('存储写入失败'))).toBe(true)
+    expect(imp.analyzing).toBe(null)
+  })
+
+  it('消息数正好达到门槛(20)纳入分析，19 不纳入', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({ role: 'PM' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => ['我：hi'] })
+    const imp = useImport()
+    await useData().setData([mkFriend('edge', 20), mkFriend('below', 19)], REPORT)
+    await imp.analyzePendingRoles()
+    expect(suggest).toHaveBeenCalledTimes(1)
+    expect(s.loadAnalyzedIds()).toEqual(['edge'])
+  })
 })
 
 describe('run 导入后非阻塞触发分析', () => {

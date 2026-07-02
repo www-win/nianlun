@@ -50,14 +50,14 @@ export function createImportStore(deps: Deps = {}) {
      */
     async function analyzePendingRoles(): Promise<void> {
       if (analyzing.value) return                              // 重入保护
-      const d = useData()
-      const analyzedSet = new Set(storage.loadAnalyzedIds())
-      const candidates = d.friends.filter(
-        (f) => f.msgCount >= ROLE_MIN_MSGS && !analyzedSet.has(f.id),
-      )
-      if (candidates.length === 0) return
-      analyzing.value = { done: 0, total: candidates.length }  // await 前置位守卫
       try {
+        const d = useData()
+        const analyzedSet = new Set(storage.loadAnalyzedIds())
+        const candidates = d.friends.filter(
+          (f) => f.msgCount >= ROLE_MIN_MSGS && !analyzedSet.has(f.id),
+        )
+        if (candidates.length === 0) return
+        analyzing.value = { done: 0, total: candidates.length }  // await 前置位守卫
         const result = await analyzeRolesForNew({
           friends: candidates,
           analyzedIds: [...analyzedSet],
@@ -68,6 +68,9 @@ export function createImportStore(deps: Deps = {}) {
         })
         storage.saveAnalyzedIds(result.analyzedIds)
         warnings.value = [...warnings.value, ...analysisWarn(result)]
+      } catch (e) {
+        // 自动分析属后台增补，任何异常都不应影响已完成的导入/启动
+        warnings.value = [...warnings.value, `自动分析未完成：${(e as Error).message}`]
       } finally {
         analyzing.value = null
       }
