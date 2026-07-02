@@ -60,3 +60,43 @@ export function buildFriendProfilePrompt(friend: Friend, samples: string[]): str
     sampleBlock,
   ].join('\n')
 }
+
+/** 取非空 trim 字符串，否则 undefined。 */
+function pickText(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined
+}
+
+/** 从任意值里挑出投资子对象；内部全无有效字段则返回 undefined。 */
+function pickInvestment(v: unknown): InvestmentProfile | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const r = v as Record<string, unknown>
+  const out: InvestmentProfile = {}
+  const summary = pickText(r.summary); if (summary) out.summary = summary
+  const risk = pickText(r.risk); if (risk) out.risk = risk
+  const categories = pickText(r.categories); if (categories) out.categories = categories
+  const wealth = pickText(r.wealth); if (wealth) out.wealth = wealth
+  const style = pickText(r.style); if (style) out.style = style
+  return Object.keys(out).length ? out : undefined
+}
+
+/**
+ * 容错解析好友画像 JSON：剥围栏、定位首尾花括号、逐字段取非空字符串；
+ * investment 内部全空则省略整块。无法解析返回 {}，永不抛异常。
+ */
+export function parseFriendProfile(text: string): FriendProfile {
+  if (typeof text !== 'string') return {}
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1 || end < start) return {}
+  let obj: unknown
+  try { obj = JSON.parse(text.slice(start, end + 1)) } catch { return {} }
+  if (typeof obj !== 'object' || obj === null) return {}
+  const r = obj as Record<string, unknown>
+  const out: FriendProfile = {}
+  const identity = pickText(r.identity); if (identity) out.identity = identity
+  const family = pickText(r.family); if (family) out.family = family
+  const romance = pickText(r.romance); if (romance) out.romance = romance
+  const lifestyle = pickText(r.lifestyle); if (lifestyle) out.lifestyle = lifestyle
+  const investment = pickInvestment(r.investment); if (investment) out.investment = investment
+  return out
+}
