@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import type { Relation } from '@nianlun/core'
+import type { Relation, FriendProfile } from '@nianlun/core'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
@@ -101,6 +101,33 @@ async function analyzeSentiment() {
     loadingSent.value = false
   }
 }
+
+const profile = ref<FriendProfile | null>(null)
+const loadingProfile = ref(false)
+async function analyzeProfile() {
+  const f = friend.value
+  if (!f) return
+  const s = samples.loadSamplesFor(f.id)
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: 'AI 好友画像',
+      content: `将发送约 ${s.length} 条聊天片段到 AI 服务生成好友画像，是否继续？`,
+      success: (r) => resolve(r.confirm),
+    })
+  })
+  if (!ok) return
+  loadingProfile.value = true
+  try {
+    const r = await aiClient.analyzeFriendProfile(f, s)
+    profile.value = (r.identity || r.family || r.romance || r.lifestyle || r.investment)
+      ? r
+      : { identity: 'AI 无法生成画像' }
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    loadingProfile.value = false
+  }
+}
 </script>
 
 <template>
@@ -182,6 +209,7 @@ async function analyzeSentiment() {
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
           <text class="act act-ai" @click="suggest">✦ 智能建议</text>
           <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : '✦ 情绪分析' }}</text>
+          <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : '✦ 好友画像' }}</text>
         </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
         <view v-if="sentiment" class="senti">
@@ -189,6 +217,25 @@ async function analyzeSentiment() {
           <text v-if="sentiment.summary" class="senti-sum">{{ sentiment.summary }}</text>
           <text class="senti-note faint">AI 推测，仅供参考</text>
         </view>
+      </view>
+
+      <view v-if="profile" class="card block">
+        <text class="block-t">好友画像</text>
+        <view class="prof">
+          <view class="prof-row"><text class="prof-k">身份/职业</text><text class="prof-v">{{ profile.identity || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">家庭状况</text><text class="prof-v">{{ profile.family || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">感情状态</text><text class="prof-v">{{ profile.romance || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">生活方式</text><text class="prof-v">{{ profile.lifestyle || '暂无足够线索' }}</text></view>
+        </view>
+        <view class="prof-inv">
+          <text class="prof-inv-t">投资偏好</text>
+          <text class="prof-inv-sum">{{ (profile.investment && profile.investment.summary) || '暂无足够线索' }}</text>
+          <view class="prof-row"><text class="prof-k">风险偏好</text><text class="prof-v">{{ (profile.investment && profile.investment.risk) || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">关注品类</text><text class="prof-v">{{ (profile.investment && profile.investment.categories) || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">财富线索</text><text class="prof-v">{{ (profile.investment && profile.investment.wealth) || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">决策风格</text><text class="prof-v">{{ (profile.investment && profile.investment.style) || '暂无足够线索' }}</text></view>
+        </view>
+        <text class="senti-note faint">AI 推测，仅供参考</text>
       </view>
 
       <view v-if="chatSamples.length" class="card block">
@@ -261,6 +308,14 @@ async function analyzeSentiment() {
 .senti-tone { display: inline-block; padding: 6rpx 22rpx; border-radius: 999rpx; background: var(--accent); color: #fff; font-size: 26rpx; font-weight: 600; }
 .senti-sum { display: block; margin-top: 16rpx; font-size: 27rpx; color: var(--fg); line-height: 1.7; }
 .senti-note { display: block; margin-top: 12rpx; font-size: 21rpx; }
+
+.prof { margin-top: 20rpx; }
+.prof-row { display: flex; padding: 14rpx 0; border-top: 1rpx solid var(--border); }
+.prof-k { flex: none; width: 140rpx; font-size: 24rpx; color: var(--muted); }
+.prof-v { flex: 1; font-size: 25rpx; color: var(--fg); line-height: 1.6; }
+.prof-inv { margin-top: 24rpx; padding: 24rpx; background: var(--accent-wash); border-radius: 16rpx; }
+.prof-inv-t { display: block; font-size: 26rpx; font-weight: 600; color: var(--accent-strong); }
+.prof-inv-sum { display: block; margin: 12rpx 0 4rpx; font-size: 25rpx; color: var(--fg); line-height: 1.7; }
 
 .samples { margin-top: 20rpx; }
 .sample { display: block; padding: 14rpx 0; border-top: 1rpx solid var(--border); font-size: 25rpx; color: var(--muted); line-height: 1.6; }
