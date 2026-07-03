@@ -43,6 +43,15 @@ describe('import store', () => {
     expect(only.length).toBeGreaterThan(0)
   })
 
+  it('run 留存原始聊天文本，供将来二级分析读回', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    expect(s.loadRawFiles()).toEqual([{ name: 'c.txt', content: TXT }])
+  })
+
   it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {
     const s = memStorage()
     const useData = createDataStore(s)

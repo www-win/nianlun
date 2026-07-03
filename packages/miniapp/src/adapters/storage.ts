@@ -7,6 +7,14 @@ const K_SAMPLES = 'nianlun:samples'
 const K_RECENT_INSIGHTS = 'nianlun:recentInsights'
 const K_RECENT_SAMPLES = 'nianlun:recentSamples'
 const K_ANALYZED = 'nianlun:analyzedIds'
+const K_RAW_INDEX = 'nianlun:rawIndex'
+const K_RAW = (i: number) => `nianlun:raw:${i}`
+// 单块字符数上限。小程序单键上限约 1MB(字节)；中文按 UTF-8 最多 4 字节/字，
+// 取 20 万字符 → 最坏约 0.8MB，留足余量。
+const RAW_CHUNK_CHARS = 200_000
+
+/** 导入的原始聊天文件（名字 + 原文），供将来二级荐股分析重解析。 */
+export interface RawChatFile { name: string; content: string }
 
 export interface StorageBackend {
   get(key: string): unknown
@@ -15,6 +23,51 @@ export interface StorageBackend {
 }
 
 export function makeStorage(backend: StorageBackend) {
+  // ── 原始聊天文本：分块存 Storage（绕过单键 1MB 限制）────────────────
+  function rawChunkCount(): number {
+    const idx = backend.get(K_RAW_INDEX)
+    return idx && typeof idx === 'object' && typeof (idx as { count?: unknown }).count === 'number'
+      ? (idx as { count: number }).count
+      : 0
+  }
+  function clearRawImpl(): void {
+    const count = rawChunkCount()
+    for (let i = 0; i < count; i++) backend.remove(K_RAW(i))
+    backend.remove(K_RAW_INDEX)
+  }
+  function loadRawFilesImpl(): RawChatFile[] {
+    const count = rawChunkCount()
+    if (!count) return []
+    let blob = ''
+    for (let i = 0; i < count; i++) {
+      const c = backend.get(K_RAW(i))
+      if (typeof c !== 'string') return [] // 缺块 → 容错返回空，绝不抛
+      blob += c
+    }
+    try {
+      const arr = JSON.parse(blob)
+      return Array.isArray(arr) ? (arr as RawChatFile[]) : []
+    } catch {
+      return []
+    }
+  }
+  function saveRawFilesImpl(files: RawChatFile[]): void {
+    clearRawImpl() // 覆盖式：先清旧块，避免残留块拼接出错
+    const blob = JSON.stringify(files)
+    let count = 0
+    for (let i = 0; i < blob.length; i += RAW_CHUNK_CHARS) {
+      backend.set(K_RAW(count), blob.slice(i, i + RAW_CHUNK_CHARS))
+      count++
+    }
+    backend.set(K_RAW_INDEX, { count })
+  }
+  function appendRawFilesImpl(files: RawChatFile[]): void {
+    const existing = loadRawFilesImpl()
+    const seen = new Set(existing.map((f) => f.content)) // 按内容精确去重(同一文件重复导入)
+    const merged = [...existing, ...files.filter((f) => !seen.has(f.content))]
+    saveRawFilesImpl(merged)
+  }
+
   return {
     saveFriends(friends: Friend[]): void { backend.set(K_FRIENDS, friends) },
     loadFriends(): Friend[] {
@@ -53,9 +106,15 @@ export function makeStorage(backend: StorageBackend) {
       const raw = backend.get(K_ANALYZED)
       return Array.isArray(raw) ? (raw as string[]) : []
     },
+    // 原始聊天文本：覆盖写 / 读回 / 追加去重 / 清除
+    saveRawFiles(files: RawChatFile[]): void { saveRawFilesImpl(files) },
+    loadRawFiles(): RawChatFile[] { return loadRawFilesImpl() },
+    appendRawFiles(files: RawChatFile[]): void { appendRawFilesImpl(files) },
+    clearRaw(): void { clearRawImpl() },
     clearAll(): void {
       backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
       backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES); backend.remove(K_ANALYZED)
+      clearRawImpl()
     },
   }
 }

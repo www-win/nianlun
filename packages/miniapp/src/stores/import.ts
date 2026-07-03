@@ -109,6 +109,13 @@ export function createImportStore(deps: Deps = {}) {
           await data.setData(named, report)
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
+          // 留存原始聊天文本(仅本机)，供将来二级荐股分析重解析、免客户重导。
+          // 存储失败(如超配额)只告警，绝不阻断已完成的导入。
+          try {
+            storage.appendRawFiles(chatFiles)
+          } catch (e) {
+            warnings.value = [...warnings.value, `原文留存未完成：${(e as Error).message}`]
+          }
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
