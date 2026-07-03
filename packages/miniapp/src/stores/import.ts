@@ -43,6 +43,8 @@ export function createImportStore(deps: Deps = {}) {
     const warnings = ref<string[]>([])
     const error = ref('')
     const analyzing = ref<{ done: number; total: number } | null>(null)
+    // 本机已留存的原始聊天文件数（供导入页显示「已留存原文 X 个」，真机联调可见）。
+    const rawSavedCount = ref(0)
 
     /**
      * 对「消息数达标且不在已分析集合」的好友后台串行推断关系/职务并写入。
@@ -77,7 +79,7 @@ export function createImportStore(deps: Deps = {}) {
     }
 
     async function run(files: LocalFile[], year: number) {
-      status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''
+      status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''; rawSavedCount.value = 0
       try {
         const data = useData()
         const prevReport = data.report
@@ -113,6 +115,7 @@ export function createImportStore(deps: Deps = {}) {
           // 存储失败(如超配额)只告警，绝不阻断已完成的导入。
           try {
             storage.appendRawFiles(chatFiles)
+            rawSavedCount.value = storage.loadRawFiles().length
           } catch (e) {
             warnings.value = [...warnings.value, `原文留存未完成：${(e as Error).message}`]
           }
@@ -140,8 +143,8 @@ export function createImportStore(deps: Deps = {}) {
         analyzing.value = null
       }
     }
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null }
-    return { status, progress, warnings, error, analyzing, run, analyzePendingRoles, reset }
+    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; rawSavedCount.value = 0 }
+    return { status, progress, warnings, error, analyzing, rawSavedCount, run, analyzePendingRoles, reset }
   })
 }
 

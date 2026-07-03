@@ -63,6 +63,7 @@ async function onImport() {
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
         <text>✅ 已导入 · 好友 {{ data.friends.length }} 位</text>
+        <text v-if="imp.rawSavedCount" class="raw"> · 已留存原文 {{ imp.rawSavedCount }} 个</text>
         <text v-if="imp.warnings.length" class="warn"> · {{ imp.warnings.length }} 条提示</text>
       </view>
       <view v-else-if="imp.status === 'error'" class="status err">
@@ -146,6 +147,7 @@ async function onImport() {
 .bar-in { height: 100%; background: var(--accent); border-radius: 999rpx; transition: width .2s; }
 .status-t { display: block; margin-top: 14rpx; font-size: 24rpx; }
 .status.ok { font-size: 27rpx; color: var(--accent-strong); font-weight: 550; }
+.status.ok .raw { color: var(--accent-strong); font-weight: 550; }
 .status.ok .warn { color: var(--faint); font-weight: 400; }
 .status.err { font-size: 27rpx; color: var(--danger); }
 .warns { margin-top: 18rpx; padding: 18rpx 22rpx; background: var(--surface-2); border-radius: 14rpx; }

@@ -50,6 +50,7 @@ describe('import store', () => {
     const imp = useImport()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
     expect(s.loadRawFiles()).toEqual([{ name: 'c.txt', content: TXT }])
+    expect(imp.rawSavedCount).toBe(1) // 供导入页显示「已留存原文 X 个」
   })
 
   it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {
