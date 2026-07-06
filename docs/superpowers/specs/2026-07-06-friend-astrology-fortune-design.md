@@ -166,10 +166,32 @@ export interface AstroReading {
    - **近期运势**：流月流日解读（AI）
    - **与我相性**：合盘六合/相冲 + 流日相冲**红色高亮**（"冲课"在这）（机械判定 + AI 解读）
    - **社交提示**：「近期宜亲近 / 宜保持距离」+ 一句依据（AI，措辞软化）
+   - **时效提示**（仅缓存结果且已跨天/生辰变更时）：卡顶显示「基于 X 月 X 日生成，点击刷新」，用户可手动刷新重算
    - 底部**大免责**：「命理内容仅供娱乐参考」
 
 - 沿用现有卡片 class 与配色变量（`--accent-wash` / `--muted` / `--fg` 等），不新造设计语言。
 - 缺字段统一渲染「暂无足够线索」。
+
+### 8.3 持久化与时效（AI 解读结果）
+
+AI 解读结果**持久化**到本地 IndexedDB，类比现有样本存储（`saveSamples`/`loadSamples`，存 `meta` 库），按好友 id 存一条：
+
+```typescript
+// miniapp 存储结构(不进 core 的 Friend 类型)
+interface StoredAstroReading {
+  reading: AstroReading       // 4 段解读
+  chart: BaziChart            // 命盘速览(确定性,可随解读一起缓存)
+  generatedDate: string       // 生成当天 'YYYY-MM-DD'
+  birthFingerprint: string    // 好友生辰指纹(如 JSON 串)
+  myBaziFingerprint: string   // 我的盘指纹
+}
+```
+
+- **读取**：`loadAstroReading(friendId)` → 有则直接渲染，免 AI 调用。
+- **过期判定**：`当前日期 !== generatedDate`（跨天）**或** 生辰/我的盘指纹变更 → 视为过期。
+- **过期处理**：**仍展示缓存内容**（性格/合盘长期有效，仅流月流日可能过时），卡顶加「基于 X 月 X 日生成，点击刷新」提示；用户点刷新才重新 AI 调用并覆盖存储。**不自动清空、不自动重算**（省 token、避免打扰）。
+- **命盘速览**（`chart`）是确定性结果，生辰不变即不变，随解读一起缓存、不受跨天影响。
+- 修改生辰或「我的命盘」后，指纹变化会让相关缓存自动标记过期。
 
 ## 9. 隐私与边界
 
@@ -192,6 +214,10 @@ export interface AstroReading {
 
 **miniapp `aiClient.test.ts`：**
 - `analyzeAstro` 用 mock transport 返回结构化 JSON，断言解析出 4 段（personality/fortune/affinity/advice），且 prompt 含盘数据。
+
+**miniapp `storage.test.ts`（fake-indexeddb）：**
+- `saveAstroReading` 存入后 `loadAstroReading` 读回一致（含 reading/chart/元数据）。
+- 过期判定：`generatedDate` 与当前日期不同、或指纹变更时，标记过期（返回缓存 + 过期标志），不自动清空。
 
 **构建：** core 改动后 `pnpm --filter @nianlun/core build`；页面无单测，靠 `build:mp-weixin` + 微信开发者工具手测。
 
