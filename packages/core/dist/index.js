@@ -13139,10 +13139,170 @@ function parseBirthInfo(text) {
   return out;
 }
 
+// src/ai/stock.ts
+function normalizeStockName(raw) {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/[（(【[][^）)】\]]*[）)】\]]/g, "").replace(/\s+/g, "").trim().toUpperCase();
+}
+function pickStr(v) {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : void 0;
+}
+function toStrArray(v) {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x) => typeof x === "string" && x.trim() !== "").map((x) => x.trim());
+}
+function parseDateToTs(date, fallback) {
+  if (typeof date !== "string") return fallback;
+  const m = date.trim().match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/);
+  if (!m) return fallback;
+  const y = Number(m[1]);
+  const mo = m[2] ? Number(m[2]) : 1;
+  const d = m[3] ? Number(m[3]) : 1;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return fallback;
+  return Date.UTC(y, mo - 1, d);
+}
+function parseStockExtraction(text, ctx) {
+  if (typeof text !== "string") return [];
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start === -1 || end === -1 || end < start) return [];
+  let arr;
+  try {
+    arr = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const item of arr) {
+    if (typeof item !== "object" || item === null) continue;
+    const r = item;
+    const stock = pickStr(r.stock);
+    if (!stock) continue;
+    const pick2 = {
+      stock,
+      stockNorm: normalizeStockName(stock),
+      recommenderId: ctx.recommenderId,
+      recommender: ctx.recommender,
+      ts: parseDateToTs(r.date, ctx.fallbackTs),
+      logics: toStrArray(r.logics),
+      companyNotes: toStrArray(r.companyNotes)
+    };
+    const tmc = pickStr(r.targetMarketCap);
+    if (tmc) pick2.targetMarketCap = tmc;
+    const mul = pickStr(r.multiple);
+    if (mul) pick2.multiple = mul;
+    const tt = pickStr(r.targetTime);
+    if (tt) pick2.targetTime = tt;
+    const q = pickStr(r.quote);
+    if (q) pick2.quote = q;
+    out.push(pick2);
+  }
+  return out;
+}
+var pickKey = (p) => `${p.stockNorm}|${p.recommenderId}|${p.ts}|${p.quote ?? ""}`;
+function mergeStockPicks(existing, incoming) {
+  const seen = new Set(existing.map(pickKey));
+  const out = [...existing];
+  for (const p of incoming) {
+    const k = pickKey(p);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(p);
+    }
+  }
+  return out;
+}
+function dedup(a) {
+  return [...new Set(a)];
+}
+function aggregateByStock(picks) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const p of picks) {
+    const g = groups.get(p.stockNorm);
+    if (g) g.push(p);
+    else groups.set(p.stockNorm, [p]);
+  }
+  const cards = [];
+  for (const [stockNorm, gp] of groups) {
+    const nameCount = /* @__PURE__ */ new Map();
+    for (const p of gp) nameCount.set(p.stock, (nameCount.get(p.stock) ?? 0) + 1);
+    let displayName = gp[0].stock;
+    let best = 0;
+    for (const [n, c] of nameCount) if (c > best) {
+      best = c;
+      displayName = n;
+    }
+    const byTsDesc = [...gp].sort((a, b) => b.ts - a.ts);
+    const card = {
+      stockNorm,
+      displayName,
+      recommenderCount: new Set(gp.map((p) => p.recommenderId)).size,
+      pickCount: gp.length,
+      logics: dedup(gp.flatMap((p) => p.logics)),
+      companyNotes: dedup(gp.flatMap((p) => p.companyNotes)),
+      picks: gp
+    };
+    const tmc = byTsDesc.find((p) => p.targetMarketCap)?.targetMarketCap;
+    const mul = byTsDesc.find((p) => p.multiple)?.multiple;
+    if (tmc) card.latestTargetMarketCap = tmc;
+    if (mul) card.latestMultiple = mul;
+    cards.push(card);
+  }
+  return cards;
+}
+function aggregateByRecommender(picks) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const p of picks) {
+    const g = groups.get(p.recommenderId);
+    if (g) g.push(p);
+    else groups.set(p.recommenderId, [p]);
+  }
+  const out = [];
+  for (const [recommenderId, gp] of groups) {
+    out.push({
+      recommenderId,
+      recommender: gp[0].recommender,
+      stockCount: new Set(gp.map((p) => p.stockNorm)).size,
+      picks: gp
+    });
+  }
+  return out;
+}
+function buildStockExtractionPrompt(friend, samples) {
+  const displayName = friend.alias || friend.name;
+  const sampleBlock = samples.length ? samples.map((s, i) => `${i + 1}. ${s}`).join("\n") : "\uFF08\u672C\u6B21\u65E0\u53EF\u7528\u804A\u5929\u6837\u672C\uFF09";
+  return [
+    "\u4F60\u662F\u4E00\u4F4D\u64C5\u957F\u4ECE\u804A\u5929\u8BB0\u5F55\u4E2D\u62BD\u53D6\u300C\u8350\u80A1\u4FE1\u606F\u300D\u7684\u91D1\u878D\u52A9\u7406\u3002",
+    `\u4E0B\u9762\u662F\u4E0E\u300C${displayName}\u300D\u7684\u90E8\u5206\u804A\u5929\u6837\u672C\uFF0C\u8BF7\u627E\u51FA\u5176\u4E2D\u6240\u6709\u300C\u63A8\u8350 / \u770B\u597D\u67D0\u652F\u80A1\u7968\u300D\u7684\u8BB0\u5F55\u3002`,
+    "",
+    "\u53EA\u8F93\u51FA\u4E00\u4E2A\u4E25\u683C\u7684 JSON \u6570\u7EC4\uFF0C\u4E0D\u8981\u4EFB\u4F55\u89E3\u91CA\u3001\u4E0D\u8981\u4EE3\u7801\u56F4\u680F\u5916\u7684\u6587\u5B57\u3002",
+    "\u82E5\u6837\u672C\u4E2D\u6CA1\u6709\u4EFB\u4F55\u8350\u80A1\u4FE1\u606F\uFF0C\u8F93\u51FA\u7A7A\u6570\u7EC4 []\u3002",
+    "\u6BCF\u4E2A\u6570\u7EC4\u5143\u7D20\u683C\u5F0F\uFF1A",
+    "{",
+    '  "stock": "<\u80A1\u7968\u540D\u79F0\uFF0C\u5FC5\u586B>",',
+    '  "date": "<\u63A8\u8350\u65F6\u95F4\uFF0C\u53D6\u6837\u672C\u884C\u9996\u65E5\u671F\uFF0C\u5982 2026-03-05\uFF1B\u65E0\u6CD5\u786E\u5B9A\u7559\u7A7A>",',
+    '  "targetMarketCap": "<\u76EE\u6807\u5E02\u503C\uFF0C\u5982 500\u4EBF\uFF1B\u65E0\u5219\u7701\u7565>",',
+    '  "multiple": "<\u6DA8\u5E45\u500D\u6570\uFF0C\u5982 2\u500D\uFF1B\u65E0\u5219\u7701\u7565>",',
+    '  "targetTime": "<\u9884\u8BA1\u5230\u8FBE\u65F6\u95F4\uFF0C\u5982 1\u5E74\u5185\uFF1B\u65E0\u5219\u7701\u7565>",',
+    '  "logics": ["<\u63A8\u8350\u903B\u8F91\uFF0C\u5206\u6761>"],',
+    '  "companyNotes": ["<\u516C\u53F8\u4FE1\u606F\u6216\u300C\u8C01\u8BF4\u4E86\u4EC0\u4E48\u300D\u7684\u8BC4\u4EF7\uFF0C\u5206\u6761>"],',
+    '  "quote": "<\u6700\u80FD\u4EE3\u8868\u8BE5\u8350\u80A1\u7684\u539F\u8BDD\u6458\u5F55>"',
+    "}",
+    "",
+    "\u8981\u6C42\uFF1A\u53EA\u62BD\u786E\u6709\u8350\u80A1\u542B\u4E49\u7684\u5185\u5BB9\uFF1B\u76EE\u6807\u4EF7 / \u500D\u6570\u7B49\u65E0\u660E\u786E\u4F9D\u636E\u65F6\u5B81\u53EF\u7701\u7565\uFF0C\u7981\u6B62\u81C6\u9020\u3002",
+    "",
+    "\u804A\u5929\u6837\u672C\uFF08\u6BCF\u884C\u4EE5\u65E5\u671F\u5F00\u5934\uFF0C\u300C\u6211\u300D\u4E3A\u7528\u6237\u672C\u4EBA\uFF0C\u300C\u5BF9\u65B9\u300D\u4E3A\u8BE5\u597D\u53CB\uFF09\uFF1A",
+    sampleBlock
+  ].join("\n");
+}
+
 // src/index.ts
 var version = "0.1.0";
 export {
   aggregate,
+  aggregateByRecommender,
+  aggregateByStock,
   applyContactNames,
   buildAstroPrompt,
   buildBaziChart,
@@ -13155,6 +13315,7 @@ export {
   buildFriendSuggestionPrompt,
   buildReport,
   buildReportCopyPrompt,
+  buildStockExtractionPrompt,
   buildYearSentimentPrompt,
   classify,
   countWords,
@@ -13170,6 +13331,8 @@ export {
   mergeConversations,
   mergeFriends,
   mergeKeywords,
+  mergeStockPicks,
+  normalizeStockName,
   parseAstroReading,
   parseBirthInfo,
   parseCsvBackup,
@@ -13178,6 +13341,7 @@ export {
   parseFriendSuggestion,
   parseJsonBackup,
   parseSentiment,
+  parseStockExtraction,
   parseWeliveContacts,
   scoreMessage,
   sessionIdFromFileName,

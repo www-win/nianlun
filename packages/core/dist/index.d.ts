@@ -340,6 +340,59 @@ declare function buildBirthExtractPrompt(friend: Friend, samples: string[]): str
 /** 容错解析生辰：年月日必须有效，否则 null；hour/gender/isLunar 可选。永不抛异常。 */
 declare function parseBirthInfo(text: string): BirthInfo | null;
 
+/** 一条荐股原子记录 = 一次「谁推了哪支票」。唯一事实源。 */
+interface StockPick {
+    stock: string;
+    stockNorm: string;
+    recommenderId: string;
+    recommender: string;
+    ts: number;
+    targetMarketCap?: string;
+    multiple?: string;
+    targetTime?: string;
+    currentPrice?: string;
+    logics: string[];
+    companyNotes: string[];
+    quote?: string;
+}
+/** 解析/编排层注入给每条 pick 的上下文。 */
+interface ExtractCtx {
+    recommenderId: string;
+    recommender: string;
+    fallbackTs: number;
+}
+/** 视图A·以票查人：一支票的完整档案。 */
+interface StockCard {
+    stockNorm: string;
+    displayName: string;
+    recommenderCount: number;
+    pickCount: number;
+    latestTargetMarketCap?: string;
+    latestMultiple?: string;
+    logics: string[];
+    companyNotes: string[];
+    picks: StockPick[];
+}
+/** 视图B·以人查票：某人推过的所有票。 */
+interface RecommenderPicks {
+    recommenderId: string;
+    recommender: string;
+    stockCount: number;
+    picks: StockPick[];
+}
+/** 归并键规范化：去括号及内容、去空白、英文统一大写。 */
+declare function normalizeStockName(raw: string): string;
+/** 容错解析 AI 荐股抽取结果为 StockPick[]；注入 ctx；永不抛。 */
+declare function parseStockExtraction(text: string, ctx: ExtractCtx): StockPick[];
+/** 去重合并两批荐股记录，保持顺序（existing 在前）。 */
+declare function mergeStockPicks(existing: StockPick[], incoming: StockPick[]): StockPick[];
+/** 视图A：按 stockNorm 聚合成票卡片（三层信息在此归纳）。 */
+declare function aggregateByStock(picks: StockPick[]): StockCard[];
+/** 视图B：按推荐人聚合。 */
+declare function aggregateByRecommender(picks: StockPick[]): RecommenderPicks[];
+/** 单个好友 + 带日期样本 → 荐股抽取提示词，要求 AI 只输出严格 JSON 数组。 */
+declare function buildStockExtractionPrompt(friend: Friend, samples: string[]): string;
+
 declare const version = "0.1.0";
 
-export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type Relation, type ReportData, type Sentiment, aggregate, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };
+export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };
