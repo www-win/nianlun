@@ -78,4 +78,35 @@ describe('storage 适配器', () => {
     s.clearAll()
     expect(s.loadAnalyzedIds()).toEqual([])
   })
+
+  it('purgeLegacyRaw 用 keys 精确清 raw 残留键、保留其它数据', () => {
+    const m = new Map<string, unknown>([
+      ['nianlun:rawIndex', { count: 2 }],
+      ['nianlun:raw:0', 'x'], ['nianlun:raw:1', 'y'],
+      ['nianlun:friends', [FRIEND]],
+    ])
+    const s = makeStorage({
+      get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k),
+      keys: () => [...m.keys()],
+    })
+    s.purgeLegacyRaw()
+    expect(m.has('nianlun:rawIndex')).toBe(false)
+    expect(m.has('nianlun:raw:0')).toBe(false)
+    expect(m.has('nianlun:raw:1')).toBe(false)
+    expect(m.has('nianlun:friends')).toBe(true) // 聚合数据保留
+  })
+
+  it('purgeLegacyRaw 在 backend 无 keys 时按 rawIndex.count 兜底删块', () => {
+    const m = new Map<string, unknown>([
+      ['nianlun:rawIndex', { count: 3 }],
+      ['nianlun:raw:0', 'a'], ['nianlun:raw:1', 'b'], ['nianlun:raw:2', 'c'],
+      ['nianlun:friends', [FRIEND]],
+    ])
+    const s = makeStorage({ get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k) })
+    s.purgeLegacyRaw()
+    expect(m.has('nianlun:raw:0')).toBe(false)
+    expect(m.has('nianlun:raw:2')).toBe(false)
+    expect(m.has('nianlun:rawIndex')).toBe(false)
+    expect(m.has('nianlun:friends')).toBe(true)
+  })
 })

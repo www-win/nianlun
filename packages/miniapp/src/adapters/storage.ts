@@ -7,11 +7,16 @@ const K_SAMPLES = 'nianlun:samples'
 const K_RECENT_INSIGHTS = 'nianlun:recentInsights'
 const K_RECENT_SAMPLES = 'nianlun:recentSamples'
 const K_ANALYZED = 'nianlun:analyzedIds'
+// 旧版本把原文分块存 Storage 用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
+const K_RAW_INDEX_LEGACY = 'nianlun:rawIndex'
+const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
 
 export interface StorageBackend {
   get(key: string): unknown
   set(key: string, value: unknown): void
   remove(key: string): void
+  /** 列出所有键，用于清理旧版遗留键；backend 不支持则可省略（走 count 兜底）。 */
+  keys?(): string[]
 }
 
 export function makeStorage(backend: StorageBackend) {
@@ -57,6 +62,25 @@ export function makeStorage(backend: StorageBackend) {
       backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
       backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES); backend.remove(K_ANALYZED)
     },
+    /**
+     * 清掉旧版本（原文存 Storage）遗留的 nianlun:raw:* / nianlun:rawIndex 键，回收配额。
+     * 原文已迁至文件系统，这些是死数据；真机无 Console 手动清，故 App 启动时自动调用。
+     * 优先按 keys 精确清；backend 不支持列键时按 rawIndex.count 兜底删块。
+     */
+    purgeLegacyRaw(): void {
+      const keys = backend.keys?.()
+      if (keys) {
+        for (const k of keys) {
+          if (k === K_RAW_INDEX_LEGACY || k.startsWith(K_RAW_PREFIX_LEGACY)) backend.remove(k)
+        }
+        return
+      }
+      const idx = backend.get(K_RAW_INDEX_LEGACY)
+      const count = idx && typeof idx === 'object' && typeof (idx as { count?: unknown }).count === 'number'
+        ? (idx as { count: number }).count : 0
+      for (let i = 0; i < count; i++) backend.remove(`${K_RAW_PREFIX_LEGACY}${i}`)
+      backend.remove(K_RAW_INDEX_LEGACY)
+    },
   }
 }
 
@@ -64,6 +88,7 @@ const wxBackend: StorageBackend = {
   get: (k) => wx.getStorageSync(k),
   set: (k, v) => wx.setStorageSync(k, v),
   remove: (k) => wx.removeStorageSync(k),
+  keys: () => { try { return wx.getStorageInfoSync().keys } catch { return [] } },
 }
 
 export const storage = makeStorage(wxBackend)

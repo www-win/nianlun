@@ -33,6 +33,7 @@ declare global {
     setStorageSync(key: string, data: unknown): void
     getStorageSync(key: string): unknown
     removeStorageSync(key: string): void
+    getStorageInfoSync(): { keys: string[]; currentSize: number; limitSize: number }
     cloud: {
       init(opts: { env: string }): void
       callFunction(opts: { name: string; data: unknown }): Promise<{ result: unknown }>

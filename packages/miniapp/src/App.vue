@@ -3,8 +3,11 @@ import { onLaunch } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
 import { useImportStore } from './stores/import'
 import { purgeUnzipTemp } from './adapters/fileReader'
+import { storage } from './adapters/storage'
 onLaunch(async () => {
-  // 回收旧版遗留的解压临时目录（新版 unzip 已即时清理，此为历史泄漏兜底），避免文件系统撑满。
+  // 回收旧版遗留：① Storage 里的原文残留键(nianlun:raw:*)——真机无 Console 手动清，靠这里自动清回收配额；
+  //             ② 文件系统的解压临时目录。新版都已迁走/即时清理，这里是升级兜底，避免配额撑满。
+  storage.purgeLegacyRaw()
   // @ts-ignore wx 由微信小程序运行时提供
   if (typeof wx !== 'undefined' && wx.getFileSystemManager) {
     // @ts-ignore
