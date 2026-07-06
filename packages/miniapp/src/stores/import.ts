@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
   mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
-  parseFile, mergeConversations,
+  parseFile, mergeConversations, mergeStockPicks,
 } from '@nianlun/core'
 import type { Friend, FriendSuggestion, Conversation, StockPick, ExtractCtx } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
@@ -155,8 +155,11 @@ export function createImportStore(deps: Deps = {}) {
           return
         }
         let convs: Conversation[] = []
+        const parseWarnings: string[] = []
         for (const f of chatFiles) {
-          convs = mergeConversations(convs, parseFile(f.name, f.content).conversations)
+          const r = parseFile(f.name, f.content)
+          convs = mergeConversations(convs, r.conversations)
+          r.warnings.forEach((w) => parseWarnings.push(`${f.name}: ${w.reason}`))
         }
         const d = useData()
         const candCount = d.friends.filter(isFinanceRole).length
@@ -167,9 +170,12 @@ export function createImportStore(deps: Deps = {}) {
           extract: extractStocks,
           onProgress: (done, total) => { analyzingStocks.value = { done, total } },
         })
-        storage.saveStockPicks(result.picks)
-        stocksSavedCount.value = result.picks.length
-        warnings.value = [...warnings.value, stocksWarn(result)]
+        // 候选取全部历史累积的金融好友，result.picks 只含本次重选文件命中会话的子集；
+        // 与已存合并去重，避免部分重选冲掉之前已保存的荐股。
+        const merged = mergeStockPicks(storage.loadStockPicks(), result.picks)
+        storage.saveStockPicks(merged)
+        stocksSavedCount.value = storage.loadStockPicks().length
+        warnings.value = [...warnings.value, ...parseWarnings, stocksWarn(result)]
       } catch (e) {
         warnings.value = [...warnings.value, `荐股分析未完成：${(e as Error).message}`]
       } finally {

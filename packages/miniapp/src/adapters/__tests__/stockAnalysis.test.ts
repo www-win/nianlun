@@ -68,6 +68,24 @@ describe('analyzeStocks', () => {
     expect(r.firstError).toBe('云函数超时')
     expect(r.picks).toHaveLength(1)
   })
+  it('候选好友在本次 conversations 无匹配会话时不计入 analyzed/total，且不调用 extract', async () => {
+    const extract = vi.fn().mockResolvedValue([pick()])
+    const calls: Array<[number, number]> = []
+    const r = await analyzeStocks({
+      // 只有 a 的会话在本次重选文件里；b 是金融候选但本次未匹配到会话
+      conversations: [conv('a', ['江化微看2倍'])],
+      friends: [F('a', '首席'), F('b', '基金经理')],
+      extract,
+      onProgress: (d, t) => calls.push([d, t]),
+    })
+    expect(extract).toHaveBeenCalledTimes(1)   // 只 a 被抽取，b 未匹配会话不参与
+    expect(r.analyzed).toBe(1)                 // 不把无会话的 b 算进已分析
+    expect(r.picks).toHaveLength(1)
+    // total（经 onProgress 暴露）只覆盖真正处理的 1 位好友，而非候选总数 2
+    expect(calls[0]).toEqual([0, 1])
+    expect(calls[calls.length - 1]).toEqual([1, 1])
+  })
+
   it('onProgress 从 0 起、到 total 结束', async () => {
     const extract = vi.fn().mockResolvedValue([])
     const calls: Array<[number, number]> = []

@@ -64,9 +64,10 @@ export async function analyzeStocks(deps: AnalyzeStocksDeps): Promise<AnalyzeSto
   const { conversations, friends, targetIds, extract, onProgress } = deps
   const isFinance = deps.isFinanceFriend ?? isFinanceRole
   const convById = new Map(conversations.map((c) => [c.id, c]))
-  const candidates = targetIds
+  const candidates = (targetIds
     ? friends.filter((f) => targetIds.includes(f.id))
     : friends.filter(isFinance)
+  ).filter((f) => convById.has(f.id))
 
   const total = candidates.length
   if (total) onProgress?.(0, total)

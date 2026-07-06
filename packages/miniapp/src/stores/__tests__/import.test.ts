@@ -283,4 +283,49 @@ describe('analyzeStocks（重新导入当场抽取）', () => {
     await imp.analyzeStocks([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
     expect(extract).not.toHaveBeenCalled()
   })
+
+  it('第二次窄范围重选不冲掉历史荐股：与已存合并去重（Critical 回归）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    // 按好友 id 返回各自固定的荐股，便于断言是否被保留/去重
+    const extract = vi.fn(async (f: Friend) => ([
+      {
+        stock: f.id === '张三' ? '股票A' : '股票B',
+        stockNorm: f.id === '张三' ? '股票A' : '股票B',
+        recommenderId: f.id, recommender: f.id, ts: 1, logics: [], companyNotes: [],
+      },
+    ] as StockPick[]))
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData(
+      [mkFriendWithRole('张三', '首席'), mkFriendWithRole('李四', '基金经理')],
+      { year: 2026, totalMessages: 18, friendCount: 2, activeDays: 1, topContacts: [], relationBreakdown: [] } as unknown as ReportData,
+    )
+    // 第一次：两位好友的会话都在重选文件里（txt 解析器每个文件只认第一个「对方」发送者，故分两个文件）
+    await imp.analyzeStocks([
+      { name: 'zhangsan.txt', content: '2026-03-05 10:00:00 张三\n股票A看2倍\n\n' },
+      { name: 'lisi.txt', content: '2026-03-05 10:00:00 李四\n股票B不错\n\n' },
+    ])
+    expect(s.loadStockPicks()).toHaveLength(2)
+    expect(imp.stocksSavedCount).toBe(2)
+
+    // 第二次：较窄的重选文件，只含李四的会话（张三本次未匹配到会话）
+    await imp.analyzeStocks([{ name: 'lisi-again.txt', content: '2026-03-05 10:00:00 李四\n股票B不错\n\n' }])
+    // 张三的历史荐股不应被冲掉；李四重复抽取的同一条记录被去重、不重复计入
+    expect(s.loadStockPicks().map((p) => p.recommenderId).sort()).toEqual(['张三', '李四'])
+    expect(s.loadStockPicks()).toHaveLength(2)
+    expect(imp.stocksSavedCount).toBe(2)
+  })
+
+  it('重选文件里的无法识别行会作为 warning 现形，而不是被静默丢弃', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const extract = vi.fn().mockResolvedValue([])
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData([mkFriendWithRole('张三', '首席')], REPORT)
+    // 首行是裸文本（无时间戳头），txt 解析器会记一条「无法识别的行」warning
+    await imp.analyzeStocks([{ name: 'messy.txt', content: '一段无法识别的杂乱文本\n\n2026-03-05 10:00:00 张三\n股票A看2倍\n\n' }])
+    expect(imp.warnings.some((w) => w.includes('messy.txt') && w.includes('无法识别的行'))).toBe(true)
+  })
 })
