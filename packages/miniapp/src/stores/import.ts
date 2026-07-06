@@ -11,7 +11,7 @@ import { storage as defaultStorage, makeStorage } from '../adapters/storage'
 import { aiClient } from '../adapters/aiClient'
 import { samples as defaultSamples } from '../adapters/samples'
 import { analyzeRolesForNew, type AnalyzeRolesResult } from '../adapters/roleAnalysis'
-import { analyzeStocks as runAnalyzeStocks, isFinanceRole } from '../adapters/stockAnalysis'
+import { analyzeStocks as runAnalyzeStocks } from '../adapters/stockAnalysis'
 
 /** 把批量分析统计拼成一条导入页提示，让失败/无结果现形。全 0（无新好友）时返回空数组。 */
 function analysisWarn(r: AnalyzeRolesResult): string[] {
@@ -162,7 +162,10 @@ export function createImportStore(deps: Deps = {}) {
           r.warnings.forEach((w) => parseWarnings.push(`${f.name}: ${w.reason}`))
         }
         const d = useData()
-        const candCount = d.friends.filter(isFinanceRole).length
+        // 初始进度占位＝本次会话里能匹配到的好友数(真实候选数，与 stockAnalysis 一致)，
+        // 随后由 runAnalyzeStocks 的 onProgress 覆盖为准。不再依赖 role(真机常为空)。
+        const convIds = new Set(convs.map((c) => c.id))
+        const candCount = d.friends.filter((f) => convIds.has(f.id)).length
         analyzingStocks.value = { done: 0, total: candCount }   // await 前置位守卫
         const result = await runAnalyzeStocks({
           conversations: convs,

@@ -25,17 +25,37 @@ describe('isFinanceRole', () => {
 })
 
 describe('analyzeStocks', () => {
-  it('无白名单时仅金融类好友被抽取', async () => {
+  it('无白名单、无 isFinanceFriend 注入时，对所有有会话的好友都抽取(不再按 role 预筛)', async () => {
     const extract = vi.fn().mockResolvedValue([pick()])
     const r = await analyzeStocks({
       conversations: [conv('a', ['江化微看2倍']), conv('b', ['吃饭没'])],
-      friends: [F('a', '首席'), F('b', '同学')],
+      friends: [F('a', '首席'), F('b', '同学')],   // b 职务非金融，但有会话 → 也抽
       extract,
     })
-    expect(extract).toHaveBeenCalledTimes(1)      // 只 a
-    expect(r.analyzed).toBe(1)
-    expect(r.withPicks).toBe(1)
-    expect(r.picks).toHaveLength(1)
+    expect(extract).toHaveBeenCalledTimes(2)      // a、b 都抽
+    expect(r.analyzed).toBe(2)
+  })
+  it('好友职务全空(role 未分析)也能抽取 —— 修复真机「0 位候选」(不依赖 isFinanceRole)', async () => {
+    const extract = vi.fn().mockResolvedValue([pick()])
+    const r = await analyzeStocks({
+      conversations: [conv('张三', ['江化微看2倍']), conv('李四', ['和林微纳看3倍'])],
+      friends: [F('张三'), F('李四')],   // role 全空：真机 AI 职务未分析的场景
+      extract,
+    })
+    expect(extract).toHaveBeenCalledTimes(2)   // 不再因 role 空而 0 候选
+    expect(r.analyzed).toBe(2)
+    expect(r.withPicks).toBe(2)
+  })
+  it('注入 isFinanceFriend 时按其筛选(供将来 UI 勾选/白名单场景)', async () => {
+    const extract = vi.fn().mockResolvedValue([pick()])
+    await analyzeStocks({
+      conversations: [conv('a', ['x']), conv('b', ['y'])],
+      friends: [F('a'), F('b')],
+      isFinanceFriend: (f) => f.id === 'a',   // 显式注入筛选仍生效
+      extract,
+    })
+    expect(extract).toHaveBeenCalledTimes(1)
+    expect(extract.mock.calls[0][0].id).toBe('a')
   })
   it('白名单优先于金融启发式', async () => {
     const extract = vi.fn().mockResolvedValue([])

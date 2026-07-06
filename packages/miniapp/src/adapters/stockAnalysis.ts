@@ -1,7 +1,9 @@
 import { mergeStockPicks } from '@nianlun/core'
 import type { Conversation, Friend, StockPick, ExtractCtx } from '@nianlun/core'
 
-/** 金融/投资类默认启发式：role/alias/name 命中关键词即候选。白名单永远优先。 */
+/** 金融/投资类启发式筛选器：role/alias/name 命中关键词即金融。
+ *  注意：analyzeStocks 默认已不再用它预筛（真机 role 常为空会致 0 候选），
+ *  保留供注入 isFinanceFriend 或将来 UI 白名单场景使用。 */
 const FINANCE_KW = /首席|投资|私募|券商|基金|研究员|分析师|资管|证券|操盘|游资|经济学家|股票|荐股/
 export function isFinanceRole(f: Friend): boolean {
   return FINANCE_KW.test(`${f.role} ${f.alias} ${f.name}`)
@@ -61,13 +63,18 @@ function chunkByChars(lines: string[], max: number): string[][] {
 
 /** 对金融候选好友逐个（会话内再分块）串行抽取荐股，容错、进度、统计。 */
 export async function analyzeStocks(deps: AnalyzeStocksDeps): Promise<AnalyzeStocksResult> {
-  const { conversations, friends, targetIds, extract, onProgress } = deps
-  const isFinance = deps.isFinanceFriend ?? isFinanceRole
+  const { conversations, friends, targetIds, isFinanceFriend, extract, onProgress } = deps
   const convById = new Map(conversations.map((c) => [c.id, c]))
-  const candidates = (targetIds
+  // 候选优先级：targetIds 白名单 > isFinanceFriend 注入筛选 > 默认全部好友。
+  // 默认不再按 role 预筛(isFinanceRole)——真机上 AI 推断的职务常为空、或用词不在
+  // 关键词表里，会导致 0 候选、荐股完全抽不出。故对本次会话里的所有好友都试抽，
+  // AI 判断无荐股则返回 []、自然跳过（用 token 代价换可用性；将来 UI 可勾选收窄）。
+  const selected = targetIds
     ? friends.filter((f) => targetIds.includes(f.id))
-    : friends.filter(isFinance)
-  ).filter((f) => convById.has(f.id))
+    : isFinanceFriend
+      ? friends.filter(isFinanceFriend)
+      : friends
+  const candidates = selected.filter((f) => convById.has(f.id))
 
   const total = candidates.length
   if (total) onProgress?.(0, total)
