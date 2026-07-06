@@ -2,14 +2,16 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
   mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
+  parseFile, mergeConversations,
 } from '@nianlun/core'
-import type { Friend, FriendSuggestion } from '@nianlun/core'
+import type { Friend, FriendSuggestion, Conversation, StockPick, ExtractCtx } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
 import { useDataStore as defaultUseData, createDataStore } from './data'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
 import { aiClient } from '../adapters/aiClient'
 import { samples as defaultSamples } from '../adapters/samples'
 import { analyzeRolesForNew, type AnalyzeRolesResult } from '../adapters/roleAnalysis'
+import { analyzeStocks as runAnalyzeStocks, isFinanceRole } from '../adapters/stockAnalysis'
 
 /** 把批量分析统计拼成一条导入页提示，让失败/无结果现形。全 0（无新好友）时返回空数组。 */
 function analysisWarn(r: AnalyzeRolesResult): string[] {
@@ -29,6 +31,7 @@ type Deps = {
   storage?: ReturnType<typeof makeStorage>
   suggest?: (f: Friend, s: string[]) => Promise<FriendSuggestion>
   loadSamples?: (id: string) => string[]
+  extractStocks?: (f: Friend, samples: string[], ctx: ExtractCtx) => Promise<StockPick[]>
 }
 export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 
@@ -37,12 +40,15 @@ export function createImportStore(deps: Deps = {}) {
   const storage = deps.storage ?? defaultStorage
   const suggest = deps.suggest ?? aiClient.suggestFriend
   const loadSamples = deps.loadSamples ?? defaultSamples.loadSamplesFor
+  const extractStocks = deps.extractStocks ?? aiClient.extractStocks
   return defineStore('import', () => {
     const status = ref<ImportStatus>('idle')
     const progress = ref(0)
     const warnings = ref<string[]>([])
     const error = ref('')
     const analyzing = ref<{ done: number; total: number } | null>(null)
+    const analyzingStocks = ref<{ done: number; total: number } | null>(null)
+    const stocksSavedCount = ref(0)
 
     /**
      * 对「消息数达标且不在已分析集合」的好友后台串行推断关系/职务并写入。
@@ -133,8 +139,49 @@ export function createImportStore(deps: Deps = {}) {
         analyzing.value = null
       }
     }
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null }
-    return { status, progress, warnings, error, analyzing, run, analyzePendingRoles, reset }
+    function stocksWarn(r: { analyzed: number; withPicks: number; failed: number; firstError?: string }): string {
+      const parts = [`已从 ${r.analyzed} 位好友抽取荐股，${r.withPicks} 位有结果`]
+      if (r.failed) parts.push(`${r.failed} 位失败${r.firstError ? '：' + r.firstError : ''}`)
+      return parts.join('；')
+    }
+
+    /** 重新导入的原文 → 对金融候选好友当场抽取荐股 → 持久化结果。重入保护。 */
+    async function analyzeStocks(files: LocalFile[]): Promise<void> {
+      if (analyzingStocks.value) return
+      try {
+        const chatFiles = files.filter((f) => !isWeliveContacts(f.content.slice(0, 2000)))
+        if (!chatFiles.length) {
+          warnings.value = [...warnings.value, '未选择聊天记录文件，无法分析荐股。']
+          return
+        }
+        let convs: Conversation[] = []
+        for (const f of chatFiles) {
+          convs = mergeConversations(convs, parseFile(f.name, f.content).conversations)
+        }
+        const d = useData()
+        const candCount = d.friends.filter(isFinanceRole).length
+        analyzingStocks.value = { done: 0, total: candCount }   // await 前置位守卫
+        const result = await runAnalyzeStocks({
+          conversations: convs,
+          friends: d.friends,
+          extract: extractStocks,
+          onProgress: (done, total) => { analyzingStocks.value = { done, total } },
+        })
+        storage.saveStockPicks(result.picks)
+        stocksSavedCount.value = result.picks.length
+        warnings.value = [...warnings.value, stocksWarn(result)]
+      } catch (e) {
+        warnings.value = [...warnings.value, `荐股分析未完成：${(e as Error).message}`]
+      } finally {
+        analyzingStocks.value = null
+      }
+    }
+
+    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; analyzingStocks.value = null; stocksSavedCount.value = 0 }
+    return {
+      status, progress, warnings, error, analyzing, analyzingStocks, stocksSavedCount,
+      run, analyzePendingRoles, analyzeStocks, reset,
+    }
   })
 }
 

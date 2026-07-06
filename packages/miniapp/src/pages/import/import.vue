@@ -46,6 +46,17 @@ async function onImport() {
     uni.showToast({ title: (e as Error).message || '导入失败', icon: 'none' })
   }
 }
+
+async function onAnalyzeStocks() {
+  try {
+    const files = await fileReader.pickAndRead(500)
+    if (!files.length) return
+    await imp.analyzeStocks(files)
+    uni.showToast({ title: imp.stocksSavedCount ? `已抽取荐股 ${imp.stocksSavedCount} 条` : '未抽到荐股', icon: 'none' })
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '分析失败', icon: 'none' })
+  }
+}
 </script>
 
 <template>
@@ -89,6 +100,19 @@ async function onImport() {
       </view>
       <view v-if="imp.analyzing" class="status">
         <text class="status-t muted">正在分析关系/职务… {{ imp.analyzing.done }}/{{ imp.analyzing.total }}</text>
+      </view>
+
+      <button
+        v-if="imp.status === 'done'"
+        class="btn-primary" hover-class="hover" style="margin-top:20rpx"
+        :disabled="!!imp.analyzingStocks" @click="onAnalyzeStocks">
+        分析荐股（重新选文件）
+      </button>
+      <view v-if="imp.analyzingStocks" class="status">
+        <text class="status-t muted">正在分析荐股… {{ imp.analyzingStocks.done }}/{{ imp.analyzingStocks.total }}</text>
+      </view>
+      <view v-else-if="imp.stocksSavedCount" class="status ok">
+        <text>✅ 已抽取荐股 {{ imp.stocksSavedCount }} 条</text>
       </view>
 
       <view v-if="imp.status === 'done' && imp.warnings.length" class="warns">

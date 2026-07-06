@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import type { Friend, ReportData } from '@nianlun/core'
+import type { Friend, ReportData, StockPick } from '@nianlun/core'
 import { makeStorage } from '../../adapters/storage'
 import { makeSamples } from '../../adapters/samples'
 import { createDataStore } from '../data'
@@ -214,5 +214,73 @@ describe('run 导入后非阻塞触发分析', () => {
     expect(imp.status).toBe('done')
     expect(suggest).not.toHaveBeenCalled()
     expect(s.loadAnalyzedIds()).toEqual([])
+  })
+})
+
+const mkFriendWithRole = (id: string, role: string): Friend => ({
+  id, name: id, alias: '', rel: '客户', role, firstContact: 0, lastContact: 0,
+  msgCount: 9, sentRatio: 0, peakPeriod: '', maxStreak: 0,
+  monthly: new Array(12).fill(0), hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0),
+  keywords: [], userEdited: {},
+})
+
+describe('analyzeStocks（重新导入当场抽取）', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('解析重新导入的原文 → 抽取 → saveStockPicks，暴露统计', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const extract = vi.fn().mockResolvedValue([
+      { stock: '江化微', stockNorm: '江化微', recommenderId: '张三', recommender: '张三', ts: 1, logics: [], companyNotes: [] },
+    ] as StockPick[])
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData(
+      [mkFriendWithRole('张三', '首席')],
+      { year: 2026, totalMessages: 9, friendCount: 1, activeDays: 1, topContacts: [], relationBreakdown: [] } as unknown as ReportData,
+    )
+    await imp.analyzeStocks([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
+    expect(extract).toHaveBeenCalled()
+    expect(s.loadStockPicks()).toHaveLength(1)
+    expect(imp.stocksSavedCount).toBe(1)
+    expect(imp.analyzingStocks).toBeNull()
+  })
+
+  it('未选到聊天记录文件（如只选 contacts.json）→ 提示 warning、不调用 extract', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const extract = vi.fn().mockResolvedValue([])
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData([mkFriendWithRole('张三', '首席')], REPORT)
+    const contacts = `[{"username":"张三","nick_name":"真名","local_type":2}]`
+    await imp.analyzeStocks([{ name: 'contacts.json', content: contacts }])
+    expect(extract).not.toHaveBeenCalled()
+    expect(imp.warnings.some((w) => w.includes('未选择聊天记录文件'))).toBe(true)
+    expect(imp.analyzingStocks).toBeNull()
+  })
+
+  it('extract 异常不阻断，警告落 warnings，analyzingStocks 收尾清空', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const extract = vi.fn().mockRejectedValue(new Error('云函数超时'))
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData([mkFriendWithRole('张三', '首席')], REPORT)
+    await imp.analyzeStocks([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
+    expect(imp.warnings.some((w) => w.includes('云函数超时'))).toBe(true)
+    expect(imp.analyzingStocks).toBeNull()
+  })
+
+  it('重入保护：analyzingStocks 非 null 时直接返回、不再次分析', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const extract = vi.fn().mockResolvedValue([])
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [], extractStocks: extract })
+    const imp = useImport()
+    await useData().setData([mkFriendWithRole('张三', '首席')], REPORT)
+    imp.analyzingStocks = { done: 0, total: 1 }
+    await imp.analyzeStocks([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
+    expect(extract).not.toHaveBeenCalled()
   })
 })
