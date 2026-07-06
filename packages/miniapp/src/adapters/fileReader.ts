@@ -48,6 +48,8 @@ const wxIO: WxFileIO = {
   unzip: (zipPath) => new Promise((resolve, reject) => {
     const fs = wx.getFileSystemManager()
     const target = `${wx.env.USER_DATA_PATH}/nianlun_unzip_${Date.now()}`
+    // 读完/失败都要删掉解压副本，否则每次导入都留一份几十 MB，累积撑爆文件系统。
+    const cleanup = () => { try { fs.rmdirSync(target, true) } catch { /* 已不存在 */ } }
     fs.unzip({
       zipFilePath: zipPath, targetPath: target,
       success: () => {
@@ -67,17 +69,42 @@ const wxIO: WxFileIO = {
           walk(target)
           if (out.length === 0) {
             const list = seen.length ? seen.slice(0, 20).join('、') : '（空）'
+            cleanup()
             reject(new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.jsonl/.txt）。内含：${list}`))
           } else {
+            cleanup() // 内容已读进内存，解压副本即可删除
             resolve(out)
           }
         } catch (e) {
+          cleanup()
           reject(new Error(`读取压缩包内容失败：${(e as Error).message}`))
         }
       },
-      fail: (err) => reject(new Error(`解压失败：${err.errMsg}`)),
+      fail: (err) => { cleanup(); reject(new Error(`解压失败：${err.errMsg}`)) },
     })
   }),
+}
+
+/** 清理器最小文件系统接口，供启动清理历史遗留的解压临时目录（可注入测试）。 */
+export interface UnzipTempFs {
+  readdirSync(dir: string): string[]
+  rmdirSync(dir: string, recursive?: boolean): void
+}
+
+/**
+ * 清掉 baseDir 下所有历史遗留的 `nianlun_unzip_*` 解压临时目录，返回清理个数。
+ * 旧版本 unzip 读完不删副本，升级后调用一次即可回收这些占用。容错：任何异常都吞掉。
+ */
+export function purgeUnzipTemp(fs: UnzipTempFs, baseDir: string): number {
+  let n = 0
+  try {
+    for (const name of fs.readdirSync(baseDir)) {
+      if (name.startsWith('nianlun_unzip_')) {
+        try { fs.rmdirSync(`${baseDir}/${name}`, true); n++ } catch { /* 忽略单个失败 */ }
+      }
+    }
+  } catch { /* baseDir 读不到，忽略 */ }
+  return n
 }
 
 export const fileReader = makeFileReader(wxIO)

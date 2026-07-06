@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { makeFileReader } from '../fileReader'
+import { makeFileReader, purgeUnzipTemp } from '../fileReader'
 
 describe('fileReader 适配器', () => {
   it('选中文件后逐个读出内容', async () => {
@@ -63,5 +63,30 @@ describe('fileReader 适配器', () => {
       { name: 'in.csv', content: 'CSV' },
       { name: 'chat.txt', content: 'TXT' },
     ])
+  })
+})
+
+describe('purgeUnzipTemp', () => {
+  it('删除所有 nianlun_unzip_* 目录，保留其它', () => {
+    const removed: string[] = []
+    const fs = {
+      readdirSync: () => ['nianlun_unzip_1', 'nianlun_unzip_2', 'nianlun_raw', 'other.txt'],
+      rmdirSync: (d: string) => { removed.push(d) },
+    }
+    expect(purgeUnzipTemp(fs, '/data')).toBe(2)
+    expect(removed).toEqual(['/data/nianlun_unzip_1', '/data/nianlun_unzip_2'])
+  })
+
+  it('单个目录删除失败时跳过、继续删其它，不抛', () => {
+    const fs = {
+      readdirSync: () => ['nianlun_unzip_1', 'nianlun_unzip_2'],
+      rmdirSync: (d: string) => { if (d.endsWith('_1')) throw new Error('busy') },
+    }
+    expect(purgeUnzipTemp(fs, '/data')).toBe(1)
+  })
+
+  it('baseDir 读不到时返回 0、不抛', () => {
+    const fs = { readdirSync: () => { throw new Error('ENOENT') }, rmdirSync: () => {} }
+    expect(purgeUnzipTemp(fs, '/data')).toBe(0)
   })
 })

@@ -19,6 +19,7 @@ export interface FileSystemManager {
   mkdirSync(dirPath: string, recursive?: boolean): void
   unlinkSync(filePath: string): void
   accessSync(path: string): void
+  rmdirSync(dirPath: string, recursive?: boolean): void
 }
 declare global {
   const wx: {

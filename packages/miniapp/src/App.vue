@@ -2,7 +2,14 @@
 import { onLaunch } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
 import { useImportStore } from './stores/import'
+import { purgeUnzipTemp } from './adapters/fileReader'
 onLaunch(async () => {
+  // 回收旧版遗留的解压临时目录（新版 unzip 已即时清理，此为历史泄漏兜底），避免文件系统撑满。
+  // @ts-ignore wx 由微信小程序运行时提供
+  if (typeof wx !== 'undefined' && wx.getFileSystemManager) {
+    // @ts-ignore
+    purgeUnzipTemp(wx.getFileSystemManager(), wx.env.USER_DATA_PATH)
+  }
   // 后端 A（云函数）需要云开发初始化；部署前把 env 换成你的云开发环境 ID。
   // 用后端 B（公司反代）时无需此步，可删。
   // @ts-ignore wx 由微信小程序运行时提供
