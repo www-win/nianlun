@@ -23,6 +23,22 @@ function onYear(e: { detail: { value: number } }) {
 
 const pct = computed(() => Math.round(imp.progress * 100))
 
+// 真机诊断：把本地文件系统占用直接显示在页面上，排查解压副本是否累积。排查完删。
+const fsDiag = ref('DIAG-v5 就绪')
+function updateFsDiag() {
+  try {
+    // @ts-ignore wx 运行时提供
+    const fs = wx.getFileSystemManager()
+    // @ts-ignore
+    const base = wx.env.USER_DATA_PATH
+    const all: string[] = fs.readdirSync(base)
+    const unzips = all.filter((n) => n.startsWith('nianlun_unzip_'))
+    fsDiag.value = `[DIAG-v5] 残留解压目录 ${unzips.length} 个 · 本地共 ${all.length} 项：${all.slice(0, 12).join('、')}`
+  } catch (e) {
+    fsDiag.value = '[DIAG-v5] 读取失败：' + (e as Error).message
+  }
+}
+
 async function onImport() {
   try {
     // chooseMessageFile 的 count 是「最多可选」上限；原先写死 10 会让多文件导出只能选一小部分（好友大量丢失）。
@@ -41,7 +57,9 @@ async function onImport() {
       if (!ok) return
     }
     await imp.run(files, year.value)
+    updateFsDiag()
   } catch (e) {
+    updateFsDiag()
     // 读文件/解压阶段的异常以前被静默吞掉（表现为「选完文件没反应」），这里显式提示
     uni.showToast({ title: (e as Error).message || '导入失败', icon: 'none' })
   }
@@ -75,6 +93,10 @@ async function onImport() {
       <button class="btn-primary big" hover-class="hover" @click="onImport">
         从文件传输助手导入
       </button>
+
+      <view class="warns" style="margin-top:16rpx">
+        <text class="warn-item" style="word-break:break-all; color:#2ea34a">{{ fsDiag }}</text>
+      </view>
 
       <view v-if="imp.status === 'parsing'" class="status">
         <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
