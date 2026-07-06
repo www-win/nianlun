@@ -116,3 +116,37 @@ export function mergeStockPicks(existing: StockPick[], incoming: StockPick[]): S
   }
   return out
 }
+
+function dedup(a: string[]): string[] { return [...new Set(a)] }
+
+/** 视图A：按 stockNorm 聚合成票卡片（三层信息在此归纳）。 */
+export function aggregateByStock(picks: StockPick[]): StockCard[] {
+  const groups = new Map<string, StockPick[]>()
+  for (const p of picks) {
+    const g = groups.get(p.stockNorm)
+    if (g) g.push(p); else groups.set(p.stockNorm, [p])
+  }
+  const cards: StockCard[] = []
+  for (const [stockNorm, gp] of groups) {
+    const nameCount = new Map<string, number>()
+    for (const p of gp) nameCount.set(p.stock, (nameCount.get(p.stock) ?? 0) + 1)
+    let displayName = gp[0].stock; let best = 0
+    for (const [n, c] of nameCount) if (c > best) { best = c; displayName = n }
+    const byTsDesc = [...gp].sort((a, b) => b.ts - a.ts)
+    const card: StockCard = {
+      stockNorm,
+      displayName,
+      recommenderCount: new Set(gp.map((p) => p.recommenderId)).size,
+      pickCount: gp.length,
+      logics: dedup(gp.flatMap((p) => p.logics)),
+      companyNotes: dedup(gp.flatMap((p) => p.companyNotes)),
+      picks: gp,
+    }
+    const tmc = byTsDesc.find((p) => p.targetMarketCap)?.targetMarketCap
+    const mul = byTsDesc.find((p) => p.multiple)?.multiple
+    if (tmc) card.latestTargetMarketCap = tmc
+    if (mul) card.latestMultiple = mul
+    cards.push(card)
+  }
+  return cards
+}

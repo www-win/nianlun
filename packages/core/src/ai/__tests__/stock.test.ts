@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeStockName, parseStockExtraction, mergeStockPicks } from '../stock'
+import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock } from '../stock'
 import type { ExtractCtx } from '../stock'
 
 describe('normalizeStockName', () => {
@@ -72,5 +72,23 @@ describe('mergeStockPicks', () => {
   it('不同票/不同人/不同时间视为不同记录', () => {
     const out = mergeStockPicks([mk()], [mk({ stockNorm: 'B' }), mk({ recommenderId: '李四' }), mk({ ts: 200 })])
     expect(out).toHaveLength(4)
+  })
+})
+
+describe('aggregateByStock', () => {
+  it('按 stockNorm 聚合：recommenderCount 计不同人、displayName 取高频写法、latest 取最新非空', () => {
+    const picks = [
+      mk({ stock: '江化微', recommenderId: '张三', ts: 100, targetMarketCap: '500亿', logics: ['L1'] }),
+      mk({ stock: '江化微', recommenderId: '李四', ts: 300, multiple: '3倍', logics: ['L1', 'L2'] }),
+      mk({ stock: '江化微科技', recommenderId: '李四', ts: 200 }),
+    ]
+    const [card] = aggregateByStock(picks)
+    expect(card.stockNorm).toBe('江化微')            // 中文 toUpperCase 不变
+    expect(card.recommenderCount).toBe(2)
+    expect(card.pickCount).toBe(3)
+    expect(card.displayName).toBe('江化微')          // 出现 2 次 > 江化微科技 1 次
+    expect(card.latestMultiple).toBe('3倍')          // ts=300 那条
+    expect(card.latestTargetMarketCap).toBe('500亿') // ts=300 无市值 → 回退到有值的最新(ts=100)
+    expect(card.logics).toEqual(['L1', 'L2'])        // 去重合并
   })
 })
