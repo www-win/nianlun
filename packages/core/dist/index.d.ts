@@ -11,6 +11,30 @@ interface Conversation {
     isGroup: boolean;
     messages: Message[];
 }
+interface EmotionDist {
+    happy: number;
+    neutral: number;
+    sad: number;
+    total: number;
+    avg: number;
+}
+interface MonthMood {
+    avg: number;
+    count: number;
+}
+interface FriendEmotion {
+    me: EmotionDist;
+    them: EmotionDist;
+    monthly: {
+        me: (MonthMood | null)[];
+        them: (MonthMood | null)[];
+    };
+    words: Array<{
+        word: string;
+        count: number;
+        polarity: number;
+    }>;
+}
 interface Friend {
     id: string;
     name: string;
@@ -36,6 +60,7 @@ interface Friend {
         alias?: string;
         name?: string;
     };
+    emotion?: FriendEmotion;
 }
 interface ReportData {
     year: number;
@@ -221,6 +246,12 @@ declare function parseWeliveContacts(content: string): ContactName[];
 declare function sessionIdFromFileName(fileName: string): string;
 declare function isServiceSession(sessionId: string): boolean;
 
+declare function wordPolarity(word: string): number;
+/** 消息原始净分（可正可负，无固定范围）。空串/纯符号 → 0。 */
+declare function scoreMessage(text: string): number;
+declare function classify(raw: number): '开心' | '平淡' | '难过';
+declare function toValue(raw: number): number;
+
 declare const version = "0.1.0";
 
-export { type ContactName, type Conversation, type DeepSentiment, type EgoGraph, type EgoNode, type ExtractSamplesOptions, type Friend, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type Relation, type ReportData, type Sentiment, aggregate, applyContactNames, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildYearSentimentPrompt, countWords, createFriend, extractFriendSamples, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseWeliveContacts, sessionIdFromFileName, sumHourly, sumWeekHour, tokenize, version };
+export { type ContactName, type Conversation, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type Relation, type ReportData, type Sentiment, aggregate, applyContactNames, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, extractFriendSamples, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity };

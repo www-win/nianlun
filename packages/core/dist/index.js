@@ -430,6 +430,149 @@ function countWords(texts, topN) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN).map(([word, count]) => ({ word, count }));
 }
 
+// src/stats/emotion.ts
+var POS_STRONG = ["\u7231\u4F60", "\u7231", "\u592A\u68D2\u4E86", "\u5E78\u798F", "\u5F00\u5FC3\u6B7B", "\u611F\u52A8", "\u559C\u6B22\u4F60", "\u8D85\u559C\u6B22", "\u4E48\u4E48", "\u62B1\u62B1", "\u60F3\u4F60"];
+var POS = ["\u5F00\u5FC3", "\u559C\u6B22", "\u8C22\u8C22", "\u54C8\u54C8", "\u563B\u563B", "\u563F\u563F", "\u68D2", "\u597D\u8036", "\u4E0D\u9519", "\u8D5E", "\u53EF\u7231", "\u751C", "\u6696", "\u8212\u670D", "\u6EE1\u8DB3", "\u671F\u5F85", "\u597D\u7684", "\u597D\u5440", "\u55EF\u55EF", "\u665A\u5B89", "\u8F9B\u82E6\u4E86", "\u52A0\u6CB9", "\u653E\u5FC3"];
+var NEG_STRONG = ["\u96BE\u53D7", "\u5D29\u6E83", "\u8BA8\u538C", "\u6EDA", "\u6076\u5FC3", "\u7EDD\u671B", "\u5FC3\u788E", "\u75DB\u82E6", "\u59D4\u5C48", "\u60F3\u54ED", "\u70E6\u6B7B"];
+var NEG = ["\u70E6", "\u65E0\u804A", "\u7D2F", "\u5509", "\u545C", "\u751F\u6C14", "\u90C1\u95F7", "\u5931\u671B", "\u96BE\u8FC7", "\u4F24\u5FC3", "emmm", "\u7B97\u4E86", "\u65E0\u8BED", "\u5C34\u5C2C", "\u62C5\u5FC3", "\u5BB3\u6015", "\u5B64\u72EC", "\u522B\u70E6", "\u4E0D\u60F3"];
+var LEX = {};
+for (const w of POS_STRONG) LEX[w] = 2;
+for (const w of POS) LEX[w] = 1;
+for (const w of NEG_STRONG) LEX[w] = -2;
+for (const w of NEG) LEX[w] = -1;
+var EMOJI = {
+  "\u{1F604}": 1,
+  "\u{1F600}": 1,
+  "\u{1F601}": 1,
+  "\u{1F970}": 2,
+  "\u{1F60D}": 2,
+  "\u2764\uFE0F": 2,
+  "\u{1F495}": 2,
+  "\u{1F602}": 1,
+  "\u{1F923}": 1,
+  "\u{1F60A}": 1,
+  "\u{1F44D}": 1,
+  "\u{1F389}": 1,
+  "\u{1F618}": 2,
+  "\u{1F62D}": -2,
+  "\u{1F621}": -2,
+  "\u{1F494}": -2,
+  "\u{1F614}": -1,
+  "\u{1F61E}": -1,
+  "\u{1F622}": -1,
+  "\u{1F630}": -1,
+  "\u{1F629}": -1,
+  "\u{1F641}": -1,
+  "\u{1F616}": -1
+};
+var NEG_WORDS = ["\u4E0D", "\u6CA1", "\u522B", "\u65E0", "\u975E", "\u83AB"];
+var WORDS_BY_LEN = Object.keys(LEX).sort((a, b) => b.length - a.length);
+function wordPolarity(word) {
+  const w = LEX[word];
+  if (!w) return 0;
+  return Math.max(-1, Math.min(1, w / 2));
+}
+function scoreMessage(text) {
+  if (!text) return 0;
+  let score = 0;
+  const covered = new Array(text.length).fill(false);
+  for (const word of WORDS_BY_LEN) {
+    let idx = text.indexOf(word);
+    while (idx !== -1) {
+      const end = idx + word.length;
+      let overlap = false;
+      for (let i = idx; i < end; i++) {
+        if (covered[i]) {
+          overlap = true;
+          break;
+        }
+      }
+      if (!overlap) {
+        const window = text.slice(Math.max(0, idx - 2), idx);
+        const negated = NEG_WORDS.some((n) => window.includes(n));
+        score += negated ? -LEX[word] : LEX[word];
+        for (let i = idx; i < end; i++) covered[i] = true;
+      }
+      idx = text.indexOf(word, end);
+    }
+  }
+  for (const e in EMOJI) {
+    let idx = text.indexOf(e);
+    while (idx !== -1) {
+      score += EMOJI[e];
+      idx = text.indexOf(e, idx + e.length);
+    }
+  }
+  if (/哈哈+|嘻嘻|嘿嘿/.test(text)) score += 1;
+  if (/呜呜+|em+/i.test(text)) score -= 1;
+  const bangs = (text.match(/[!！]/g) || []).length;
+  if (bangs > 0 && score !== 0) {
+    score *= Math.min(2, 1 + bangs * 0.2);
+  }
+  return score;
+}
+function classify(raw) {
+  if (raw > 0.5) return "\u5F00\u5FC3";
+  if (raw < -0.5) return "\u96BE\u8FC7";
+  return "\u5E73\u6DE1";
+}
+var R = 3;
+function toValue(raw) {
+  const clamped = Math.max(-R, Math.min(R, raw));
+  return 0.5 + clamped / (2 * R);
+}
+function emptyAcc() {
+  return { happy: 0, neutral: 0, sad: 0, total: 0, valueSum: 0 };
+}
+function addToAcc(acc, raw) {
+  const c = classify(raw);
+  if (c === "\u5F00\u5FC3") acc.happy++;
+  else if (c === "\u96BE\u8FC7") acc.sad++;
+  else acc.neutral++;
+  acc.total++;
+  acc.valueSum += toValue(raw);
+}
+function finalizeAcc(acc) {
+  return {
+    happy: acc.happy,
+    neutral: acc.neutral,
+    sad: acc.sad,
+    total: acc.total,
+    avg: acc.total === 0 ? 0.5 : acc.valueSum / acc.total
+  };
+}
+function accToMood(acc) {
+  if (acc.total === 0) return null;
+  return { avg: acc.valueSum / acc.total, count: acc.total };
+}
+function mergeDist(a, b) {
+  const total = a.total + b.total;
+  return {
+    happy: a.happy + b.happy,
+    neutral: a.neutral + b.neutral,
+    sad: a.sad + b.sad,
+    total,
+    avg: total === 0 ? 0.5 : (a.avg * a.total + b.avg * b.total) / total
+  };
+}
+function mergeMood(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const count = a.count + b.count;
+  return { avg: (a.avg * a.count + b.avg * b.count) / count, count };
+}
+function mergeEmotion(a, b, keywords) {
+  return {
+    me: mergeDist(a.me, b.me),
+    them: mergeDist(a.them, b.them),
+    monthly: {
+      me: a.monthly.me.map((m, i) => mergeMood(m, b.monthly.me[i])),
+      them: a.monthly.them.map((m, i) => mergeMood(m, b.monthly.them[i]))
+    },
+    words: keywords.map((k) => ({ word: k.word, count: k.count, polarity: wordPolarity(k.word) }))
+  };
+}
+
 // src/stats/aggregate.ts
 function peakPeriodLabel(hourly) {
   let peak = -1;
@@ -463,12 +606,24 @@ function aggregate(conversations) {
     const f = createFriend(c.id, c.peerName);
     const msgs = c.messages;
     f.msgCount = msgs.length;
-    if (msgs.length === 0) return f;
+    if (msgs.length === 0) {
+      f.emotion = {
+        me: finalizeAcc(emptyAcc()),
+        them: finalizeAcc(emptyAcc()),
+        monthly: { me: Array(12).fill(null), them: Array(12).fill(null) },
+        words: []
+      };
+      return f;
+    }
     let sent = 0;
     let first = Infinity;
     let last = -Infinity;
     const texts = [];
     const days = /* @__PURE__ */ new Set();
+    const meAcc = emptyAcc();
+    const themAcc = emptyAcc();
+    const meMonth = Array.from({ length: 12 }, emptyAcc);
+    const themMonth = Array.from({ length: 12 }, emptyAcc);
     for (const m of msgs) {
       if (m.from === "me") sent++;
       if (m.ts && m.ts < first) first = m.ts;
@@ -481,6 +636,13 @@ function aggregate(conversations) {
         days.add(Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5));
       }
       if (m.type === "text" && m.text) texts.push(m.text);
+      const raw = scoreMessage(m.text ?? "");
+      const acc = m.from === "me" ? meAcc : themAcc;
+      addToAcc(acc, raw);
+      if (m.ts) {
+        const mo = new Date(m.ts).getMonth();
+        addToAcc(m.from === "me" ? meMonth[mo] : themMonth[mo], raw);
+      }
     }
     f.keywords = countWords(texts, 20);
     f.sentRatio = Math.round(sent / msgs.length * 100);
@@ -488,6 +650,15 @@ function aggregate(conversations) {
     f.lastContact = last === -Infinity ? 0 : last;
     f.maxStreak = longestStreak(days);
     f.peakPeriod = peakPeriodLabel(f.hourly);
+    f.emotion = {
+      me: finalizeAcc(meAcc),
+      them: finalizeAcc(themAcc),
+      monthly: {
+        me: meMonth.map(accToMood),
+        them: themMonth.map(accToMood)
+      },
+      words: f.keywords.map((k) => ({ word: k.word, count: k.count, polarity: wordPolarity(k.word) }))
+    };
     return f;
   });
 }
@@ -930,6 +1101,11 @@ function mergeFriends(existing, incoming) {
     merged.alias = old.userEdited.alias ?? inc.alias;
     merged.name = old.userEdited.name ?? inc.name;
     merged.userEdited = { ...inc.userEdited, ...old.userEdited };
+    if (old.emotion && inc.emotion) {
+      merged.emotion = mergeEmotion(old.emotion, inc.emotion, merged.keywords);
+    } else {
+      merged.emotion = inc.emotion ?? old.emotion;
+    }
     byId.set(inc.id, merged);
   });
   return { friends: [...byId.values()], added, updated };
@@ -986,6 +1162,7 @@ export {
   buildReport,
   buildReportCopyPrompt,
   buildYearSentimentPrompt,
+  classify,
   countWords,
   createFriend,
   extractFriendSamples,
@@ -1001,9 +1178,12 @@ export {
   parseJsonBackup,
   parseSentiment,
   parseWeliveContacts,
+  scoreMessage,
   sessionIdFromFileName,
   sumHourly,
   sumWeekHour,
+  toValue,
   tokenize,
-  version
+  version,
+  wordPolarity
 };
