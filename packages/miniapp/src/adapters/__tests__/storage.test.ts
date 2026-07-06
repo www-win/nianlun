@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
-import type { Friend, ReportData, BirthInfo } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, StockPick } from '@nianlun/core'
 
 function memBackend() {
   const m = new Map<string, unknown>()
@@ -158,5 +158,27 @@ describe('命理存储', () => {
     expect(s.loadMyBazi()).toBeNull()
     expect(s.loadBirths()).toEqual({})
     expect(s.loadAstroReading()).toEqual({})
+  })
+})
+
+const PICK = (over: Partial<StockPick> = {}): StockPick => ({
+  stock: '江化微', stockNorm: '江化微', recommenderId: '张三', recommender: '张三首席',
+  ts: 100, logics: [], companyNotes: [], ...over,
+})
+
+describe('storage 荐股', () => {
+  it('saveStockPicks / loadStockPicks 往返', () => {
+    const s = makeStorage(memBackend())
+    s.saveStockPicks([PICK(), PICK({ stock: 'B', stockNorm: 'B' })])
+    expect(s.loadStockPicks().map((p) => p.stock)).toEqual(['江化微', 'B'])
+  })
+  it('无数据 → []', () => {
+    expect(makeStorage(memBackend()).loadStockPicks()).toEqual([])
+  })
+  it('clearAll 后荐股为 []', () => {
+    const s = makeStorage(memBackend())
+    s.saveStockPicks([PICK()])
+    s.clearAll()
+    expect(s.loadStockPicks()).toEqual([])
   })
 })

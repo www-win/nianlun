@@ -1,4 +1,4 @@
-import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick } from '@nianlun/core'
 import type { RecentInsight } from './parseLocal'
 
 const K_FRIENDS = 'nianlun:friends'
@@ -13,6 +13,7 @@ const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
 const K_MY_BAZI = 'nianlun:myBazi'
 const K_BIRTHS = 'nianlun:births'
 const K_ASTRO = 'nianlun:astro'
+const K_STOCKS = 'nianlun:stocks'
 
 /** 持久化的命理解读缓存（含时效元数据）。 */
 export interface StoredAstroReading {
@@ -85,10 +86,16 @@ export function makeStorage(backend: StorageBackend) {
       const raw = backend.get(K_ASTRO)
       return raw && typeof raw === 'object' ? (raw as Record<string, StoredAstroReading>) : {}
     },
+    saveStockPicks(picks: StockPick[]): void { backend.set(K_STOCKS, picks) },
+    loadStockPicks(): StockPick[] {
+      const raw = backend.get(K_STOCKS)
+      return Array.isArray(raw) ? (raw as StockPick[]) : []
+    },
+    clearStockPicks(): void { backend.remove(K_STOCKS) },
     clearAll(): void {
       backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
       backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES); backend.remove(K_ANALYZED)
-      backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO)
+      backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO); backend.remove(K_STOCKS)
     },
     /**
      * 清掉旧版本（原文存 Storage）遗留的 nianlun:raw:* / nianlun:rawIndex 键，回收配额。
