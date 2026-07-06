@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { onLoad, onReady } from '@dcloudio/uni-app'
-import type { Relation, FriendProfile } from '@nianlun/core'
+import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
+import type { Relation, FriendProfile, BirthInfo } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints } from '../../lib/insights'
+import { storage } from '../../adapters/storage'
+import type { StoredAstroReading } from '../../adapters/storage'
+import { birthFingerprint, assembleAstro, astroExpired } from '../../lib/astroView'
 
 const data = useDataStore()
 const id = ref('')
@@ -172,6 +175,126 @@ async function analyzeProfile() {
     loadingProfile.value = false
   }
 }
+
+// —— 命理运势 —— //
+const myBazi = ref<BirthInfo | null>(null)
+const friendBirth = ref<BirthInfo | null>(null)
+const astro = ref<StoredAstroReading | null>(null)
+const astroStale = ref(false)
+const loadingAstro = ref(false)
+
+function todayParts() {
+  const d = new Date()
+  return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() }
+}
+function todayStr(): string {
+  const t = todayParts()
+  return `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`
+}
+
+function reloadBirths() {
+  myBazi.value = storage.loadMyBazi()
+  friendBirth.value = friend.value ? storage.loadBirths()[friend.value.id] ?? null : null
+}
+
+// 载入缓存并判过期（不自动重算）
+function loadAstroCache() {
+  const f = friend.value
+  if (!f) { astro.value = null; astroStale.value = false; return }
+  const cached = storage.loadAstroReading()[f.id] ?? null
+  astro.value = cached
+  astroStale.value = cached
+    ? astroExpired(
+        cached.generatedDate, cached.birthFingerprint, cached.myBaziFingerprint,
+        todayStr(), birthFingerprint(friendBirth.value), birthFingerprint(myBazi.value),
+      )
+    : false
+}
+
+// 从「我的命盘」设置页返回后刷新生辰与缓存
+onShow(() => { reloadBirths(); loadAstroCache() })
+
+// 实时装配（用于机械展示：五行/合盘/流日相冲——不进 AI 缓存，随日期与我的盘实时算）
+const astroLive = computed(() => {
+  if (!astro.value || !friendBirth.value) return null
+  return assembleAstro(friendBirth.value, myBazi.value, todayParts())
+})
+
+function goSetMyBazi() {
+  uni.navigateTo({ url: '/pages/my-bazi/my-bazi' })
+}
+
+// 好友生辰补录表单
+const showBirthForm = ref(false)
+const bYear = ref(''); const bMonth = ref(''); const bDay = ref(''); const bHour = ref('')
+function openBirthForm() {
+  const b = friendBirth.value
+  bYear.value = b ? String(b.year) : ''
+  bMonth.value = b ? String(b.month) : ''
+  bDay.value = b ? String(b.day) : ''
+  bHour.value = b?.hour != null ? String(b.hour) : ''
+  showBirthForm.value = true
+}
+function saveBirth() {
+  const f = friend.value; if (!f) return
+  const y = Number(bYear.value), m = Number(bMonth.value), d = Number(bDay.value)
+  if (!Number.isInteger(y) || y < 1900 || y > 2100 || !(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) {
+    uni.showToast({ title: '请填写有效的年月日', icon: 'none' }); return
+  }
+  const b: BirthInfo = { year: y, month: m, day: d }
+  if (bHour.value !== '') { const h = Number(bHour.value); if (h >= 0 && h <= 23) b.hour = h }
+  const all = storage.loadBirths(); all[f.id] = b; storage.saveBirths(all)
+  friendBirth.value = b
+  showBirthForm.value = false
+  uni.showToast({ title: '已保存生辰', icon: 'success' })
+}
+
+const extracting = ref(false)
+async function extractBirthFromChat() {
+  const f = friend.value; if (!f) return
+  extracting.value = true
+  try {
+    const b = await aiClient.extractBirth(f, samples.loadSamplesFor(f.id))
+    if (b) {
+      bYear.value = String(b.year); bMonth.value = String(b.month); bDay.value = String(b.day)
+      bHour.value = b.hour != null ? String(b.hour) : ''
+      uni.showToast({ title: '已从聊天预填，请确认', icon: 'none' })
+    } else {
+      uni.showToast({ title: '聊天里没找到生辰，请手填', icon: 'none' })
+    }
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    extracting.value = false
+  }
+}
+
+// 生成 / 刷新命理解读
+async function generateAstro() {
+  const f = friend.value; if (!f) return
+  if (!myBazi.value) { goSetMyBazi(); return }
+  if (!friendBirth.value) { openBirthForm(); return }
+  loadingAstro.value = true
+  try {
+    const asm = assembleAstro(friendBirth.value, myBazi.value, todayParts())
+    const reading = await aiClient.analyzeAstro(
+      f, asm.friendChart, asm.fortune, asm.compat,
+      { friend: asm.friendDayClash, my: asm.myDayClash },
+    )
+    const stored: StoredAstroReading = {
+      reading, chart: asm.friendChart, generatedDate: todayStr(),
+      birthFingerprint: birthFingerprint(friendBirth.value),
+      myBaziFingerprint: birthFingerprint(myBazi.value),
+    }
+    const all = storage.loadAstroReading(); all[f.id] = stored; storage.saveAstroReading(all)
+    astro.value = stored
+    astroStale.value = false
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    loadingAstro.value = false
+  }
+}
 </script>
 
 <template>
@@ -319,6 +442,69 @@ async function analyzeProfile() {
         <text class="senti-note faint">AI 推测，仅供参考</text>
       </view>
 
+      <!-- 命理运势 -->
+      <view class="card block">
+        <view class="edit-row">
+          <text class="block-t">☯ 命理运势</text>
+          <text class="act act-ai" @click="generateAstro">
+            {{ loadingAstro ? '推算中…' : (astro ? '刷新' : '生成') }}
+          </text>
+        </view>
+
+        <!-- 态1：我的命盘未设置 -->
+        <view v-if="!myBazi" class="astro-tip">
+          <text class="astro-tip-t">合盘与流日相冲需要先设置「我的命盘」。</text>
+          <text class="astro-set" @click="goSetMyBazi">去设置我的生辰 ›</text>
+        </view>
+
+        <!-- 态2：好友生辰缺失（或正在补录） -->
+        <view v-else-if="!friendBirth || showBirthForm" class="astro-form">
+          <text class="astro-tip-t">这位好友还没有生辰，补录后即可排盘：</text>
+          <view class="row2"><text class="lbl2">年</text><input class="inp2" type="number" v-model="bYear" placeholder="如 1990" /></view>
+          <view class="row2"><text class="lbl2">月</text><input class="inp2" type="number" v-model="bMonth" placeholder="1-12" /></view>
+          <view class="row2"><text class="lbl2">日</text><input class="inp2" type="number" v-model="bDay" placeholder="1-31" /></view>
+          <view class="row2"><text class="lbl2">时辰</text><input class="inp2" type="number" v-model="bHour" placeholder="0-23，选填" /></view>
+          <view class="form-acts">
+            <text class="act act-ai" @click="extractBirthFromChat">{{ extracting ? '抽取中…' : 'AI 从聊天抽取' }}</text>
+            <text class="act" @click="saveBirth">保存生辰</text>
+          </view>
+        </view>
+
+        <!-- 态3：齐全，有解读 -->
+        <view v-else-if="astro" class="astro">
+          <text v-if="astroStale" class="astro-stale">基于 {{ astro.generatedDate }} 生成，点「刷新」更新</text>
+          <view class="astro-glance">
+            <text class="ag-i">{{ astro.chart.pillars.year }} {{ astro.chart.pillars.month }} {{ astro.chart.pillars.day }}<text v-if="astro.chart.pillars.hour"> {{ astro.chart.pillars.hour }}</text></text>
+            <text class="ag-sub">{{ astro.chart.zodiac }} · {{ astro.chart.constellation }}<text v-if="!astro.chart.pillars.hour"> · 未含时柱，结果偏粗</text></text>
+            <text class="ag-wx">五行：<text v-for="(n, k) in astro.chart.fiveElements" :key="k">{{ k }}{{ n }} </text></text>
+          </view>
+          <view class="prof-row"><text class="prof-k">性格</text><text class="prof-v">{{ astro.reading.personality || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">近期运势</text><text class="prof-v">{{ astro.reading.fortune || '暂无足够线索' }}</text></view>
+          <view class="prof-row"><text class="prof-k">与我相性</text><text class="prof-v">{{ astro.reading.affinity || '暂无足够线索' }}</text></view>
+          <view v-if="astroLive" class="astro-mech">
+            <view v-if="astroLive.compat && astroLive.compat.clashes.length" class="mech-clash">
+              <text v-for="(c, i) in astroLive.compat.clashes" :key="'c'+i" class="mech-tag clash">{{ c }}</text>
+            </view>
+            <view v-if="astroLive.compat && astroLive.compat.harmonies.length" class="mech-harm">
+              <text v-for="(h, i) in astroLive.compat.harmonies" :key="'h'+i" class="mech-tag harm">{{ h }}</text>
+            </view>
+            <view v-if="astroLive.friendDayClash.length || astroLive.myDayClash.length" class="mech-day">
+              <text v-if="astroLive.friendDayClash.length" class="mech-tag clash">今日与TA相冲（{{ astroLive.friendDayClash.join('、') }}）</text>
+              <text v-if="astroLive.myDayClash.length" class="mech-tag clash">今日冲你自身（{{ astroLive.myDayClash.join('、') }}）</text>
+            </view>
+          </view>
+          <view class="prof-row"><text class="prof-k">社交提示</text><text class="prof-v">{{ astro.reading.advice || '暂无足够线索' }}</text></view>
+          <text class="senti-note faint">命理内容仅供娱乐参考</text>
+          <text class="astro-reset" @click="openBirthForm">修改生辰</text>
+          <text class="astro-reset" @click="goSetMyBazi">修改我的命盘</text>
+        </view>
+
+        <!-- 态3：齐全，尚未生成 -->
+        <view v-else class="astro-tip">
+          <text class="astro-tip-t">生辰已就绪，点右上「生成」查看命理运势。</text>
+        </view>
+      </view>
+
       <view v-if="chatSamples.length" class="card block">
         <view class="block-head" @click="showSamples = !showSamples">
           <text class="block-t">聊天样本（{{ chatSamples.length }}）<text v-if="isRecent" class="block-sub">· 近一个月</text></text>
@@ -418,4 +604,25 @@ async function analyzeProfile() {
 .dot { display: inline-block; width: 16rpx; height: 16rpx; border-radius: 999rpx; margin-right: 8rpx; }
 .mood-canvas { width: 100%; margin-top: 12rpx; }  /* 高度由内联 px 绑定；宽度 100% 的真实 px 由 selectorQuery 量取 */
 .mood-empty { display: block; margin-top: 24rpx; font-size: 24rpx; text-align: center; }
+
+.astro-tip { margin-top: 20rpx; padding: 24rpx; background: var(--accent-wash); border-radius: 16rpx; }
+.astro-tip-t { display: block; font-size: 25rpx; color: var(--fg); line-height: 1.6; }
+.astro-set, .astro-reset { display: inline-block; margin-top: 14rpx; font-size: 24rpx; color: var(--accent-strong); }
+.astro-reset { margin-top: 18rpx; }
+.astro-form { margin-top: 20rpx; }
+.row2 { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; border-top: 1rpx solid var(--border); }
+.lbl2 { font-size: 25rpx; color: var(--muted); }
+.inp2 { flex: 1; margin-left: 20rpx; height: 60rpx; padding: 0 18rpx; font-size: 25rpx; color: var(--fg); background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx; text-align: right; }
+.form-acts { display: flex; gap: 16rpx; margin-top: 20rpx; }
+.astro { margin-top: 20rpx; }
+.astro-stale { display: block; margin-bottom: 16rpx; padding: 10rpx 18rpx; font-size: 22rpx; color: #b8860b; background: rgba(184,134,11,0.1); border-radius: 10rpx; }
+.astro-glance { padding: 20rpx; margin-bottom: 12rpx; background: var(--accent-wash); border-radius: 16rpx; }
+.ag-i { display: block; font-size: 30rpx; font-weight: 700; letter-spacing: 4rpx; color: var(--accent-strong); }
+.ag-sub { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--muted); }
+.ag-wx { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--muted); }
+.astro-mech { margin-top: 12rpx; display: flex; flex-direction: column; gap: 10rpx; }
+.mech-clash, .mech-harm, .mech-day { display: flex; flex-wrap: wrap; gap: 10rpx; }
+.mech-tag { padding: 6rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; }
+.mech-tag.clash { background: rgba(217,106,90,0.14); color: #c0392b; }
+.mech-tag.harm { background: var(--accent-wash); color: var(--accent-strong); }
 </style>

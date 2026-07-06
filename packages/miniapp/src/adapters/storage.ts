@@ -1,4 +1,4 @@
-import type { Friend, ReportData } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading } from '@nianlun/core'
 import type { RecentInsight } from './parseLocal'
 
 const K_FRIENDS = 'nianlun:friends'
@@ -10,6 +10,18 @@ const K_ANALYZED = 'nianlun:analyzedIds'
 // 旧版本把原文分块存 Storage 用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const K_RAW_INDEX_LEGACY = 'nianlun:rawIndex'
 const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
+const K_MY_BAZI = 'nianlun:myBazi'
+const K_BIRTHS = 'nianlun:births'
+const K_ASTRO = 'nianlun:astro'
+
+/** 持久化的命理解读缓存（含时效元数据）。 */
+export interface StoredAstroReading {
+  reading: AstroReading
+  chart: BaziChart              // 命盘速览，随解读一起缓存
+  generatedDate: string         // 'YYYY-MM-DD'
+  birthFingerprint: string      // 好友生辰指纹
+  myBaziFingerprint: string     // 我的盘指纹
+}
 
 export interface StorageBackend {
   get(key: string): unknown
@@ -58,9 +70,25 @@ export function makeStorage(backend: StorageBackend) {
       const raw = backend.get(K_ANALYZED)
       return Array.isArray(raw) ? (raw as string[]) : []
     },
+    saveMyBazi(b: BirthInfo): void { backend.set(K_MY_BAZI, b) },
+    loadMyBazi(): BirthInfo | null {
+      const raw = backend.get(K_MY_BAZI)
+      return raw && typeof raw === 'object' ? (raw as BirthInfo) : null
+    },
+    saveBirths(m: Record<string, BirthInfo>): void { backend.set(K_BIRTHS, m) },
+    loadBirths(): Record<string, BirthInfo> {
+      const raw = backend.get(K_BIRTHS)
+      return raw && typeof raw === 'object' ? (raw as Record<string, BirthInfo>) : {}
+    },
+    saveAstroReading(map: Record<string, StoredAstroReading>): void { backend.set(K_ASTRO, map) },
+    loadAstroReading(): Record<string, StoredAstroReading> {
+      const raw = backend.get(K_ASTRO)
+      return raw && typeof raw === 'object' ? (raw as Record<string, StoredAstroReading>) : {}
+    },
     clearAll(): void {
       backend.remove(K_FRIENDS); backend.remove(K_REPORT); backend.remove(K_SAMPLES)
       backend.remove(K_RECENT_INSIGHTS); backend.remove(K_RECENT_SAMPLES); backend.remove(K_ANALYZED)
+      backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO)
     },
     /**
      * 清掉旧版本（原文存 Storage）遗留的 nianlun:raw:* / nianlun:rawIndex 键，回收配额。

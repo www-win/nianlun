@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
-import type { Friend, ReportData } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo } from '@nianlun/core'
 
 function memBackend() {
   const m = new Map<string, unknown>()
@@ -108,5 +108,55 @@ describe('storage 适配器', () => {
     expect(m.has('nianlun:raw:2')).toBe(false)
     expect(m.has('nianlun:rawIndex')).toBe(false)
     expect(m.has('nianlun:friends')).toBe(true)
+  })
+})
+
+describe('命理存储', () => {
+  const BIRTH: BirthInfo = { year: 1990, month: 8, day: 15, hour: 14 }
+
+  it('saveMyBazi/loadMyBazi 往返，缺失返回 null', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadMyBazi()).toBeNull()
+    s.saveMyBazi(BIRTH)
+    expect(s.loadMyBazi()).toEqual(BIRTH)
+  })
+
+  it('saveBirths/loadBirths 往返，缺失返回空对象', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadBirths()).toEqual({})
+    s.saveBirths({ f1: BIRTH })
+    expect(s.loadBirths().f1).toEqual(BIRTH)
+  })
+
+  it('saveAstroReading/loadAstroReading 往返，缺失返回空对象', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadAstroReading()).toEqual({})
+    s.saveAstroReading({
+      f1: {
+        reading: { personality: '稳' },
+        chart: { pillars: { year: '庚午', month: '甲申', day: '丙子' }, dayMaster: '丙', fiveElements: {}, zodiac: '马', constellation: '狮子' },
+        generatedDate: '2026-07-06', birthFingerprint: 'x', myBaziFingerprint: 'y',
+      },
+    })
+    expect(s.loadAstroReading().f1.generatedDate).toBe('2026-07-06')
+    expect(s.loadAstroReading().f1.reading.personality).toBe('稳')
+  })
+
+  it('缺键返回空字符串时安全兜底（模拟真机）', () => {
+    const wxLike = { get: (_k: string) => '', set: () => {}, remove: () => {} }
+    const s = makeStorage(wxLike)
+    expect(s.loadMyBazi()).toBeNull()
+    expect(s.loadBirths()).toEqual({})
+    expect(s.loadAstroReading()).toEqual({})
+  })
+
+  it('clearAll 清除命理三键', () => {
+    const s = makeStorage(memBackend())
+    s.saveMyBazi(BIRTH); s.saveBirths({ f1: BIRTH })
+    s.saveAstroReading({ f1: { reading: {}, chart: {} as any, generatedDate: 'd', birthFingerprint: 'x', myBaziFingerprint: 'y' } })
+    s.clearAll()
+    expect(s.loadMyBazi()).toBeNull()
+    expect(s.loadBirths()).toEqual({})
+    expect(s.loadAstroReading()).toEqual({})
   })
 })
