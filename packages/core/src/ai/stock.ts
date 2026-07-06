@@ -103,3 +103,16 @@ export function parseStockExtraction(text: string, ctx: ExtractCtx): StockPick[]
   }
   return out
 }
+
+const pickKey = (p: StockPick) => `${p.stockNorm}|${p.recommenderId}|${p.ts}|${p.quote ?? ''}`
+
+/** 去重合并两批荐股记录，保持顺序（existing 在前）。 */
+export function mergeStockPicks(existing: StockPick[], incoming: StockPick[]): StockPick[] {
+  const seen = new Set(existing.map(pickKey))
+  const out = [...existing]
+  for (const p of incoming) {
+    const k = pickKey(p)
+    if (!seen.has(k)) { seen.add(k); out.push(p) }
+  }
+  return out
+}

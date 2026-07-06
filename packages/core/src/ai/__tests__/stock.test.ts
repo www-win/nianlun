@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeStockName, parseStockExtraction } from '../stock'
+import { normalizeStockName, parseStockExtraction, mergeStockPicks } from '../stock'
 import type { ExtractCtx } from '../stock'
 
 describe('normalizeStockName', () => {
@@ -53,5 +53,24 @@ describe('parseStockExtraction', () => {
   it('坏 JSON / 非数组 → []', () => {
     expect(parseStockExtraction('不是 json', CTX)).toEqual([])
     expect(parseStockExtraction('{"stock":"A"}', CTX)).toEqual([])
+  })
+})
+
+const mk = (over: Partial<import('../stock').StockPick> = {}): import('../stock').StockPick => ({
+  stock: '江化微', stockNorm: '江化微', recommenderId: '张三', recommender: '张三首席',
+  ts: 100, logics: [], companyNotes: [], ...over,
+})
+
+describe('mergeStockPicks', () => {
+  it('同键去重、保序追加', () => {
+    const a = [mk()]
+    const b = [mk(), mk({ quote: '另一条' })]
+    const out = mergeStockPicks(a, b)
+    expect(out).toHaveLength(2)
+    expect(out[1].quote).toBe('另一条')
+  })
+  it('不同票/不同人/不同时间视为不同记录', () => {
+    const out = mergeStockPicks([mk()], [mk({ stockNorm: 'B' }), mk({ recommenderId: '李四' }), mk({ ts: 200 })])
+    expect(out).toHaveLength(4)
   })
 })
