@@ -19,6 +19,16 @@ describe('scoreMessage', () => {
   it('否定词翻转极性：不开心 → 负', () => {
     expect(scoreMessage('我不开心')).toBeLessThan(0)
   })
+  it('「别烦」作为整词命中，不被内部「烦」的否定翻转抵消 → 负', () => {
+    expect(scoreMessage('别烦你')).toBeLessThan(0)
+    expect(scoreMessage('你别烦我')).toBeLessThan(0)
+  })
+  it('子串不重复计分：太棒了(+2) 不叠加内部「棒」(+1)', () => {
+    // 最长优先、不重叠扫描后「太棒了」仅计强烈正词单次权重(+2)，
+    // 上界 2 验证子串「棒」不再重复叠加（旧实现会得 +3）。
+    expect(scoreMessage('太棒了')).toBeLessThanOrEqual(2)
+    expect(scoreMessage('太棒了')).toBeGreaterThan(0)
+  })
   it('感叹号放大同号强度', () => {
     expect(Math.abs(scoreMessage('太棒了！！！'))).toBeGreaterThan(Math.abs(scoreMessage('太棒了')))
   })

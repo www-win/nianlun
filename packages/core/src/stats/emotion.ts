@@ -19,6 +19,9 @@ const EMOJI: Record<string, number> = {
 
 const NEG_WORDS = ['不', '没', '别', '无', '非', '莫']
 
+// 词典键按词长从长到短排序，用于「最长优先、不重叠」扫描。
+const WORDS_BY_LEN = Object.keys(LEX).sort((a, b) => b.length - a.length)
+
 // 词典权重 → 极性 -1..1（供词云染色）。
 export function wordPolarity(word: string): number {
   const w = LEX[word]
@@ -31,14 +34,23 @@ export function scoreMessage(text: string): number {
   if (!text) return 0
   let score = 0
 
-  // 情绪词（含否定翻转：词首前 2 字窗口内有否定词则取反）
-  for (const word in LEX) {
+  // 情绪词：最长优先、不重叠扫描。长词先命中并覆盖其区间，短子串不再在
+  // 已覆盖区间内重复计分（避免「太棒了」⊃「棒」虚高、「别烦」内的「烦」被误翻转）。
+  // 否定翻转只对「独立命中、词首前 2 字窗口含否定词」的情绪词生效（如「不开心」）。
+  const covered = new Array<boolean>(text.length).fill(false)
+  for (const word of WORDS_BY_LEN) {
     let idx = text.indexOf(word)
     while (idx !== -1) {
-      const window = text.slice(Math.max(0, idx - 2), idx)
-      const negated = NEG_WORDS.some((n) => window.includes(n))
-      score += negated ? -LEX[word] : LEX[word]
-      idx = text.indexOf(word, idx + word.length)
+      const end = idx + word.length
+      let overlap = false
+      for (let i = idx; i < end; i++) { if (covered[i]) { overlap = true; break } }
+      if (!overlap) {
+        const window = text.slice(Math.max(0, idx - 2), idx)
+        const negated = NEG_WORDS.some((n) => window.includes(n))
+        score += negated ? -LEX[word] : LEX[word]
+        for (let i = idx; i < end; i++) covered[i] = true
+      }
+      idx = text.indexOf(word, end)
     }
   }
 
