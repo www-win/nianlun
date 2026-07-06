@@ -8,7 +8,6 @@ import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
 import { assessImportSize } from '../../lib/importGuard'
 
-console.log('[boot] 导入页 setup 执行', Date.now())  // [诊断插桩] 排查完删
 const imp = useImportStore()
 const data = useDataStore()
 const showHelp = ref(false)
