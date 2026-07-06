@@ -1,5 +1,5 @@
 // 概览页「高频词 + 活跃时段 + 月度趋势」的纯展示映射函数。无副作用、可单测。
-import type { Friend } from '@nianlun/core'
+import type { Friend, EmotionDist, FriendEmotion } from '@nianlun/core'
 
 export interface WordCloudItem { word: string; count: number; tier: number }
 
@@ -85,4 +85,60 @@ export function monthlyTrend(friends: Friend[]): MonthlyTrend {
   for (let i = 0; i < 12; i++) if (sums[i] > (peakI === -1 ? 0 : sums[peakI])) peakI = i
   const peak = peakI === -1 ? null : { label: months[peakI].label, count: sums[peakI] }
   return { months, max, total, peak }
+}
+
+export interface DonutSeg {
+  label: '开心' | '平淡' | '难过'
+  value: number
+  frac: number
+  color: string
+  start: number   // 弧度，起点 -π/2
+  end: number
+}
+
+const EMO_COLOR = { 开心: '#e8a04b', 平淡: '#b8bcc4', 难过: '#5a8fd0' } as const
+
+/** 情绪价值分布 → 三色环形弧段。total=0 返回空。角度从 -π/2 顺时针累加。 */
+export function donutSegments(dist: EmotionDist): DonutSeg[] {
+  if (dist.total === 0) return []
+  const parts: Array<{ label: DonutSeg['label']; value: number }> = [
+    { label: '开心', value: dist.happy },
+    { label: '平淡', value: dist.neutral },
+    { label: '难过', value: dist.sad },
+  ]
+  let angle = -Math.PI / 2
+  return parts.map((p) => {
+    const frac = p.value / dist.total
+    const start = angle
+    const end = angle + frac * Math.PI * 2
+    angle = end
+    return { label: p.label, value: p.value, frac, color: EMO_COLOR[p.label], start, end }
+  })
+}
+
+export interface MoodPt { x: number; y: number; m: number }
+export interface DualLine { me: MoodPt[]; them: MoodPt[]; hasData: boolean }
+
+/**
+ * 逐月情绪(0..1) → 双线坐标。null 月不产点（页面只连相邻月 → 断开处不连线）。
+ * y：avg=1 顶部(pad)，avg=0 底部(height-pad)，0.5 居中。
+ */
+export function moodDualLinePoints(
+  monthly: FriendEmotion['monthly'],
+  opts: { width: number; height: number; pad: number },
+): DualLine {
+  const { width, height, pad } = opts
+  const toPts = (arr: (FriendEmotion['monthly']['me'][number])[]): MoodPt[] => {
+    const pts: MoodPt[] = []
+    arr.forEach((mm, m) => {
+      if (!mm) return
+      const x = pad + (m / 11) * (width - 2 * pad)
+      const y = height - pad - mm.avg * (height - 2 * pad)
+      pts.push({ x, y, m })
+    })
+    return pts
+  }
+  const me = toPts(monthly.me)
+  const them = toPts(monthly.them)
+  return { me, them, hasData: me.length > 0 || them.length > 0 }
 }
