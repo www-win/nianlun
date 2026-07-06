@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock, aggregateByRecommender } from '../stock'
+import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock, aggregateByRecommender, buildStockExtractionPrompt } from '../stock'
 import type { ExtractCtx } from '../stock'
+import type { Friend } from '../../model/types'
 
 describe('normalizeStockName', () => {
   it('去首尾空格与内部空白', () => {
@@ -107,5 +108,22 @@ describe('aggregateByRecommender', () => {
     expect(zhang.recommender).toBe('张三首席')
     expect(zhang.picks).toHaveLength(3)
     expect(zhang.stockCount).toBe(2)   // A、B
+  })
+})
+
+const FR = { id: '张三', name: '张三', alias: '张三首席', rel: '客户', role: '首席',
+  firstContact: 0, lastContact: 0, msgCount: 9, sentRatio: 0, peakPeriod: '', maxStreak: 0,
+  monthly: [], hourly: [], weekHour: [], keywords: [], userEdited: {} } as unknown as Friend
+
+describe('buildStockExtractionPrompt', () => {
+  it('含关键约束、空数组指示、好友名与编号样本', () => {
+    const p = buildStockExtractionPrompt(FR, ['2026-03-05 对方：江化微看2倍'])
+    expect(p).toContain('张三首席')
+    expect(p).toContain('JSON 数组')
+    expect(p).toContain('[]')
+    expect(p).toContain('1. 2026-03-05 对方：江化微看2倍')
+  })
+  it('无样本给占位', () => {
+    expect(buildStockExtractionPrompt(FR, [])).toContain('（本次无可用聊天样本）')
   })
 })

@@ -169,3 +169,34 @@ export function aggregateByRecommender(picks: StockPick[]): RecommenderPicks[] {
   }
   return out
 }
+
+/** 单个好友 + 带日期样本 → 荐股抽取提示词，要求 AI 只输出严格 JSON 数组。 */
+export function buildStockExtractionPrompt(friend: Friend, samples: string[]): string {
+  const displayName = friend.alias || friend.name
+  const sampleBlock = samples.length
+    ? samples.map((s, i) => `${i + 1}. ${s}`).join('\n')
+    : '（本次无可用聊天样本）'
+  return [
+    '你是一位擅长从聊天记录中抽取「荐股信息」的金融助理。',
+    `下面是与「${displayName}」的部分聊天样本，请找出其中所有「推荐 / 看好某支股票」的记录。`,
+    '',
+    '只输出一个严格的 JSON 数组，不要任何解释、不要代码围栏外的文字。',
+    '若样本中没有任何荐股信息，输出空数组 []。',
+    '每个数组元素格式：',
+    '{',
+    '  "stock": "<股票名称，必填>",',
+    '  "date": "<推荐时间，取样本行首日期，如 2026-03-05；无法确定留空>",',
+    '  "targetMarketCap": "<目标市值，如 500亿；无则省略>",',
+    '  "multiple": "<涨幅倍数，如 2倍；无则省略>",',
+    '  "targetTime": "<预计到达时间，如 1年内；无则省略>",',
+    '  "logics": ["<推荐逻辑，分条>"],',
+    '  "companyNotes": ["<公司信息或「谁说了什么」的评价，分条>"],',
+    '  "quote": "<最能代表该荐股的原话摘录>"',
+    '}',
+    '',
+    '要求：只抽确有荐股含义的内容；目标价 / 倍数等无明确依据时宁可省略，禁止臆造。',
+    '',
+    '聊天样本（每行以日期开头，「我」为用户本人，「对方」为该好友）：',
+    sampleBlock,
+  ].join('\n')
+}
