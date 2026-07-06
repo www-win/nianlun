@@ -72,6 +72,9 @@ const wxIO: WxFileIO = {
   }),
   unzip: (zipPath) => new Promise((resolve, reject) => {
     const fs = wx.getFileSystemManager()
+    // 解压前先清掉所有历史残留的解压副本：即便上次 cleanup 万一没删净，这次也从零开始，
+    // 保证文件系统里最多只有本次一份解压内容，绝不累积撑满。
+    purgeUnzipTemp(fs, wx.env.USER_DATA_PATH)
     const target = `${wx.env.USER_DATA_PATH}/nianlun_unzip_${Date.now()}`
     // 读完/失败都要删掉解压副本，否则每次导入都留一份几十 MB，累积撑爆文件系统。
     // 用逐层删除，不赌 rmdirSync 的 recursive（真机对非空目录不一定生效）。
