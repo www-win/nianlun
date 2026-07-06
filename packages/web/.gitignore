@@ -1,4 +1,0 @@
-# Mac / Windows 交付：预下载的静态服务器二进制不入库（sws-arm64 / sws-amd64 / sws.exe）
-scripts/server/sws*
-# 打包产物（中文名易受 git core.quotepath 影响，用通配更稳）
-*.zip
