@@ -1,4 +1,5 @@
 import type { Conversation, Message, Friend } from '../model/types'
+import { mergeEmotion } from '../stats/emotion'
 
 const msgKey = (m: Message) => `${m.ts}|${m.from}|${m.text ?? ''}`
 
@@ -47,6 +48,11 @@ export function mergeFriends(
     merged.alias = old.userEdited.alias ?? inc.alias
     merged.name = old.userEdited.name ?? inc.name // 联系人套用的名字也保留
     merged.userEdited = { ...inc.userEdited, ...old.userEdited }
+    if (old.emotion && inc.emotion) {
+      merged.emotion = mergeEmotion(old.emotion, inc.emotion, merged.keywords)
+    } else {
+      merged.emotion = inc.emotion ?? old.emotion
+    }
     byId.set(inc.id, merged)
   })
 

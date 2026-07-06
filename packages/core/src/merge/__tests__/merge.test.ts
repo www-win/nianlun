@@ -2,6 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { mergeConversations, mergeFriends, applyContactNames } from '../merge'
 import { createFriend } from '../../model/friend'
 import type { Conversation } from '../../model/types'
+import type { FriendEmotion } from '../../model/types'
+
+const emo = (total: number): FriendEmotion => ({
+  me: { happy: total, neutral: 0, sad: 0, total, avg: 1 },
+  them: { happy: 0, neutral: 0, sad: 0, total: 0, avg: 0.5 },
+  monthly: { me: [{ avg: 1, count: total }, ...Array(11).fill(null)], them: Array(12).fill(null) },
+  words: [{ word: '开心', count: total, polarity: 1 }],
+})
 
 const t = (s: string) => new Date(s).getTime()
 
@@ -57,6 +65,22 @@ describe('mergeFriends', () => {
     const { friends } = mergeFriends([existing], [incoming])
     expect(friends[0].msgCount).toBe(150)  // 统计用新值
     expect(friends[0].name).toBe('张兴国')  // 套用的名字保留
+  })
+})
+
+describe('mergeFriends emotion', () => {
+  it('同 id 两侧都有 emotion → 计数相加', () => {
+    const a = { ...createFriend('X', 'X'), emotion: emo(2), keywords: [{ word: '开心', count: 5 }] }
+    const b = { ...createFriend('X', 'X'), emotion: emo(3), keywords: [{ word: '开心', count: 5 }] }
+    const { friends } = mergeFriends([a], [b])
+    expect(friends[0].emotion!.me.total).toBe(5)
+    expect(friends[0].emotion!.monthly.me[0]!.count).toBe(5)
+  })
+  it('仅 incoming 有 emotion → 取 incoming', () => {
+    const a = createFriend('Y', 'Y')                       // 无 emotion
+    const b = { ...createFriend('Y', 'Y'), emotion: emo(2) }
+    const { friends } = mergeFriends([a], [b])
+    expect(friends[0].emotion!.me.total).toBe(2)
   })
 })
 
