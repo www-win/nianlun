@@ -8,6 +8,16 @@
 
 **Tech Stack:** TypeScript、pnpm workspace monorepo、Vitest、Vue 3 + Pinia（uni-app 小程序）、既有 `aiProxy` 云函数（Claude `claude-opus-4-8`）。
 
+## 方案修订（2026-07-06，合并 feat/friend-astrology 后）
+
+**原文来源变更**：`feat/friend-astrology` 已移除「导入时持久化原文」（旧 `storage.loadRawFiles/saveRawFiles` 全删，改文件系统 `rawStore` 且 App 启动 `rawStore.clear()`，为防撑满）。因此荐股**不再依赖持久化原文**，改为**分析时重新导入、当场抽取**：
+
+- **Task 1–7、Task 9、Task 10 不变**：编排层 `analyzeStocks(deps)` 本就接收注入的 `conversations[]`，与原文来源解耦。
+- **Task 8 改**：storage 荐股读写简化为**单键存**（结果仅几百 KB；storage 现已无分块 helper，不再分块）。
+- **Task 11 改**：`analyzeStocks(files)` 接收**重新选择导入的文件**，`parseFile`→`mergeConversations` 得 conversations 后当场抽取；导入页「分析荐股」按钮先 `fileReader.pickAndRead` 再调用。不再 `loadRawFiles`。
+
+以下正文中 Task 8 / Task 11 已按本修订重写；如与旧描述冲突，以本修订与重写后的任务为准。
+
 ## Global Constraints
 
 - **单向依赖**：`@nianlun/miniapp → @nianlun/core`，core 永不 import miniapp、永不触碰 `window`/DOM/`IndexedDB`/`vue`。core 的 `tsconfig` 是 `"lib": ["ES2020"], "types": []`（`Date`/`Date.UTC` 属 ES2020，可用；`document`/`wx` 等不可用）。
@@ -643,15 +653,17 @@ git commit -m "feat(core): 导出荐股抽取模型与纯函数"
 
 ---
 
-## Task 8: storage 分块荐股读写
+## Task 8: storage 荐股读写（单键持久化）
 
 **Files:**
 - Modify: `packages/miniapp/src/adapters/storage.ts`
 - Test: `packages/miniapp/src/adapters/__tests__/storage.test.ts`
 
 **Interfaces:**
-- Consumes: `StockPick`（`@nianlun/core`）、`RRAW_CHUNK_CHARS`（复用现有阈值常量）、`StorageBackend`。
+- Consumes: `StockPick`（`@nianlun/core`）、`StorageBackend`。
 - Produces: `storage.saveStockPicks(picks: StockPick[]): void`、`storage.loadStockPicks(): StockPick[]`、`storage.clearStockPicks(): void`；`clearAll()` 追加清理荐股。
+
+> 荐股结果仅几百条、约几百 KB，直接**单键存**（storage 现已无分块 helper）。若将来单键超 1MB 再引入分块。
 
 - [ ] **Step 1: 写失败测试**（追加到 storage.test.ts）
 
@@ -668,12 +680,6 @@ describe('storage 荐股', () => {
     const s = makeStorage(memBackend())
     s.saveStockPicks([PICK(), PICK({ stock: 'B', stockNorm: 'B' })])
     expect(s.loadStockPicks().map((p) => p.stock)).toEqual(['江化微', 'B'])
-  })
-  it('超单块阈值的大数据分块并完整读回', () => {
-    const s = makeStorage(memBackend())
-    const big = Array.from({ length: 5000 }, (_, i) => PICK({ quote: 'x'.repeat(100) + i }))
-    s.saveStockPicks(big)
-    expect(s.loadStockPicks()).toHaveLength(5000)
   })
   it('无数据 → []', () => {
     expect(makeStorage(memBackend()).loadStockPicks()).toEqual([])
@@ -694,77 +700,36 @@ Expected: FAIL（`saveStockPicks` 不存在）
 
 - [ ] **Step 3: 写实现**
 
-在 `storage.ts` 顶部 import 处加类型：
+`storage.ts` 顶部 import 追加 `StockPick`（现有为 `Friend, ReportData, BirthInfo, BaziChart, AstroReading`）：
 
 ```ts
-import type { Friend, ReportData, StockPick } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick } from '@nianlun/core'
 ```
 
-在 `K_RAW` 常量附近加键与通用分块 helper（放在 `makeStorage` 之前）：
+在键常量区加：
 
 ```ts
-const K_STOCKS_INDEX = 'nianlun:stockIndex'
-const K_STOCKS = (i: number) => `nianlun:stocks:${i}`
-
-/** 通用「数组分块存 Storage」helper（绕过单键 1MB 限制）：覆盖写 / 读回 / 清除。 */
-function makeChunkedArray<T>(backend: StorageBackend, indexKey: string, dataKey: (i: number) => string) {
-  function chunkCount(): number {
-    const idx = backend.get(indexKey)
-    return idx && typeof idx === 'object' && typeof (idx as { count?: unknown }).count === 'number'
-      ? (idx as { count: number }).count : 0
-  }
-  function clear(): void {
-    const c = chunkCount()
-    for (let i = 0; i < c; i++) backend.remove(dataKey(i))
-    backend.remove(indexKey)
-  }
-  function load(): T[] {
-    const c = chunkCount()
-    if (!c) return []
-    let blob = ''
-    for (let i = 0; i < c; i++) {
-      const s = backend.get(dataKey(i))
-      if (typeof s !== 'string') return []
-      blob += s
-    }
-    try { const arr = JSON.parse(blob); return Array.isArray(arr) ? (arr as T[]) : [] } catch { return [] }
-  }
-  function save(items: T[]): void {
-    clear()
-    const blob = JSON.stringify(items)
-    let count = 0
-    for (let i = 0; i < blob.length; i += RAW_CHUNK_CHARS) {
-      backend.set(dataKey(count), blob.slice(i, i + RAW_CHUNK_CHARS))
-      count++
-    }
-    backend.set(indexKey, { count })
-  }
-  return { clear, load, save }
-}
+const K_STOCKS = 'nianlun:stocks'
 ```
 
-在 `makeStorage` 内、`return {` 之前实例化：
+在 `makeStorage` 返回对象里、`loadAstroReading` 之后加三个方法：
 
 ```ts
-  const stocks = makeChunkedArray<StockPick>(backend, K_STOCKS_INDEX, K_STOCKS)
+    saveStockPicks(picks: StockPick[]): void { backend.set(K_STOCKS, picks) },
+    loadStockPicks(): StockPick[] {
+      const raw = backend.get(K_STOCKS)
+      return Array.isArray(raw) ? (raw as StockPick[]) : []
+    },
+    clearStockPicks(): void { backend.remove(K_STOCKS) },
 ```
 
-在返回对象里、`clearRaw` 之后加三个方法：
+`clearAll()` 里，把含 `backend.remove(K_ASTRO)` 的那一行改为追加清理荐股：
 
 ```ts
-    saveStockPicks(picks: StockPick[]): void { stocks.save(picks) },
-    loadStockPicks(): StockPick[] { return stocks.load() },
-    clearStockPicks(): void { stocks.clear() },
+      backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO); backend.remove(K_STOCKS)
 ```
 
-`clearAll()` 末尾追加一行：
-
-```ts
-      clearRawImpl()
-      stocks.clear()   // ← 新增
-```
-
-- [ ] **Step 4: 跑测试确认通过（含既有 raw/friends 测试不回归）**
+- [ ] **Step 4: 跑测试确认通过（既有测试不回归）**
 
 Run: `pnpm --filter @nianlun/miniapp exec vitest run src/adapters/__tests__/storage.test.ts`
 Expected: PASS（新荐股用例 + 既有全部）
@@ -773,7 +738,7 @@ Expected: PASS（新荐股用例 + 既有全部）
 
 ```bash
 git add packages/miniapp/src/adapters/storage.ts packages/miniapp/src/adapters/__tests__/storage.test.ts
-git commit -m "feat(miniapp): storage 分块持久化荐股记录"
+git commit -m "feat(miniapp): storage 单键持久化荐股记录"
 ```
 
 ---
@@ -1082,7 +1047,7 @@ git commit -m "feat(miniapp): stockAnalysis 编排(金融候选+分块+串行抽
 
 ---
 
-## Task 11: import store `analyzeStocks` action + 导入页按钮
+## Task 11: import store `analyzeStocks(files)` action + 导入页按钮
 
 **Files:**
 - Modify: `packages/miniapp/src/stores/import.ts`
@@ -1090,35 +1055,22 @@ git commit -m "feat(miniapp): stockAnalysis 编排(金融候选+分块+串行抽
 - Modify: `packages/miniapp/src/pages/import/import.vue`
 
 **Interfaces:**
-- Consumes: `parseFile`、`mergeConversations`、`Conversation`（`@nianlun/core`）、`analyzeStocks as runAnalyzeStocks`、`isFinanceRole`（`stockAnalysis`）、`aiClient.extractStocks`、`storage`。
-- Produces: import store 暴露 `analyzeStocks(): Promise<void>`、`analyzingStocks: Ref<{done:number;total:number}|null>`、`stocksSavedCount: Ref<number>`。
+- Consumes: `parseFile`、`mergeConversations`、`isWeliveContacts`、`Conversation`（`@nianlun/core`）、`LocalFile`（parseLocal）、`analyzeStocks as runAnalyzeStocks`、`isFinanceRole`（`stockAnalysis`）、`aiClient.extractStocks`、`storage`、`fileReader`。
+- Produces: import store 暴露 `analyzeStocks(files: LocalFile[]): Promise<void>`、`analyzingStocks: Ref<{done:number;total:number}|null>`、`stocksSavedCount: Ref<number>`。
+
+> **方案：重新导入当场抽取**——不依赖持久化原文（已被移除）。用户点「分析荐股」→ 重新选文件 → `parseFile` 解析 → 当场抽取 → 存结果。注意 import.ts 现状**已无 `rawSavedCount`**（friend-astrology 去掉了），故本任务不引用它。
 
 - [ ] **Step 1: 写失败测试**（追加到 import.test.ts）
 
 ```ts
-import { createImportStore } from '../import'
-import { setActivePinia, createPinia } from 'pinia'
-import { makeStorage } from '../../adapters/storage'
-
-function memBackend() {
-  const m = new Map<string, unknown>()
-  return { get: (k: string) => m.get(k), set: (k: string, v: unknown) => void m.set(k, v), remove: (k: string) => void m.delete(k) }
-}
-
-it('analyzeStocks: 读回原文→抽取→saveStockPicks，并暴露统计', async () => {
+it('analyzeStocks: 解析重新导入的原文 → 抽取 → saveStockPicks，暴露统计', async () => {
   setActivePinia(createPinia())
   const storage = makeStorage(memBackend())
-  // 预置一条留存原文(txt 格式：头行「日期时间 发送者」+ 正文 + 空行)
-  storage.saveRawFiles([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
   const extract = vi.fn().mockResolvedValue([
     { stock: '江化微', stockNorm: '江化微', recommenderId: '张三', recommender: '张三', ts: 1, logics: [], companyNotes: [] },
   ])
-  const useImport = createImportStore({
-    storage,
-    extractStocks: extract,   // useData 用默认真实 data store（下方 setData 塞入候选好友）
-  } as never)
+  const useImport = createImportStore({ storage, extractStocks: extract } as never)
   const imp = useImport()
-  // 直接把好友塞进 data store
   const { useDataStore } = await import('../data')
   await useDataStore().setData(
     [{ id: '张三', name: '张三', alias: '', rel: '客户', role: '首席', firstContact: 0, lastContact: 0,
@@ -1126,7 +1078,7 @@ it('analyzeStocks: 读回原文→抽取→saveStockPicks，并暴露统计', as
        hourly: new Array(24).fill(0), weekHour: new Array(168).fill(0), keywords: [], userEdited: {} }] as never,
     { year: 2026, totalMessages: 1, friendCount: 1, activeDays: 1, topContacts: [], latestMessage: null, keywords: [], relationBreakdown: [] } as never,
   )
-  await imp.analyzeStocks()
+  await imp.analyzeStocks([{ name: 'a.txt', content: '2026-03-05 10:00:00 张三\n江化微看2倍\n\n' }])
   expect(extract).toHaveBeenCalled()
   expect(storage.loadStockPicks()).toHaveLength(1)
   expect(imp.stocksSavedCount).toBe(1)
@@ -1134,7 +1086,7 @@ it('analyzeStocks: 读回原文→抽取→saveStockPicks，并暴露统计', as
 })
 ```
 
-> 实现说明：`createImportStore` 已支持 `deps.storage`；本任务新增 `deps.extractStocks`。测试用真实 `useDataStore`（默认注入），通过 `setData` 塞入 id='张三'、role='首席' 的候选好友。若既有 import.test.ts 已有 `memBackend`/pinia 初始化，复用之，勿重复定义。
+> 实现说明：新增 `deps.extractStocks`；`deps.storage` 已支持。测试用真实 `useDataStore`（默认注入），`setData` 塞入 id='张三'、role='首席' 候选。文本 `2026-03-05 10:00:00 张三\n江化微看2倍\n\n` 是 txt 解析格式，`parseFile` 产出 id='张三' 的会话。若既有 import.test.ts 已有 `memBackend`/`setActivePinia`/pinia 初始化，复用之、勿重复定义。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -1143,11 +1095,13 @@ Expected: FAIL（`analyzeStocks` / `analyzingStocks` / `stocksSavedCount` 不存
 
 - [ ] **Step 3: 写实现**
 
-在 `import.ts` 顶部 import 增补：
+`import.ts` 顶部 import 改为（在现有基础上追加 `parseFile, mergeConversations`）：
 
 ```ts
-import { mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
-  parseFile, mergeConversations } from '@nianlun/core'
+import {
+  mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
+  parseFile, mergeConversations,
+} from '@nianlun/core'
 import type { Friend, FriendSuggestion, Conversation, StockPick, ExtractCtx } from '@nianlun/core'
 import { analyzeStocks as runAnalyzeStocks, isFinanceRole } from '../adapters/stockAnalysis'
 ```
@@ -1155,13 +1109,7 @@ import { analyzeStocks as runAnalyzeStocks, isFinanceRole } from '../adapters/st
 `Deps` 类型加一项：
 
 ```ts
-type Deps = {
-  useData?: ReturnType<typeof createDataStore>
-  storage?: ReturnType<typeof makeStorage>
-  suggest?: (f: Friend, s: string[]) => Promise<FriendSuggestion>
-  loadSamples?: (id: string) => string[]
   extractStocks?: (f: Friend, samples: string[], ctx: ExtractCtx) => Promise<StockPick[]>  // ← 新增
-}
 ```
 
 `createImportStore` 内解析默认：
@@ -1170,7 +1118,7 @@ type Deps = {
   const extractStocks = deps.extractStocks ?? aiClient.extractStocks
 ```
 
-在 `defineStore` 回调内、`rawSavedCount` 附近加 refs：
+在 `defineStore` 回调内、`analyzing` 附近加 refs：
 
 ```ts
     const analyzingStocks = ref<{ done: number; total: number } | null>(null)
@@ -1186,17 +1134,19 @@ type Deps = {
       return parts.join('；')
     }
 
-    /** 读回本机留存原文 → 对金融候选好友抽取荐股 → 持久化。重入保护。 */
-    async function analyzeStocks(): Promise<void> {
+    /** 重新导入的原文 → 对金融候选好友当场抽取荐股 → 持久化结果。重入保护。 */
+    async function analyzeStocks(files: LocalFile[]): Promise<void> {
       if (analyzingStocks.value) return
       try {
-        const raw = storage.loadRawFiles()
-        if (!raw.length) {
-          warnings.value = [...warnings.value, '未找到留存原文，无法分析荐股。']
+        const chatFiles = files.filter((f) => !isWeliveContacts(f.content.slice(0, 2000)))
+        if (!chatFiles.length) {
+          warnings.value = [...warnings.value, '未选择聊天记录文件，无法分析荐股。']
           return
         }
         let convs: Conversation[] = []
-        for (const f of raw) convs = mergeConversations(convs, parseFile(f.name, f.content).conversations)
+        for (const f of chatFiles) {
+          convs = mergeConversations(convs, parseFile(f.name, f.content).conversations)
+        }
         const d = useData()
         const candCount = d.friends.filter(isFinanceRole).length
         analyzingStocks.value = { done: 0, total: candCount }   // await 前置位守卫
@@ -1217,16 +1167,16 @@ type Deps = {
     }
 ```
 
-`reset()` 追加清零：
+`reset()` 追加清零（注意现状 reset 无 `rawSavedCount`）：
 
 ```ts
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; rawSavedCount.value = 0; analyzingStocks.value = null; stocksSavedCount.value = 0 }
+    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; analyzingStocks.value = null; stocksSavedCount.value = 0 }
 ```
 
 `return { ... }` 追加导出：
 
 ```ts
-    return { status, progress, warnings, error, analyzing, rawSavedCount, analyzingStocks, stocksSavedCount, run, analyzePendingRoles, analyzeStocks, reset }
+    return { status, progress, warnings, error, analyzing, analyzingStocks, stocksSavedCount, run, analyzePendingRoles, analyzeStocks, reset }
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
@@ -1236,23 +1186,29 @@ Expected: PASS
 
 - [ ] **Step 5: 接线导入页按钮**
 
-在 `import.vue` `<script setup>` 加处理函数（`onImport` 之后）：
+在 `import.vue` `<script setup>` 加处理函数（`onImport` 之后；`fileReader` 已 import）：
 
 ```ts
 async function onAnalyzeStocks() {
-  await imp.analyzeStocks()
-  uni.showToast({ title: imp.stocksSavedCount ? `已抽取荐股 ${imp.stocksSavedCount} 条` : '未抽到荐股', icon: 'none' })
+  try {
+    const files = await fileReader.pickAndRead(500)
+    if (!files.length) return
+    await imp.analyzeStocks(files)
+    uni.showToast({ title: imp.stocksSavedCount ? `已抽取荐股 ${imp.stocksSavedCount} 条` : '未抽到荐股', icon: 'none' })
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '分析失败', icon: 'none' })
+  }
 }
 ```
 
-在模板 `status.ok` 区块之后、`analyzing` 提示附近加按钮与进度：
+在模板 `status.ok` 区块之后加按钮与进度：
 
 ```html
       <button
-        v-if="imp.status === 'done' && imp.rawSavedCount"
+        v-if="imp.status === 'done'"
         class="btn-primary" hover-class="hover" style="margin-top:20rpx"
         :disabled="!!imp.analyzingStocks" @click="onAnalyzeStocks">
-        分析荐股
+        分析荐股（重新选文件）
       </button>
       <view v-if="imp.analyzingStocks" class="status">
         <text class="status-t muted">正在分析荐股… {{ imp.analyzingStocks.done }}/{{ imp.analyzingStocks.total }}</text>
@@ -1271,7 +1227,7 @@ Expected: PASS（全部 miniapp 测试）
 
 ```bash
 git add packages/miniapp/src/stores/import.ts packages/miniapp/src/stores/__tests__/import.test.ts packages/miniapp/src/pages/import/import.vue
-git commit -m "feat(miniapp): 导入页「分析荐股」按钮 + import store analyzeStocks"
+git commit -m "feat(miniapp): 导入页「分析荐股」按钮 + import store analyzeStocks(重新导入当场抽取)"
 ```
 
 ---
