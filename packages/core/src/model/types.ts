@@ -14,6 +14,26 @@ export interface Conversation {
   messages: Message[]
 }
 
+export interface EmotionDist {
+  happy: number      // 开心 条数
+  neutral: number    // 平淡 条数
+  sad: number        // 难过 条数
+  total: number
+  avg: number        // 平均情绪值 0..1，0.5=中性
+}
+
+export interface MonthMood {
+  avg: number        // 该月该侧平均情绪值 0..1
+  count: number      // 该月该侧消息条数（>0）
+}
+
+export interface FriendEmotion {
+  me: EmotionDist
+  them: EmotionDist
+  monthly: { me: (MonthMood | null)[]; them: (MonthMood | null)[] }  // 长度 12，无消息月 = null
+  words: Array<{ word: string; count: number; polarity: number }>    // polarity -1..1，不在词典=0
+}
+
 export interface Friend {
   id: string
   name: string
@@ -31,6 +51,7 @@ export interface Friend {
   weekHour: number[]     // 长度 168，索引 = getDay(0=周日)*24 + 小时
   keywords: Array<{ word: string; count: number }>  // 该好友 Top 20 高频词
   userEdited: { role?: string; rel?: Relation; alias?: string; name?: string }
+  emotion?: FriendEmotion
 }
 
 export interface ReportData {

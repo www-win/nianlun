@@ -27,3 +27,5 @@ export { mergeConversations, mergeFriends, applyContactNames } from './merge/mer
 export { parseWeliveContacts, isWeliveContacts } from './parsers/welive-contacts'
 export type { ContactName } from './parsers/welive-contacts'
 export { isServiceSession, sessionIdFromFileName } from './parsers/welive'
+export { scoreMessage, classify, toValue, wordPolarity } from './stats/emotion'
+export type { EmotionDist, MonthMood, FriendEmotion } from './model/types'
