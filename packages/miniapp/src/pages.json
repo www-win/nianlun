@@ -4,6 +4,7 @@
     { "path": "pages/overview/overview", "style": { "navigationBarTitleText": "概览" } },
     { "path": "pages/friends/friends", "style": { "navigationBarTitleText": "好友" } },
     { "path": "pages/friend-detail/friend-detail", "style": { "navigationBarTitleText": "好友详情" } },
+    { "path": "pages/my-bazi/my-bazi", "style": { "navigationBarTitleText": "我的命盘" } },
     { "path": "pages/network/network", "style": { "navigationBarTitleText": "关系网" } },
     { "path": "pages/report/report", "style": { "navigationBarTitleText": "年度报告" } }
   ],
