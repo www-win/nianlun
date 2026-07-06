@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { makeAiClient } from '../aiClient'
-import type { Friend, ReportData, BaziChart, DayFortune, Compatibility } from '@nianlun/core'
+import type { Friend, ReportData, BaziChart, DayFortune, Compatibility, ExtractCtx } from '@nianlun/core'
 
 const REPORT = { year: 2025, totalMessages: 10, friendCount: 1, activeDays: 3, topContacts: [], relationBreakdown: [] } as unknown as ReportData
 const FRIEND = { id: 'f1', name: '张三', alias: '', rel: '其他', role: '', msgCount: 9, sentRatio: 50, peakPeriod: '晚上', maxStreak: 2 } as unknown as Friend
@@ -78,5 +78,15 @@ describe('aiClient 命理', () => {
     expect(await ok.extractBirth(astroFriend, ['对方：我1990年8月15号'])).toEqual({ year: 1990, month: 8, day: 15 })
     const none = makeAiClient(async () => JSON.stringify({ found: false }))
     expect(await none.extractBirth(astroFriend, [])).toBeNull()
+  })
+
+  it('extractStocks 走荐股 prompt 并解析为 StockPick[]', async () => {
+    const transport = vi.fn().mockResolvedValue('[{"stock":"江化微","logics":["MOC涨价"],"companyNotes":[]}]')
+    const ctx: ExtractCtx = { recommenderId: 'f1', recommender: '张三', fallbackTs: 100 }
+    const out = await makeAiClient(transport).extractStocks(FRIEND, ['2026-03-05 对方：江化微看2倍'], ctx)
+    expect(out).toHaveLength(1)
+    expect(out[0].stock).toBe('江化微')
+    expect(out[0].recommenderId).toBe('f1')       // ctx 注入
+    expect(transport.mock.calls[0][0]).toContain('JSON 数组')
   })
 })

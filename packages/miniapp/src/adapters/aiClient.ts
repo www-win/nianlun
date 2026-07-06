@@ -3,10 +3,12 @@ import {
   buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment,
   buildFriendProfilePrompt, parseFriendProfile,
   buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirthInfo,
+  buildStockExtractionPrompt, parseStockExtraction,
 } from '@nianlun/core'
 import type {
   Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile,
   BaziChart, DayFortune, Compatibility, AstroReading, BirthInfo,
+  StockPick, ExtractCtx,
 } from '@nianlun/core'
 
 export type Transport = (prompt: string, maxTokens: number) => Promise<string>
@@ -41,6 +43,10 @@ export function makeAiClient(transport: Transport) {
     async extractBirth(friend: Friend, samples: string[]): Promise<BirthInfo | null> {
       const text = await transport(buildBirthExtractPrompt(friend, samples), 256)
       return parseBirthInfo(text)
+    },
+    async extractStocks(friend: Friend, samples: string[], ctx: ExtractCtx): Promise<StockPick[]> {
+      const text = await transport(buildStockExtractionPrompt(friend, samples), 2048)
+      return parseStockExtraction(text, ctx)
     },
   }
 }
