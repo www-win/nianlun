@@ -53,3 +53,53 @@ export function normalizeStockName(raw: string): string {
     .trim()
     .toUpperCase()
 }
+
+function pickStr(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined
+}
+function toStrArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim())
+}
+/** 把 YYYY / YYYY-MM / YYYY-MM-DD 解析为毫秒 ts；失败返回 fallback。用 Date.UTC 保确定性。 */
+function parseDateToTs(date: unknown, fallback: number): number {
+  if (typeof date !== 'string') return fallback
+  const m = date.trim().match(/^(\d{4})(?:[-/.](\d{1,2}))?(?:[-/.](\d{1,2}))?/)
+  if (!m) return fallback
+  const y = Number(m[1]); const mo = m[2] ? Number(m[2]) : 1; const d = m[3] ? Number(m[3]) : 1
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return fallback
+  return Date.UTC(y, mo - 1, d)
+}
+
+/** 容错解析 AI 荐股抽取结果为 StockPick[]；注入 ctx；永不抛。 */
+export function parseStockExtraction(text: string, ctx: ExtractCtx): StockPick[] {
+  if (typeof text !== 'string') return []
+  const start = text.indexOf('[')
+  const end = text.lastIndexOf(']')
+  if (start === -1 || end === -1 || end < start) return []
+  let arr: unknown
+  try { arr = JSON.parse(text.slice(start, end + 1)) } catch { return [] }
+  if (!Array.isArray(arr)) return []
+  const out: StockPick[] = []
+  for (const item of arr) {
+    if (typeof item !== 'object' || item === null) continue
+    const r = item as Record<string, unknown>
+    const stock = pickStr(r.stock)
+    if (!stock) continue
+    const pick: StockPick = {
+      stock,
+      stockNorm: normalizeStockName(stock),
+      recommenderId: ctx.recommenderId,
+      recommender: ctx.recommender,
+      ts: parseDateToTs(r.date, ctx.fallbackTs),
+      logics: toStrArray(r.logics),
+      companyNotes: toStrArray(r.companyNotes),
+    }
+    const tmc = pickStr(r.targetMarketCap); if (tmc) pick.targetMarketCap = tmc
+    const mul = pickStr(r.multiple); if (mul) pick.multiple = mul
+    const tt = pickStr(r.targetTime); if (tt) pick.targetTime = tt
+    const q = pickStr(r.quote); if (q) pick.quote = q
+    out.push(pick)
+  }
+  return out
+}
