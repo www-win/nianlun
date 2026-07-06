@@ -1,3 +1,5 @@
+import { isServiceSession, sessionIdFromFileName } from '@nianlun/core'
+
 /** 导入的原始聊天文件（名字 + 原文），供将来二级分析重解析。 */
 export interface RawChatFile { name: string; content: string }
 
@@ -25,6 +27,26 @@ export function makeRawStore(fs: RawFsBackend, baseDir: string) {
     write(files: RawChatFile[]): void {
       fs.ensureDir(baseDir)
       for (const f of files) fs.writeFile(path(f.name), f.content)
+    },
+    /**
+     * 留存原文：跳过公众号/系统会话；逐个写入，写满(异常)即停并计入 skipped，绝不抛。
+     * 供导入流程在核心数据存好后调用。
+     */
+    appendFiles(files: RawChatFile[]): { saved: number; skipped: number } {
+      fs.ensureDir(baseDir)
+      let saved = 0
+      let skipped = 0
+      const keep = files.filter((f) => !isServiceSession(sessionIdFromFileName(f.name)))
+      for (let i = 0; i < keep.length; i++) {
+        try {
+          fs.writeFile(path(keep[i].name), keep[i].content)
+          saved++
+        } catch {
+          skipped = keep.length - i // 剩余全部算跳过
+          break
+        }
+      }
+      return { saved, skipped }
     },
     count(): number {
       return fs.readdir(baseDir).length

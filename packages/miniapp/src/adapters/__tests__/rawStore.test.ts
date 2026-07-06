@@ -67,3 +67,36 @@ describe('rawStore 基础存取', () => {
     expect(s.count()).toBe(0)
   })
 })
+
+describe('rawStore.appendFiles 过滤 + 降级', () => {
+  it('跳过 gh_ 公众号与系统会话，只留真人会话', () => {
+    const s = makeRawStore(memFs(), DIR)
+    const r = s.appendFiles([
+      { name: 'gh_abc.jsonl', content: 'x' },
+      { name: 'weixin.jsonl', content: 'x' },
+      { name: 'wxid_real.jsonl', content: 'hello' },
+      { name: '123@chatroom.jsonl', content: 'hi' },
+    ])
+    expect(r).toEqual({ saved: 2, skipped: 0 })
+    expect(s.count()).toBe(2)
+    expect(s.read('wxid_real.jsonl')).toBe('hello')
+  })
+
+  it('写入失败即停止后续并计入 skipped，绝不抛', () => {
+    let n = 0
+    const base = memFs()
+    const failing: RawFsBackend = {
+      ...base,
+      writeFile: (p, d) => { if (++n >= 2) throw new Error('exceed max size'); base.writeFile(p, d) },
+    }
+    const s = makeRawStore(failing, DIR)
+    const r = s.appendFiles([
+      { name: 'a.jsonl', content: 'A' },
+      { name: 'b.jsonl', content: 'B' },
+      { name: 'c.jsonl', content: 'C' },
+    ])
+    expect(r.saved).toBe(1)
+    expect(r.skipped).toBeGreaterThanOrEqual(1)
+    expect(s.count()).toBe(1)
+  })
+})
