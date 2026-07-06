@@ -82,7 +82,6 @@ async function onImport() {
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
         <text>✅ 已导入 · 好友 {{ data.friends.length }} 位</text>
-        <text v-if="imp.rawSavedCount" class="raw"> · 已留存原文 {{ imp.rawSavedCount }} 个</text>
         <text v-if="imp.warnings.length" class="warn"> · {{ imp.warnings.length }} 条提示</text>
       </view>
       <view v-else-if="imp.status === 'error'" class="status err">

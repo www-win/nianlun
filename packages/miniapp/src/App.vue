@@ -4,12 +4,14 @@ import { useDataStore } from './stores/data'
 import { useImportStore } from './stores/import'
 import { purgeUnzipTemp } from './adapters/fileReader'
 import { storage } from './adapters/storage'
+import { rawStore } from './adapters/rawStore'
 onLaunch(async () => {
-  // 回收旧版遗留：① Storage 里的原文残留键(nianlun:raw:*)——真机无 Console 手动清，靠这里自动清回收配额；
-  //             ② 文件系统的解压临时目录。新版都已迁走/即时清理，这里是升级兜底，避免配额撑满。
+  // 已停止留存原文（将来二级分析改为导入时即时提取），这里一次性回收历史囤积、避免占配额：
+  // ① Storage 原文残留键(nianlun:raw:*)——真机无 Console 手动清；② 文件系统原文目录(nianlun_raw)；③ 解压临时目录。
   storage.purgeLegacyRaw()
   // @ts-ignore wx 由微信小程序运行时提供
   if (typeof wx !== 'undefined' && wx.getFileSystemManager) {
+    rawStore.clear()
     // @ts-ignore
     purgeUnzipTemp(wx.getFileSystemManager(), wx.env.USER_DATA_PATH)
   }

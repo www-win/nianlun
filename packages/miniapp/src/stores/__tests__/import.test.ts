@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from 'pinia'
 import type { Friend, ReportData } from '@nianlun/core'
 import { makeStorage } from '../../adapters/storage'
 import { makeSamples } from '../../adapters/samples'
-import { makeRawStore } from '../../adapters/rawStore'
 import { createDataStore } from '../data'
 import { createImportStore } from '../import'
 
@@ -12,19 +11,6 @@ function memStorage() {
   return makeStorage({ get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k) })
 }
 
-// 内存 rawStore：供测试注入，替代真机 wx 文件系统实现。
-function fakeRawStore() {
-  const files = new Map<string, string>()
-  const dir = '/raw'
-  return makeRawStore({
-    ensureDir: () => {},
-    writeFile: (p, d) => { files.set(p, d) },
-    readFile: (p) => { const v = files.get(p); if (v == null) throw new Error('ENOENT'); return v },
-    readdir: (d) => [...files.keys()].filter((p) => p.startsWith(d + '/')).map((p) => p.slice(d.length + 1)),
-    size: (p) => (files.get(p) ?? '').length,
-    unlink: (p) => { files.delete(p) },
-  }, dir)
-}
 const TXT = `2025-03-01 09:00:00 李四\n早\n\n2025-03-01 09:01:00 我\n早呀`
 
 // 造一位 ≥20 条消息的好友，触发分析门槛（李四发 20 条）
@@ -56,43 +42,6 @@ describe('import store', () => {
     const only = Object.values(saved)[0]
     expect(Array.isArray(only)).toBe(true)
     expect(only.length).toBeGreaterThan(0)
-  })
-
-  it('run 留存原始聊天文本，供将来二级分析读回', async () => {
-    const s = memStorage()
-    const useData = createDataStore(s)
-    const fakeRaw = fakeRawStore()
-    const useImport = createImportStore({
-      useData, storage: s, suggest: async () => ({}), loadSamples: () => [], rawStore: fakeRaw,
-    })
-    const imp = useImport()
-    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
-    expect(fakeRaw.readAll()).toEqual([{ name: 'c.txt', content: TXT }])
-    expect(imp.rawSavedCount).toBe(1) // 供导入页显示「已留存原文 X 个」
-  })
-
-  it('原文留存写满(skipped>0)时追加提示，且不覆盖 outcome.warnings（偏离2回归）', async () => {
-    const s = memStorage()
-    const useData = createDataStore(s)
-    // 写满模拟：第一次 writeFile 就抛异常（如同磁盘配额超限）
-    const fullRaw = makeRawStore({
-      ensureDir: () => {},
-      writeFile: () => { throw new Error('磁盘已满') },
-      readFile: () => { throw new Error('ENOENT') },
-      readdir: () => [],
-      size: () => 0,
-      unlink: () => {},
-    }, '/raw')
-    const useImport = createImportStore({
-      useData, storage: s, suggest: async () => ({}), loadSamples: () => [], rawStore: fullRaw,
-    })
-    const imp = useImport()
-    // 无法识别的文件 → parseLocal 会产出 outcome.warnings（校验其未被覆盖）
-    await imp.run([{ name: 'c.txt', content: TXT }, { name: 'x.bin', content: '###' }], 2025)
-    expect(imp.status).toBe('done')
-    expect(imp.warnings.some((w) => w.includes('跳过'))).toBe(true)
-    // outcome.warnings（解析告警，如无法识别的文件）仍保留，未被 skipped 提示覆盖
-    expect(imp.warnings.length).toBeGreaterThan(1)
   })
 
   it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {

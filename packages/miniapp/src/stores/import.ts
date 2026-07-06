@@ -7,7 +7,6 @@ import type { Friend, FriendSuggestion } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
 import { useDataStore as defaultUseData, createDataStore } from './data'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
-import { rawStore as defaultRawStore, makeRawStore } from '../adapters/rawStore'
 import { aiClient } from '../adapters/aiClient'
 import { samples as defaultSamples } from '../adapters/samples'
 import { analyzeRolesForNew, type AnalyzeRolesResult } from '../adapters/roleAnalysis'
@@ -28,7 +27,6 @@ const ROLE_MIN_MSGS = 20
 type Deps = {
   useData?: ReturnType<typeof createDataStore>
   storage?: ReturnType<typeof makeStorage>
-  rawStore?: ReturnType<typeof makeRawStore>
   suggest?: (f: Friend, s: string[]) => Promise<FriendSuggestion>
   loadSamples?: (id: string) => string[]
 }
@@ -37,7 +35,6 @@ export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 export function createImportStore(deps: Deps = {}) {
   const useData = deps.useData ?? defaultUseData
   const storage = deps.storage ?? defaultStorage
-  const rawStore = deps.rawStore ?? defaultRawStore
   const suggest = deps.suggest ?? aiClient.suggestFriend
   const loadSamples = deps.loadSamples ?? defaultSamples.loadSamplesFor
   return defineStore('import', () => {
@@ -46,8 +43,6 @@ export function createImportStore(deps: Deps = {}) {
     const warnings = ref<string[]>([])
     const error = ref('')
     const analyzing = ref<{ done: number; total: number } | null>(null)
-    // 本机已留存的原始聊天文件数（供导入页显示「已留存原文 X 个」，真机联调可见）。
-    const rawSavedCount = ref(0)
 
     /**
      * 对「消息数达标且不在已分析集合」的好友后台串行推断关系/职务并写入。
@@ -82,7 +77,7 @@ export function createImportStore(deps: Deps = {}) {
     }
 
     async function run(files: LocalFile[], year: number) {
-      status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''; rawSavedCount.value = 0
+      status.value = 'parsing'; progress.value = 0; warnings.value = []; error.value = ''
       try {
         const data = useData()
         const prevReport = data.report
@@ -118,16 +113,6 @@ export function createImportStore(deps: Deps = {}) {
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
           warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
-          // 最后留存原文到文件系统：过滤公众号、写满即停，绝不阻断已完成的导入。
-          try {
-            const r = rawStore.appendFiles(chatFiles)
-            rawSavedCount.value = rawStore.count()
-            if (r.skipped > 0) {
-              warnings.value = [...warnings.value, `原文留存已达存储上限，已保留 ${r.saved} 个、跳过 ${r.skipped} 个`]
-            }
-          } catch (e) {
-            warnings.value = [...warnings.value, `原文留存未完成：${(e as Error).message}`]
-          }
           status.value = 'done'                 // 导入完成：好友列表立即可用
           await analyzePendingRoles()            // 之后后台补分析（达标未分析的），UI 已解锁
         } else if (contactNames.length) {
@@ -148,8 +133,8 @@ export function createImportStore(deps: Deps = {}) {
         analyzing.value = null
       }
     }
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; rawSavedCount.value = 0 }
-    return { status, progress, warnings, error, analyzing, rawSavedCount, run, analyzePendingRoles, reset }
+    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null }
+    return { status, progress, warnings, error, analyzing, run, analyzePendingRoles, reset }
   })
 }
 
