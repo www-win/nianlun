@@ -1,6 +1,8 @@
 // 本地「聊天体」中文情感打分：纯函数，无副作用，永不抛异常。
 // 词典为精简口语词表，可持续扩充；普通情绪 ±1，强烈 ±2。
 
+import type { EmotionDist, MonthMood, FriendEmotion } from '../model/types'
+
 const POS_STRONG = ['爱你', '爱', '太棒了', '幸福', '开心死', '感动', '喜欢你', '超喜欢', '么么', '抱抱', '想你']
 const POS = ['开心', '喜欢', '谢谢', '哈哈', '嘻嘻', '嘿嘿', '棒', '好耶', '不错', '赞', '可爱', '甜', '暖', '舒服', '满足', '期待', '好的', '好呀', '嗯嗯', '晚安', '辛苦了', '加油', '放心']
 const NEG_STRONG = ['难受', '崩溃', '讨厌', '滚', '恶心', '绝望', '心碎', '痛苦', '委屈', '想哭', '烦死']
@@ -83,4 +85,60 @@ const R = 3
 export function toValue(raw: number): number {
   const clamped = Math.max(-R, Math.min(R, raw))
   return 0.5 + clamped / (2 * R)
+}
+
+export interface DistAcc { happy: number; neutral: number; sad: number; total: number; valueSum: number }
+
+export function emptyAcc(): DistAcc {
+  return { happy: 0, neutral: 0, sad: 0, total: 0, valueSum: 0 }
+}
+
+export function addToAcc(acc: DistAcc, raw: number): void {
+  const c = classify(raw)
+  if (c === '开心') acc.happy++
+  else if (c === '难过') acc.sad++
+  else acc.neutral++
+  acc.total++
+  acc.valueSum += toValue(raw)
+}
+
+export function finalizeAcc(acc: DistAcc): EmotionDist {
+  return {
+    happy: acc.happy, neutral: acc.neutral, sad: acc.sad, total: acc.total,
+    avg: acc.total === 0 ? 0.5 : acc.valueSum / acc.total,
+  }
+}
+
+export function accToMood(acc: DistAcc): MonthMood | null {
+  if (acc.total === 0) return null
+  return { avg: acc.valueSum / acc.total, count: acc.total }
+}
+
+export function mergeDist(a: EmotionDist, b: EmotionDist): EmotionDist {
+  const total = a.total + b.total
+  return {
+    happy: a.happy + b.happy, neutral: a.neutral + b.neutral, sad: a.sad + b.sad, total,
+    avg: total === 0 ? 0.5 : (a.avg * a.total + b.avg * b.total) / total,
+  }
+}
+
+export function mergeMood(a: MonthMood | null, b: MonthMood | null): MonthMood | null {
+  if (!a) return b
+  if (!b) return a
+  const count = a.count + b.count
+  return { avg: (a.avg * a.count + b.avg * b.count) / count, count }
+}
+
+export function mergeEmotion(
+  a: FriendEmotion, b: FriendEmotion, keywords: Array<{ word: string; count: number }>,
+): FriendEmotion {
+  return {
+    me: mergeDist(a.me, b.me),
+    them: mergeDist(a.them, b.them),
+    monthly: {
+      me: a.monthly.me.map((m, i) => mergeMood(m, b.monthly.me[i])),
+      them: a.monthly.them.map((m, i) => mergeMood(m, b.monthly.them[i])),
+    },
+    words: keywords.map((k) => ({ word: k.word, count: k.count, polarity: wordPolarity(k.word) })),
+  }
 }
