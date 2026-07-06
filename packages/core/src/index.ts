@@ -35,3 +35,8 @@ export { getCompatibility, isBranchClash, isBranchHarmony, dayBranchClashes } fr
 export type { BirthInfo, BaziChart, DayFortune, Compatibility } from './astrology/types'
 export { buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirthInfo } from './ai/astro'
 export type { AstroReading } from './ai/astro'
+export {
+  normalizeStockName, parseStockExtraction, mergeStockPicks,
+  aggregateByStock, aggregateByRecommender, buildStockExtractionPrompt,
+} from './ai/stock'
+export type { StockPick, ExtractCtx, StockCard, RecommenderPicks } from './ai/stock'
