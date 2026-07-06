@@ -114,4 +114,16 @@ describe('rawStore.appendFiles 过滤 + 降级', () => {
     expect(r).toEqual({ saved: 0, skipped: 2 })
     expect(s.count()).toBe(0)
   })
+
+  it('原文留存达总量上限时跳过后续（防累积撑满文件系统）', () => {
+    const s = makeRawStore(memFs(), DIR, 10) // 上限 10 字节
+    const r = s.appendFiles([
+      { name: 'a.jsonl', content: 'xxxxx' }, // 5 → used 5
+      { name: 'b.jsonl', content: 'yyyyy' }, // 5 → used 10
+      { name: 'c.jsonl', content: 'zzzzz' }, // used>=10 → 跳过
+    ])
+    expect(r.saved).toBe(2)
+    expect(r.skipped).toBe(1)
+    expect(s.count()).toBe(2)
+  })
 })

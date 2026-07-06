@@ -18,8 +18,10 @@ function safeName(name: string): string {
   return name.replace(/[\\/]/g, '_').replace(/\.\./g, '_')
 }
 
-export function makeRawStore(fs: RawFsBackend, baseDir: string) {
+export function makeRawStore(fs: RawFsBackend, baseDir: string, totalLimitBytes = 100 * 1024 * 1024) {
   const path = (name: string) => `${baseDir}/${safeName(name)}`
+  // 已留存原文总字节；用于总量上限判断，避免原文无限累积占满文件系统、挤掉解压与数据空间。
+  const totalSize = () => fs.readdir(baseDir).reduce((s, name) => s + fs.size(`${baseDir}/${name}`), 0)
 
   return {
     /** 直写（覆盖式，不过滤）——基础存取，供测试与内部复用。 */
@@ -40,12 +42,18 @@ export function makeRawStore(fs: RawFsBackend, baseDir: string) {
       }
       let saved = 0
       let skipped = 0
+      let used = totalSize() // 当前已占用字节（含历次留存），达上限即停
       for (let i = 0; i < keep.length; i++) {
+        if (used >= totalLimitBytes) {
+          skipped = keep.length - i // 已达总量上限，剩余全部跳过（优雅降级，给解压/数据留空间）
+          break
+        }
         try {
           fs.writeFile(path(keep[i].name), keep[i].content)
+          used += keep[i].content.length // 近似字节累加（阈值留足余量，无需精确）
           saved++
         } catch {
-          skipped = keep.length - i // 剩余全部算跳过
+          skipped = keep.length - i // 剩余全部算跳过（写失败，如配额超限）
           break
         }
       }
