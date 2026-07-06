@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Friend, ReportData, Relation } from '@nianlun/core'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
+import { rawStore as defaultRawStore } from '../adapters/rawStore'
 
 type Storage = ReturnType<typeof makeStorage>
 
@@ -31,7 +32,7 @@ export function createDataStore(storage: Storage = defaultStorage) {
       storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))
     }
     async function clear() {
-      friends.value = []; report.value = null; storage.clearAll()
+      friends.value = []; report.value = null; storage.clearAll(); defaultRawStore.clear()
     }
     return { friends, report, hasData, hydrate, setData, updateFriend, clear }
   })

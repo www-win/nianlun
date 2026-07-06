@@ -3,12 +3,28 @@ import { setActivePinia, createPinia } from 'pinia'
 import type { Friend, ReportData } from '@nianlun/core'
 import { makeStorage } from '../../adapters/storage'
 import { makeSamples } from '../../adapters/samples'
+import { makeRawStore } from '../../adapters/rawStore'
 import { createDataStore } from '../data'
 import { createImportStore } from '../import'
 
 function memStorage() {
   const m = new Map<string, unknown>()
   return makeStorage({ get: (k) => m.get(k), set: (k, v) => void m.set(k, v), remove: (k) => void m.delete(k) })
+}
+
+// 内存 rawStore：供测试注入，替代真机 wx 文件系统实现。
+function fakeRawStore() {
+  const files = new Map<string, string>()
+  const dir = '/raw'
+  return makeRawStore({
+    ensureDir: () => {},
+    writeFile: (p, d) => { files.set(p, d) },
+    readFile: (p) => { const v = files.get(p); if (v == null) throw new Error('ENOENT'); return v },
+    readdir: (d) => [...files.keys()].filter((p) => p.startsWith(d + '/')).map((p) => p.slice(d.length + 1)),
+    size: (p) => (files.get(p) ?? '').length,
+    unlink: (p) => { files.delete(p) },
+    exists: (p) => files.has(p),
+  }, dir)
 }
 const TXT = `2025-03-01 09:00:00 李四\n早\n\n2025-03-01 09:01:00 我\n早呀`
 
@@ -46,10 +62,13 @@ describe('import store', () => {
   it('run 留存原始聊天文本，供将来二级分析读回', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
-    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const fakeRaw = fakeRawStore()
+    const useImport = createImportStore({
+      useData, storage: s, suggest: async () => ({}), loadSamples: () => [], rawStore: fakeRaw,
+    })
     const imp = useImport()
     await imp.run([{ name: 'c.txt', content: TXT }], 2025)
-    expect(s.loadRawFiles()).toEqual([{ name: 'c.txt', content: TXT }])
+    expect(fakeRaw.readAll()).toEqual([{ name: 'c.txt', content: TXT }])
     expect(imp.rawSavedCount).toBe(1) // 供导入页显示「已留存原文 X 个」
   })
 

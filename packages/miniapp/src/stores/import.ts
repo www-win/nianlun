@@ -7,6 +7,7 @@ import type { Friend, FriendSuggestion } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
 import { useDataStore as defaultUseData, createDataStore } from './data'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
+import { rawStore as defaultRawStore, makeRawStore } from '../adapters/rawStore'
 import { aiClient } from '../adapters/aiClient'
 import { samples as defaultSamples } from '../adapters/samples'
 import { analyzeRolesForNew, type AnalyzeRolesResult } from '../adapters/roleAnalysis'
@@ -27,6 +28,7 @@ const ROLE_MIN_MSGS = 20
 type Deps = {
   useData?: ReturnType<typeof createDataStore>
   storage?: ReturnType<typeof makeStorage>
+  rawStore?: ReturnType<typeof makeRawStore>
   suggest?: (f: Friend, s: string[]) => Promise<FriendSuggestion>
   loadSamples?: (id: string) => string[]
 }
@@ -35,6 +37,7 @@ export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 export function createImportStore(deps: Deps = {}) {
   const useData = deps.useData ?? defaultUseData
   const storage = deps.storage ?? defaultStorage
+  const rawStore = deps.rawStore ?? defaultRawStore
   const suggest = deps.suggest ?? aiClient.suggestFriend
   const loadSamples = deps.loadSamples ?? defaultSamples.loadSamplesFor
   return defineStore('import', () => {
@@ -111,18 +114,20 @@ export function createImportStore(deps: Deps = {}) {
           await data.setData(named, report)
           const prevSamples = storage.loadSamples()
           storage.saveSamples({ ...prevSamples, ...outcome.samples })
-          // 留存原始聊天文本(仅本机)，供将来二级荐股分析重解析、免客户重导。
-          // 存储失败(如超配额)只告警，绝不阻断已完成的导入。
-          try {
-            storage.appendRawFiles(chatFiles)
-            rawSavedCount.value = storage.loadRawFiles().length
-          } catch (e) {
-            warnings.value = [...warnings.value, `原文留存未完成：${(e as Error).message}`]
-          }
           // 好友详情页「最近一个月」数据：按 id 合并，新批次覆盖同 id 旧值。
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
           warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
+          // 最后留存原文到文件系统：过滤公众号、写满即停，绝不阻断已完成的导入。
+          try {
+            const r = rawStore.appendFiles(chatFiles)
+            rawSavedCount.value = rawStore.count()
+            if (r.skipped > 0) {
+              warnings.value = [...warnings.value, `原文留存已达存储上限，已保留 ${r.saved} 个、跳过 ${r.skipped} 个`]
+            }
+          } catch (e) {
+            warnings.value = [...warnings.value, `原文留存未完成：${(e as Error).message}`]
+          }
           status.value = 'done'                 // 导入完成：好友列表立即可用
           await analyzePendingRoles()            // 之后后台补分析（达标未分析的），UI 已解锁
         } else if (contactNames.length) {
