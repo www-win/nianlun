@@ -1,18 +1,78 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onReady } from '@dcloudio/uni-app'
 import type { Relation, FriendProfile } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
-import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
+import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints } from '../../lib/insights'
 
 const data = useDataStore()
 const id = ref('')
-onLoad((q) => { id.value = decodeURIComponent((q?.id as string) || '') })
+onLoad((q) => {
+  id.value = decodeURIComponent((q?.id as string) || '')
+  setTimeout(drawEmotion, 120)
+})
 
 const friend = computed(() => data.friends.find((f) => f.id === id.value) || null)
+
+const emotion = computed(() => friend.value?.emotion ?? null)
+const meDonut = computed(() => (emotion.value ? donutSegments(emotion.value.me) : []))
+const themDonut = computed(() => (emotion.value ? donutSegments(emotion.value.them) : []))
+const hasMood = computed(() => !!emotion.value && moodDualLinePoints(
+  emotion.value.monthly, { width: 300, height: 150, pad: 20 }).hasData)
+
+const pct = (n: number, total: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
+
+function drawDonut(id: string, segs: ReturnType<typeof donutSegments>) {
+  const ctx = uni.createCanvasContext(id)
+  const cx = 60, cy = 60, r = 46, lw = 22
+  ctx.setLineWidth(lw)
+  if (segs.length === 0) {
+    ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb')
+    ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
+  } else {
+    for (const s of segs) {
+      if (s.frac === 0) continue
+      ctx.beginPath(); ctx.setStrokeStyle(s.color)
+      ctx.arc(cx, cy, r, s.start, s.end); ctx.stroke()
+    }
+  }
+  ctx.draw()
+}
+
+function drawMood() {
+  if (!emotion.value) return
+  const W = 300, H = 150, pad = 20
+  const dl = moodDualLinePoints(emotion.value.monthly, { width: W, height: H, pad })
+  const ctx = uni.createCanvasContext('moodLine')
+  // 0.5 中线
+  const midY = H - pad - 0.5 * (H - 2 * pad)
+  ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb'); ctx.setLineWidth(1)
+  ctx.moveTo(pad, midY); ctx.lineTo(W - pad, midY); ctx.stroke()
+  // 只连相邻月（m 差 1），断开处不连线
+  const drawLine = (pts: typeof dl.me, color: string) => {
+    ctx.setStrokeStyle(color); ctx.setLineWidth(2)
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].m - pts[i - 1].m !== 1) continue
+      ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke()
+    }
+    for (const p of pts) { ctx.beginPath(); ctx.setFillStyle(color); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill() }
+  }
+  drawLine(dl.me, '#e8a04b')     // 我=暖
+  drawLine(dl.them, '#5a8fd0')   // TA=冷
+  ctx.draw()
+}
+
+function drawEmotion() {
+  if (!emotion.value) return
+  drawDonut('donutMe', meDonut.value)
+  drawDonut('donutThem', themDonut.value)
+  if (hasMood.value) drawMood()
+}
+
+onReady(() => { setTimeout(drawEmotion, 50) }) // 等布局
 
 const REL_COLORS: Record<string, string> = {
   家人: '#d96a5a', 挚友: '#43a86a', 同事: '#5a7fd0', 同学: '#cf9a36', 客户: '#b066b0', 其他: '#8a8f99',
@@ -36,6 +96,13 @@ const heat = computed(() => weekHourHeatmap(
 const words = computed(() => wordCloudItems(
   recentInsight.value ? recentInsight.value.keywords : (friend.value?.keywords ?? []),
 ))
+const wordColor = (word: string): string => {
+  const w = emotion.value?.words.find((x) => x.word === word)
+  const p = w ? w.polarity : 0
+  if (p > 0.15) return '#e8a04b'
+  if (p < -0.15) return '#5a8fd0'
+  return '#9aa0aa'
+}
 // 样本存储为时间升序，展示时倒序 → 最近的聊天排最前。
 const chatSamples = computed(() =>
   (samples.loadRecentSamplesFor(id.value) ?? samples.loadSamplesFor(id.value)).slice().reverse(),
@@ -162,9 +229,46 @@ async function analyzeProfile() {
           <text
             v-for="w in words" :key="w.word"
             class="word"
-            :style="{ fontSize: FONT[w.tier] + 'rpx', opacity: OPACITY[w.tier] }"
+            :style="{ fontSize: FONT[w.tier] + 'rpx', opacity: OPACITY[w.tier], color: wordColor(w.word) }"
           >{{ w.word }}</text>
         </view>
+      </view>
+
+      <view v-if="emotion" class="card block">
+        <text class="block-t">情绪价值分布</text>
+        <view class="emo-donuts">
+          <view class="emo-col">
+            <canvas canvas-id="donutMe" class="donut"></canvas>
+            <text class="emo-side">我</text>
+            <text class="emo-avg">平均情绪值 {{ emotion.me.avg.toFixed(2) }}</text>
+            <text class="emo-break">开心 {{ pct(emotion.me.happy, emotion.me.total) }}% · 平淡 {{ pct(emotion.me.neutral, emotion.me.total) }}% · 难过 {{ pct(emotion.me.sad, emotion.me.total) }}%</text>
+          </view>
+          <view class="emo-col">
+            <canvas canvas-id="donutThem" class="donut"></canvas>
+            <text class="emo-side">TA</text>
+            <text class="emo-avg">平均情绪值 {{ emotion.them.avg.toFixed(2) }}</text>
+            <text class="emo-break">开心 {{ pct(emotion.them.happy, emotion.them.total) }}% · 平淡 {{ pct(emotion.them.neutral, emotion.them.total) }}% · 难过 {{ pct(emotion.them.sad, emotion.them.total) }}%</text>
+          </view>
+        </view>
+        <view class="emo-legend">
+          <text class="lg"><text class="dot" style="background:#e8a04b"></text>开心</text>
+          <text class="lg"><text class="dot" style="background:#b8bcc4"></text>平淡</text>
+          <text class="lg"><text class="dot" style="background:#5a8fd0"></text>难过</text>
+        </view>
+        <text class="senti-note faint">本地词典估算，仅供参考</text>
+      </view>
+
+      <view v-if="emotion" class="card block">
+        <text class="block-t">情绪波动</text>
+        <template v-if="hasMood">
+          <view class="mood-legend">
+            <text class="lg"><text class="dot" style="background:#e8a04b"></text>我</text>
+            <text class="lg"><text class="dot" style="background:#5a8fd0"></text>TA</text>
+          </view>
+          <canvas canvas-id="moodLine" class="mood-canvas"></canvas>
+          <text class="senti-note faint">本地词典估算，仅供参考</text>
+        </template>
+        <text v-else class="faint mood-empty">样本不足，暂无法生成情绪走势</text>
       </view>
 
       <view class="card block">
@@ -287,4 +391,16 @@ async function analyzeProfile() {
 .empty { margin-top: 160rpx; text-align: center; color: var(--faint); }
 .e-icon { font-size: 96rpx; opacity: 0.5; }
 .e-text { margin-top: 24rpx; font-size: 28rpx; }
+
+.emo-donuts { display: flex; gap: 24rpx; margin-top: 24rpx; }
+.emo-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.donut { width: 120rpx; height: 120rpx; }
+.emo-side { margin-top: 8rpx; font-size: 26rpx; font-weight: 600; color: var(--fg); }
+.emo-avg { margin-top: 6rpx; font-size: 23rpx; color: var(--accent-strong); }
+.emo-break { margin-top: 4rpx; font-size: 21rpx; color: var(--muted); text-align: center; line-height: 1.5; }
+.emo-legend, .mood-legend { display: flex; gap: 24rpx; justify-content: center; margin-top: 20rpx; }
+.lg { display: flex; align-items: center; font-size: 22rpx; color: var(--muted); }
+.dot { display: inline-block; width: 16rpx; height: 16rpx; border-radius: 999rpx; margin-right: 8rpx; }
+.mood-canvas { width: 100%; height: 300rpx; margin-top: 12rpx; }
+.mood-empty { display: block; margin-top: 24rpx; font-size: 24rpx; text-align: center; }
 </style>
