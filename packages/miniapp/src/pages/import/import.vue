@@ -6,7 +6,9 @@ import GrassHills from '../../components/GrassHills.vue'
 import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
+import { assessImportSize } from '../../lib/importGuard'
 
+console.log('[boot] 导入页 setup 执行', Date.now())  // [诊断插桩] 排查完删
 const imp = useImportStore()
 const data = useDataStore()
 const showHelp = ref(false)
@@ -23,9 +25,27 @@ function onYear(e: { detail: { value: number } }) {
 const pct = computed(() => Math.round(imp.progress * 100))
 
 async function onImport() {
-  const files = await fileReader.pickAndRead(10)
-  if (!files.length) return
-  await imp.run(files, year.value)
+  try {
+    // chooseMessageFile 的 count 是「最多可选」上限；原先写死 10 会让多文件导出只能选一小部分（好友大量丢失）。
+    // 设 500 放宽上限（真机实际可选数仍受微信客户端限制）；超量时可分多次导入，mergeFriends 会自动累加合并。
+    const files = await fileReader.pickAndRead(500)
+    if (!files.length) return
+    const a = assessImportSize(files)
+    if (a.warn) {
+      const ok = await new Promise<boolean>((resolve) => {
+        uni.showModal({
+          title: '数据较大',
+          content: `本次约 ${a.sizeMB.toFixed(0)} MB / ${a.count} 个文件，建议分批导入以免卡顿。仍要继续吗？`,
+          success: (r) => resolve(r.confirm),
+        })
+      })
+      if (!ok) return
+    }
+    await imp.run(files, year.value)
+  } catch (e) {
+    // 读文件/解压阶段的异常以前被静默吞掉（表现为「选完文件没反应」），这里显式提示
+    uni.showToast({ title: (e as Error).message || '导入失败', icon: 'none' })
+  }
 }
 </script>
 
