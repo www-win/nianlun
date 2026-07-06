@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { onLoad, onReady } from '@dcloudio/uni-app'
 import type { Relation, FriendProfile } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
@@ -25,9 +25,15 @@ const hasMood = computed(() => !!emotion.value && moodDualLinePoints(
 
 const pct = (n: number, total: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
 
-function drawDonut(id: string, segs: ReturnType<typeof donutSegments>) {
-  const ctx = uni.createCanvasContext(id)
-  const cx = 60, cy = 60, r = 46, lw = 22
+// canvas 绘制坐标系 = 画布 CSS 像素，不做 rpx 换算 → 尺寸必须用设备 px。
+// 设计稿：环形 120rpx、折线高 300rpx；upx2px 按当前设备把 rpx 换成 px。
+const donutPx = uni.upx2px(120)
+const moodPx = uni.upx2px(300)
+
+function drawDonut(canvasId: string, segs: ReturnType<typeof donutSegments>) {
+  const ctx = uni.createCanvasContext(canvasId)
+  // 保持原视觉比例(基于 120)：圆心 0.5、半径 0.383、线宽 0.183
+  const cx = donutPx / 2, cy = donutPx / 2, r = donutPx * 0.38, lw = donutPx * 0.18
   ctx.setLineWidth(lw)
   if (segs.length === 0) {
     ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb')
@@ -43,26 +49,33 @@ function drawDonut(id: string, segs: ReturnType<typeof donutSegments>) {
 }
 
 function drawMood() {
-  if (!emotion.value) return
-  const W = 300, H = 150, pad = 20
-  const dl = moodDualLinePoints(emotion.value.monthly, { width: W, height: H, pad })
-  const ctx = uni.createCanvasContext('moodLine')
-  // 0.5 中线
-  const midY = H - pad - 0.5 * (H - 2 * pad)
-  ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb'); ctx.setLineWidth(1)
-  ctx.moveTo(pad, midY); ctx.lineTo(W - pad, midY); ctx.stroke()
-  // 只连相邻月（m 差 1），断开处不连线
-  const drawLine = (pts: typeof dl.me, color: string) => {
-    ctx.setStrokeStyle(color); ctx.setLineWidth(2)
-    for (let i = 1; i < pts.length; i++) {
-      if (pts[i].m - pts[i - 1].m !== 1) continue
-      ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke()
+  const emo = emotion.value
+  if (!emo) return
+  // 折线宽度随设备/布局变化 → 用 selectorQuery 量真实渲染尺寸，绘制坐标系与画布严格一致。
+  uni.createSelectorQuery().select('.mood-canvas').boundingClientRect((res) => {
+    const rect = res as UniApp.NodeInfo
+    const W = rect && rect.width ? rect.width : moodPx
+    const H = rect && rect.height ? rect.height : moodPx
+    const pad = 20
+    const dl = moodDualLinePoints(emo.monthly, { width: W, height: H, pad })
+    const ctx = uni.createCanvasContext('moodLine')
+    // 0.5 中线
+    const midY = H - pad - 0.5 * (H - 2 * pad)
+    ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb'); ctx.setLineWidth(1)
+    ctx.moveTo(pad, midY); ctx.lineTo(W - pad, midY); ctx.stroke()
+    // 只连相邻月（m 差 1），断开处不连线
+    const drawLine = (pts: typeof dl.me, color: string) => {
+      ctx.setStrokeStyle(color); ctx.setLineWidth(2)
+      for (let i = 1; i < pts.length; i++) {
+        if (pts[i].m - pts[i - 1].m !== 1) continue
+        ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke()
+      }
+      for (const p of pts) { ctx.beginPath(); ctx.setFillStyle(color); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill() }
     }
-    for (const p of pts) { ctx.beginPath(); ctx.setFillStyle(color); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill() }
-  }
-  drawLine(dl.me, '#e8a04b')     // 我=暖
-  drawLine(dl.them, '#5a8fd0')   // TA=冷
-  ctx.draw()
+    drawLine(dl.me, '#e8a04b')     // 我=暖
+    drawLine(dl.them, '#5a8fd0')   // TA=冷
+    ctx.draw()
+  }).exec()
 }
 
 function drawEmotion() {
@@ -73,6 +86,8 @@ function drawEmotion() {
 }
 
 onReady(() => { setTimeout(drawEmotion, 50) }) // 等布局
+// emotion 来自 store，hydrate 异步 → 数据到达后重绘，避免两次 setTimeout 都早于数据时画布永久空白。
+watch(emotion, () => nextTick(drawEmotion))
 
 const REL_COLORS: Record<string, string> = {
   家人: '#d96a5a', 挚友: '#43a86a', 同事: '#5a7fd0', 同学: '#cf9a36', 客户: '#b066b0', 其他: '#8a8f99',
@@ -238,13 +253,13 @@ async function analyzeProfile() {
         <text class="block-t">情绪价值分布</text>
         <view class="emo-donuts">
           <view class="emo-col">
-            <canvas canvas-id="donutMe" class="donut"></canvas>
+            <canvas canvas-id="donutMe" class="donut" :style="{ width: donutPx + 'px', height: donutPx + 'px' }"></canvas>
             <text class="emo-side">我</text>
             <text class="emo-avg">平均情绪值 {{ emotion.me.avg.toFixed(2) }}</text>
             <text class="emo-break">开心 {{ pct(emotion.me.happy, emotion.me.total) }}% · 平淡 {{ pct(emotion.me.neutral, emotion.me.total) }}% · 难过 {{ pct(emotion.me.sad, emotion.me.total) }}%</text>
           </view>
           <view class="emo-col">
-            <canvas canvas-id="donutThem" class="donut"></canvas>
+            <canvas canvas-id="donutThem" class="donut" :style="{ width: donutPx + 'px', height: donutPx + 'px' }"></canvas>
             <text class="emo-side">TA</text>
             <text class="emo-avg">平均情绪值 {{ emotion.them.avg.toFixed(2) }}</text>
             <text class="emo-break">开心 {{ pct(emotion.them.happy, emotion.them.total) }}% · 平淡 {{ pct(emotion.them.neutral, emotion.them.total) }}% · 难过 {{ pct(emotion.them.sad, emotion.them.total) }}%</text>
@@ -265,7 +280,7 @@ async function analyzeProfile() {
             <text class="lg"><text class="dot" style="background:#e8a04b"></text>我</text>
             <text class="lg"><text class="dot" style="background:#5a8fd0"></text>TA</text>
           </view>
-          <canvas canvas-id="moodLine" class="mood-canvas"></canvas>
+          <canvas canvas-id="moodLine" class="mood-canvas" :style="{ height: moodPx + 'px' }"></canvas>
           <text class="senti-note faint">本地词典估算，仅供参考</text>
         </template>
         <text v-else class="faint mood-empty">样本不足，暂无法生成情绪走势</text>
@@ -394,13 +409,13 @@ async function analyzeProfile() {
 
 .emo-donuts { display: flex; gap: 24rpx; margin-top: 24rpx; }
 .emo-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
-.donut { width: 120rpx; height: 120rpx; }
+.donut { width: 120rpx; height: 120rpx; }  /* 兜底；实际尺寸由内联 px 覆盖，保证与绘制坐标系一致 */
 .emo-side { margin-top: 8rpx; font-size: 26rpx; font-weight: 600; color: var(--fg); }
 .emo-avg { margin-top: 6rpx; font-size: 23rpx; color: var(--accent-strong); }
 .emo-break { margin-top: 4rpx; font-size: 21rpx; color: var(--muted); text-align: center; line-height: 1.5; }
 .emo-legend, .mood-legend { display: flex; gap: 24rpx; justify-content: center; margin-top: 20rpx; }
 .lg { display: flex; align-items: center; font-size: 22rpx; color: var(--muted); }
 .dot { display: inline-block; width: 16rpx; height: 16rpx; border-radius: 999rpx; margin-right: 8rpx; }
-.mood-canvas { width: 100%; height: 300rpx; margin-top: 12rpx; }
+.mood-canvas { width: 100%; margin-top: 12rpx; }  /* 高度由内联 px 绑定；宽度 100% 的真实 px 由 selectorQuery 量取 */
 .mood-empty { display: block; margin-top: 24rpx; font-size: 24rpx; text-align: center; }
 </style>
