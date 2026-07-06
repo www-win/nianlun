@@ -119,4 +119,28 @@ describe('aggregate emotion', () => {
     expect(f.emotion!.me.avg).toBeCloseTo(0.5)
     expect(f.emotion!.monthly.me.every((m) => m === null)).toBe(true)
   })
+
+  it('非文本消息（图片/语音等）不计入情绪分布 total', () => {
+    const [f] = aggregate([conv([
+      { ts: ts(1), from: 'me', type: 'text', text: '好开心哈哈' },
+      { ts: ts(1), from: 'me', type: 'image' },            // 无 text，不计入
+      { ts: ts(1), from: 'me', type: 'text', text: '' },   // 空 text，不计入
+    ])])
+    expect(f.emotion!.me.total).toBe(1)        // 只有那条文本
+    expect(f.emotion!.me.happy).toBe(1)        // 分布只反映那条文本
+    expect(f.emotion!.me.neutral).toBe(0)
+    expect(f.emotion!.monthly.me[0]!.count).toBe(1)
+  })
+
+  it('全是媒体消息的好友：两侧 total 0、avg 0.5 兜底、monthly 全 null', () => {
+    const [f] = aggregate([conv([
+      { ts: ts(2), from: 'me', type: 'image' },
+      { ts: ts(2), from: 'them', type: 'voice' },
+    ])])
+    expect(f.emotion!.me.total).toBe(0)
+    expect(f.emotion!.them.total).toBe(0)
+    expect(f.emotion!.me.avg).toBeCloseTo(0.5)
+    expect(f.emotion!.monthly.me.every((m) => m === null)).toBe(true)
+    expect(f.emotion!.monthly.them.every((m) => m === null)).toBe(true)
+  })
 })

@@ -20,6 +20,10 @@ describe('scoreMessage', () => {
     expect(scoreMessage('哈哈哈哈')).toBeGreaterThan(0)
     expect(scoreMessage('呜呜呜')).toBeLessThan(0)
   })
+  it('含 "em" 的普通英文（problem/temp）不被误判为负', () => {
+    expect(scoreMessage('no problem here')).not.toBeLessThan(0)
+    expect(scoreMessage('the temp is fine')).not.toBeLessThan(0)
+  })
   it('否定词翻转极性：不开心 → 负', () => {
     expect(scoreMessage('我不开心')).toBeLessThan(0)
   })

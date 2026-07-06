@@ -64,7 +64,7 @@ export function scoreMessage(text: string): number {
 
   // 重复启发式：哈{2,}/嘻嘻/嘿嘿 → +1；呜{2,}/emmm → -1
   if (/哈哈+|嘻嘻|嘿嘿/.test(text)) score += 1
-  if (/呜呜+|em+/i.test(text)) score -= 1
+  if (/呜呜+|e+m{2,}/i.test(text)) score -= 1
 
   // 感叹号放大同号强度（每个 !/！ ×1.2，封顶 ×2）
   const bangs = (text.match(/[!！]/g) || []).length

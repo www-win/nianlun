@@ -504,7 +504,7 @@ function scoreMessage(text) {
     }
   }
   if (/哈哈+|嘻嘻|嘿嘿/.test(text)) score += 1;
-  if (/呜呜+|em+/i.test(text)) score -= 1;
+  if (/呜呜+|e+m{2,}/i.test(text)) score -= 1;
   const bangs = (text.match(/[!！]/g) || []).length;
   if (bangs > 0 && score !== 0) {
     score *= Math.min(2, 1 + bangs * 0.2);
@@ -635,13 +635,15 @@ function aggregate(conversations) {
         f.weekHour[d.getDay() * 24 + d.getHours()]++;
         days.add(Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5));
       }
-      if (m.type === "text" && m.text) texts.push(m.text);
-      const raw = scoreMessage(m.text ?? "");
-      const acc = m.from === "me" ? meAcc : themAcc;
-      addToAcc(acc, raw);
-      if (m.ts) {
-        const mo = new Date(m.ts).getMonth();
-        addToAcc(m.from === "me" ? meMonth[mo] : themMonth[mo], raw);
+      if (m.type === "text" && m.text) {
+        texts.push(m.text);
+        const raw = scoreMessage(m.text);
+        const acc = m.from === "me" ? meAcc : themAcc;
+        addToAcc(acc, raw);
+        if (m.ts) {
+          const mo = new Date(m.ts).getMonth();
+          addToAcc(m.from === "me" ? meMonth[mo] : themMonth[mo], raw);
+        }
       }
     }
     f.keywords = countWords(texts, 20);

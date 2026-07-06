@@ -66,14 +66,16 @@ export function aggregate(conversations: Conversation[]): Friend[] {
         f.weekHour[d.getDay() * 24 + d.getHours()]++
         days.add(Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000))
       }
-      if (m.type === 'text' && m.text) texts.push(m.text)
-
-      const raw = scoreMessage(m.text ?? '')
-      const acc = m.from === 'me' ? meAcc : themAcc
-      addToAcc(acc, raw)
-      if (m.ts) {
-        const mo = new Date(m.ts).getMonth()
-        addToAcc(m.from === 'me' ? meMonth[mo] : themMonth[mo], raw)
+      // 情绪打分与关键词收录同口径：只对文本消息累加，媒体/系统消息完全不计入。
+      if (m.type === 'text' && m.text) {
+        texts.push(m.text)
+        const raw = scoreMessage(m.text)
+        const acc = m.from === 'me' ? meAcc : themAcc
+        addToAcc(acc, raw)
+        if (m.ts) {
+          const mo = new Date(m.ts).getMonth()
+          addToAcc(m.from === 'me' ? meMonth[mo] : themMonth[mo], raw)
+        }
       }
     }
     f.keywords = countWords(texts, 20)
