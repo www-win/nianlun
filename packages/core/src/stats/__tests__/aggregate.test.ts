@@ -80,3 +80,43 @@ describe('aggregate 时段/热力/词频', () => {
     expect(f.keywords[0]).toEqual({ word: '开会', count: 2 })
   })
 })
+
+describe('aggregate emotion', () => {
+  function conv(messages: Conversation['messages']): Conversation {
+    return { id: 'A', peerName: 'A', isGroup: false, messages }
+  }
+  const ts = (month: number) => new Date(2026, month - 1, 15, 12).getTime() // month 1..12
+
+  it('按 me/them 两侧聚合分布', () => {
+    const [f] = aggregate([conv([
+      { ts: ts(1), from: 'me', type: 'text', text: '好开心哈哈' },
+      { ts: ts(1), from: 'them', type: 'text', text: '好难受烦' },
+      { ts: ts(1), from: 'them', type: 'text', text: '在吗' },
+    ])])
+    expect(f.emotion!.me.happy).toBe(1)
+    expect(f.emotion!.them.sad).toBe(1)
+    expect(f.emotion!.them.total).toBe(2)
+  })
+
+  it('monthly 无消息月为 null、有消息月带 count', () => {
+    const [f] = aggregate([conv([
+      { ts: ts(3), from: 'me', type: 'text', text: '开心' },
+    ])])
+    expect(f.emotion!.monthly.me[0]).toBeNull()      // 1 月无
+    expect(f.emotion!.monthly.me[2]).toMatchObject({ count: 1 }) // 3 月有
+  })
+
+  it('words 带极性（高频正词>0）', () => {
+    const msgs = Array.from({ length: 5 }, () => ({ ts: ts(1), from: 'me' as const, type: 'text' as const, text: '开心' }))
+    const [f] = aggregate([conv(msgs)])
+    const w = f.emotion!.words.find((x) => x.word === '开心')
+    expect(w && w.polarity).toBeGreaterThan(0)
+  })
+
+  it('无消息好友：emotion 两侧 total 0、avg 0.5、monthly 全 null', () => {
+    const [f] = aggregate([conv([])])
+    expect(f.emotion!.me.total).toBe(0)
+    expect(f.emotion!.me.avg).toBeCloseTo(0.5)
+    expect(f.emotion!.monthly.me.every((m) => m === null)).toBe(true)
+  })
+})

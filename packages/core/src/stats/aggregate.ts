@@ -1,6 +1,8 @@
 import type { Conversation, Friend } from '../model/types'
 import { createFriend } from '../model/friend'
 import { countWords } from './segment'
+import { scoreMessage, emptyAcc, addToAcc, finalizeAcc, accToMood, wordPolarity } from './emotion'
+import type { DistAcc } from './emotion'
 
 /** 按峰值小时映射中文时段标签；全 0（无消息）返回空串。 */
 function peakPeriodLabel(hourly: number[]): string {
@@ -35,13 +37,24 @@ export function aggregate(conversations: Conversation[]): Friend[] {
     const f = createFriend(c.id, c.peerName)
     const msgs = c.messages
     f.msgCount = msgs.length
-    if (msgs.length === 0) return f
+    if (msgs.length === 0) {
+      f.emotion = {
+        me: finalizeAcc(emptyAcc()), them: finalizeAcc(emptyAcc()),
+        monthly: { me: Array(12).fill(null), them: Array(12).fill(null) },
+        words: [],
+      }
+      return f
+    }
 
     let sent = 0
     let first = Infinity
     let last = -Infinity
     const texts: string[] = []
     const days = new Set<number>() // 有消息的日期(本地日历日序号)，用于最长连续天数
+    const meAcc = emptyAcc()
+    const themAcc = emptyAcc()
+    const meMonth: DistAcc[] = Array.from({ length: 12 }, emptyAcc)
+    const themMonth: DistAcc[] = Array.from({ length: 12 }, emptyAcc)
     for (const m of msgs) {
       if (m.from === 'me') sent++
       if (m.ts && m.ts < first) first = m.ts
@@ -54,6 +67,14 @@ export function aggregate(conversations: Conversation[]): Friend[] {
         days.add(Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000))
       }
       if (m.type === 'text' && m.text) texts.push(m.text)
+
+      const raw = scoreMessage(m.text ?? '')
+      const acc = m.from === 'me' ? meAcc : themAcc
+      addToAcc(acc, raw)
+      if (m.ts) {
+        const mo = new Date(m.ts).getMonth()
+        addToAcc(m.from === 'me' ? meMonth[mo] : themMonth[mo], raw)
+      }
     }
     f.keywords = countWords(texts, 20)
     f.sentRatio = Math.round((sent / msgs.length) * 100)
@@ -61,6 +82,15 @@ export function aggregate(conversations: Conversation[]): Friend[] {
     f.lastContact = last === -Infinity ? 0 : last
     f.maxStreak = longestStreak(days)
     f.peakPeriod = peakPeriodLabel(f.hourly)
+    f.emotion = {
+      me: finalizeAcc(meAcc),
+      them: finalizeAcc(themAcc),
+      monthly: {
+        me: meMonth.map(accToMood),
+        them: themMonth.map(accToMood),
+      },
+      words: f.keywords.map((k) => ({ word: k.word, count: k.count, polarity: wordPolarity(k.word) })),
+    }
     return f
   })
 }
