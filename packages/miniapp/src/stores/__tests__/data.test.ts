@@ -21,7 +21,6 @@ function fakeRawStore() {
     readdir: (d) => [...files.keys()].filter((p) => p.startsWith(d + '/')).map((p) => p.slice(d.length + 1)),
     size: (p) => (files.get(p) ?? '').length,
     unlink: (p) => { files.delete(p) },
-    exists: (p) => files.has(p),
   }, dir)
 }
 const FRIEND = { id: 'f1', name: '张三', rel: '其他', role: '', alias: '', userEdited: {}, msgCount: 1, monthly: [], sentRatio: 0, peakPeriod: '', maxStreak: 0, firstContact: 0, lastContact: 0 } as unknown as Friend

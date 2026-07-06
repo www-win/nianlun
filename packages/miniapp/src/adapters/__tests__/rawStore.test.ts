@@ -12,7 +12,6 @@ function memFs(): RawFsBackend {
     readdir: (d) => [...files.keys()].filter((p) => p.startsWith(d + '/')).map((p) => p.slice(d.length + 1)),
     size: (p) => (files.get(p) ?? '').length,
     unlink: (p) => { files.delete(p) },
-    exists: (p) => files.has(p) || dirs.has(p),
   }
 }
 
@@ -98,5 +97,21 @@ describe('rawStore.appendFiles 过滤 + 降级', () => {
     expect(r.saved).toBe(1)
     expect(r.skipped).toBeGreaterThanOrEqual(1)
     expect(s.count()).toBe(1)
+  })
+
+  it('ensureDir 抛异常(如配额/权限)时绝不抛，视作一个字节都没写成', () => {
+    const base = memFs()
+    const failing: RawFsBackend = {
+      ...base,
+      ensureDir: () => { throw new Error('permission denied') },
+    }
+    const s = makeRawStore(failing, DIR)
+    const files = [
+      { name: 'wxid_real.jsonl', content: 'hello' },
+      { name: '123@chatroom.jsonl', content: 'hi' },
+    ]
+    const r = s.appendFiles(files)
+    expect(r).toEqual({ saved: 0, skipped: 2 })
+    expect(s.count()).toBe(0)
   })
 })

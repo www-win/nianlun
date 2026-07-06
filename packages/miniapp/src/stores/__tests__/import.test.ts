@@ -23,7 +23,6 @@ function fakeRawStore() {
     readdir: (d) => [...files.keys()].filter((p) => p.startsWith(d + '/')).map((p) => p.slice(d.length + 1)),
     size: (p) => (files.get(p) ?? '').length,
     unlink: (p) => { files.delete(p) },
-    exists: (p) => files.has(p),
   }, dir)
 }
 const TXT = `2025-03-01 09:00:00 李四\n早\n\n2025-03-01 09:01:00 我\n早呀`
@@ -83,7 +82,6 @@ describe('import store', () => {
       readdir: () => [],
       size: () => 0,
       unlink: () => {},
-      exists: () => false,
     }, '/raw')
     const useImport = createImportStore({
       useData, storage: s, suggest: async () => ({}), loadSamples: () => [], rawStore: fullRaw,

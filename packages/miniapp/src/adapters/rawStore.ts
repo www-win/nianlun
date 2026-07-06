@@ -11,7 +11,6 @@ export interface RawFsBackend {
   readdir(dir: string): string[]
   size(path: string): number
   unlink(path: string): void
-  exists(path: string): boolean
 }
 
 // 文件名清洗：去掉路径分隔符与上跳，避免写到目录外
@@ -33,10 +32,14 @@ export function makeRawStore(fs: RawFsBackend, baseDir: string) {
      * 供导入流程在核心数据存好后调用。
      */
     appendFiles(files: RawChatFile[]): { saved: number; skipped: number } {
-      fs.ensureDir(baseDir)
+      const keep = files.filter((f) => !isServiceSession(sessionIdFromFileName(f.name)))
+      try {
+        fs.ensureDir(baseDir)
+      } catch {
+        return { saved: 0, skipped: keep.length } // 目录都建不出来，视作一个字节都没写成
+      }
       let saved = 0
       let skipped = 0
-      const keep = files.filter((f) => !isServiceSession(sessionIdFromFileName(f.name)))
       for (let i = 0; i < keep.length; i++) {
         try {
           fs.writeFile(path(keep[i].name), keep[i].content)
@@ -85,7 +88,6 @@ function realRawStore(): ReturnType<typeof makeRawStore> {
       readdir: (d) => { try { return fsm().readdirSync(d) } catch { return [] } },
       size: (p) => { try { return fsm().statSync(p).size } catch { return 0 } },
       unlink: (p) => { try { fsm().unlinkSync(p) } catch { /* 已不存在 */ } },
-      exists: (p) => { try { fsm().accessSync(p); return true } catch { return false } },
     }
     cachedRawStore = makeRawStore(wxRawFs, dir)
   }
