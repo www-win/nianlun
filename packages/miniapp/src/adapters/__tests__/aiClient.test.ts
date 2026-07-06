@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { makeAiClient } from '../aiClient'
-import type { Friend, ReportData } from '@nianlun/core'
+import type { Friend, ReportData, BaziChart, DayFortune, Compatibility } from '@nianlun/core'
 
 const REPORT = { year: 2025, totalMessages: 10, friendCount: 1, activeDays: 3, topContacts: [], relationBreakdown: [] } as unknown as ReportData
 const FRIEND = { id: 'f1', name: '张三', alias: '', rel: '其他', role: '', msgCount: 9, sentRatio: 50, peakPeriod: '晚上', maxStreak: 2 } as unknown as Friend
@@ -49,5 +49,34 @@ describe('aiClient', () => {
     const out = await makeAiClient(transport).analyzeYearSentiment(REPORT, ['对方：新年快乐'])
     expect(out).toContain('热络')
     expect(transport.mock.calls[0][0]).toContain('2025')
+  })
+})
+
+const astroFriend = { id: 'f1', name: '小美', alias: '', rel: '客户', role: '' } as any
+const astroChart: BaziChart = {
+  pillars: { year: '庚午', month: '甲申', day: '丙子', hour: '乙未' },
+  dayMaster: '丙', fiveElements: { 木: 2, 火: 2, 土: 1, 金: 2, 水: 1 }, zodiac: '马', constellation: '狮子',
+}
+const astroFortune: DayFortune = { ganzhi: '戊寅', relation: '泄' }
+const astroCompat: Compatibility = { harmonies: [], clashes: ['生肖相冲（鼠 ↔ 马）'] }
+
+describe('aiClient 命理', () => {
+  it('analyzeAstro：prompt 含盘数据，解析出四段', async () => {
+    let seen = ''
+    const client = makeAiClient(async (prompt: string) => {
+      seen = prompt
+      return JSON.stringify({ personality: '稳', fortune: '顺', affinity: '合', advice: '可正常往来' })
+    })
+    const r = await client.analyzeAstro(astroFriend, astroChart, astroFortune, astroCompat)
+    expect(seen).toContain('丙子')
+    expect(r.personality).toBe('稳')
+    expect(r.advice).toBe('可正常往来')
+  })
+
+  it('extractBirth：解析出生辰；无则 null', async () => {
+    const ok = makeAiClient(async () => JSON.stringify({ year: 1990, month: 8, day: 15 }))
+    expect(await ok.extractBirth(astroFriend, ['对方：我1990年8月15号'])).toEqual({ year: 1990, month: 8, day: 15 })
+    const none = makeAiClient(async () => JSON.stringify({ found: false }))
+    expect(await none.extractBirth(astroFriend, [])).toBeNull()
   })
 })
