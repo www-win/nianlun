@@ -57,12 +57,10 @@
 
 **指纹（fp）= 生成时喂给 AI 的输入的轻量指纹**；输入不变则缓存新鲜。分层选取以避免误报过期：
 
-- **好友级**（情绪 / 画像）：`fp = \`${friend.msgCount}:${friend.lastTs}\``。
+- **好友级**（情绪 / 画像）：`fp = \`${friend.msgCount}:${friend.lastContact}\``（字段已核对 `core/model/types.ts`：`Friend.msgCount`、`Friend.lastContact` 均存在）。
   - 好友级分析的输入是该好友自身的统计 + 样本。故仅当**该好友**有新消息时才判过期；重新导入只影响别的好友时，本好友缓存仍新鲜、不打扰。这是 per-friend 指纹的价值。
-- **报告级**（文案 / 全年情绪）：`fp = \`${report.totalMessages}:${report.friendCount}:${report.activeDays}\``。
+- **报告级**（文案 / 全年情绪）：`fp = \`${report.totalMessages}:${report.friendCount}:${report.activeDays}\``（字段已核对：`ReportData` 三者均存在）。
   - 报告是全局聚合，任一有效导入都会变，缓存随之判过期——符合直觉。
-
-> `Friend` 是否含 `lastTs` 字段在实现计划第一步核对；若字段名不同（如 `lastTs`/`lastContact`）以 core `model/types.ts` 实际为准，缺失则退化为仅用 `msgCount`。
 
 **三态判定与处理**（完全对齐命理运势 §8.3）：
 
