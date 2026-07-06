@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年轮 · 二级市场股票模块 功能示意图</title>
+<style>
+  :root{
+    --green:#3f9b5a; --green-d:#2f7a45; --green-l:#eaf6ee;
+    --ink:#1f2a24; --grey:#6b7770; --line:#dfe7e2; --bg:#f5f8f6;
+    --amber:#c98a2b; --amber-l:#fbf2e2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.6;padding:28px 20px;-webkit-font-smoothing:antialiased}
+  .page{max-width:1040px;margin:0 auto}
+  header{text-align:center;margin-bottom:8px}
+  .brand{display:inline-flex;align-items:center;gap:8px;color:var(--green-d);font-weight:700;font-size:15px;letter-spacing:.5px}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-l)}
+  h1{font-size:26px;margin:10px 0 4px;color:var(--ink)}
+  .sub{color:var(--grey);font-size:14px}
+  .oneline{background:var(--green);color:#fff;border-radius:12px;padding:14px 20px;text-align:center;
+    font-size:16px;font-weight:600;margin:20px 0 26px;box-shadow:0 6px 18px rgba(63,155,90,.22)}
+  .oneline small{display:block;font-weight:400;opacity:.9;font-size:12.5px;margin-top:4px}
+  h2{font-size:18px;margin:26px 0 14px;padding-left:11px;border-left:4px solid var(--green);color:var(--green-d)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 2px 8px rgba(31,42,36,.04)}
+
+  /* 好友分类 */
+  .cats{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:12px}
+  .cat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .cat.focus{border:2px solid var(--green);background:var(--green-l)}
+  .cat-h{font-weight:700;font-size:14px;margin-bottom:7px;color:var(--ink)}
+  .cat.focus .cat-h{color:var(--green-d)}
+  .cat p{font-size:12.5px;color:var(--grey)}
+  .cat p b{color:var(--ink)}
+  .sub-cat{font-size:12.5px;color:var(--grey);background:#fff;border-radius:8px;padding:7px 9px;margin-top:6px;border:1px solid var(--line)}
+  .sub-cat b{color:var(--ink)}
+  .sub-cat.star{border-color:var(--green);color:var(--green-d);font-weight:600;background:#fff}
+  .sub-cat.star b{color:var(--green-d)}
+
+  /* 三层 */
+  .layers{display:flex;flex-direction:column;gap:12px}
+  .layer{display:flex;gap:14px;align-items:flex-start;background:#fff;border:1px solid var(--line);
+    border-left:5px solid var(--green);border-radius:12px;padding:14px 16px}
+  .layer .no{flex:none;width:30px;height:30px;border-radius:50%;background:var(--green-l);color:var(--green-d);
+    font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .layer h3{font-size:15px;margin-bottom:3px}
+  .layer .desc{font-size:13px;color:var(--grey);margin-bottom:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:12.5px;background:var(--green-l);color:var(--green-d);border-radius:6px;padding:3px 9px;white-space:nowrap}
+  .chip.amber{background:var(--amber-l);color:var(--amber)}
+  .eg{font-size:12.5px;color:var(--grey);margin-top:8px;padding-left:10px;border-left:2px solid var(--line)}
+  .eg b{color:var(--ink)}
+
+  /* 两个视图 */
+  .views{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .view{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;position:relative}
+  .view .tag{display:inline-block;font-size:12px;font-weight:700;color:#fff;background:var(--green);border-radius:20px;padding:2px 12px;margin-bottom:10px}
+  .view.b .tag{background:var(--amber)}
+  .view h3{font-size:16px;margin-bottom:2px}
+  .view .q{font-size:13px;color:var(--grey);margin-bottom:12px}
+  .view ul{list-style:none;display:flex;flex-direction:column;gap:7px}
+  .view li{font-size:13px;padding-left:20px;position:relative}
+  .view li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .view.b li::before{background:var(--amber)}
+  .view .key{background:var(--green-l);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--green-d);margin-top:12px;font-weight:600}
+  .view.b .key{background:var(--amber-l);color:var(--amber)}
+  .crosshint{text-align:center;font-size:12.5px;color:var(--grey);margin-top:12px}
+
+  /* 流程 */
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 12px;position:relative;font-size:12.5px}
+  .step .sn{font-size:11px;font-weight:700;color:var(--green-d);background:var(--green-l);border-radius:5px;padding:1px 7px;display:inline-block;margin-bottom:6px}
+  .step b{color:var(--ink)}
+  .step .arrow{position:absolute;right:-9px;top:50%;transform:translateY(-50%);color:var(--green);font-size:16px;z-index:2}
+  .step:last-child .arrow{display:none}
+  .mono{font-family:"SF Mono",Consolas,"Courier New",monospace;font-size:11px;color:var(--grey);background:var(--bg);border-radius:5px;padding:5px 7px;margin-top:6px;line-height:1.5}
+
+  /* 数据来源 */
+  .src{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+  .src .box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .src .box .h{font-weight:700;font-size:13.5px;margin-bottom:4px}
+  .src .box.ai .h{color:var(--green-d)} .src .box.db .h{color:var(--amber)}
+  .src .box p{font-size:12.5px;color:var(--grey)}
+
+  footer{margin-top:26px;text-align:center;color:var(--grey);font-size:12px;border-top:1px solid var(--line);padding-top:14px}
+
+  @media (max-width:720px){
+    .views,.src{grid-template-columns:1fr}
+    .flow{grid-template-columns:1fr 1fr}
+    .step .arrow{display:none}
+  }
+  @media print{
+    body{background:#fff;padding:0}
+    .oneline,.view .tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="brand"><span class="dot"></span>年轮 Nianlun</div>
+    <h1>好友分类 + 二级市场股票模块 · 功能示意图</h1>
+    <div class="sub">AI 先给每位好友分类，其中「二级市场股票」是最核心 —— 把散落的荐股整理成能反查的数据库</div>
+  </header>
+
+  <div class="oneline">
+    让 AI 从聊天记录里抽出「谁 · 推了什么票 · 为什么 · 看几倍」，存档 · 可反查
+    <small>聊天记录是唯一原始数据源，全程本地处理、不上传</small>
+  </div>
+
+  <h2>① AI 好友分类——先给每位好友定位，不同类别走不同分析维度</h2>
+  <div class="cats">
+    <div class="cat focus">
+      <div class="cat-h">金融 / 投资类</div>
+      <div class="sub-cat"><b>一级</b>（未上市投资人）：梳理其投资方向即可</div>
+      <div class="sub-cat star"><b>二级</b>（股票）★ 最核心需求 —— 专门模块，下方 ②③④⑤ 详细展开 ↓</div>
+    </div>
+    <div class="cat">
+      <div class="cat-h">政府类</div>
+      <p>重点看<b>职能</b>，要求全、准；含历史沟通内容、情绪等分析维度</p>
+    </div>
+    <div class="cat">
+      <div class="cat-h">产业类</div>
+      <p>产业资源，如<b>任职公司、董事长身份</b>等</p>
+    </div>
+    <div class="cat">
+      <div class="cat-h">其他</div>
+      <p>亲人 / 朋友 / 家属，归为一类，<b>不做专业分析</b></p>
+    </div>
+  </div>
+
+  <h2>② 每支票沉淀「三层信息」——给每支股票建一张卡片</h2>
+  <div class="layers">
+    <div class="layer">
+      <div class="no">1</div>
+      <div>
+        <h3>票的基本盘 · 一句话档案</h3>
+        <div class="desc">这支票最基础的身份信息</div>
+        <div class="chips">
+          <span class="chip">股票名称</span><span class="chip">谁推荐</span><span class="chip">何时推荐</span>
+          <span class="chip">现价</span><span class="chip">目标市值（多少亿）</span><span class="chip">涨幅倍数（看几倍）</span><span class="chip">预计到达时间</span>
+        </div>
+        <div class="eg">例：<b>江化微</b> · 张三首席推 · 3月 · 现价 40 元 · 目标 500 亿 · 看 2 倍 · 1 年内</div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="no">2</div>
+      <div>
+        <h3>推荐逻辑 · 凭什么值得买</h3>
+        <div class="desc">该票值得推荐的核心理由，分条列</div>
+        <div class="chips">
+          <span class="chip amber">逻辑 1</span><span class="chip amber">逻辑 2</span><span class="chip amber">逻辑 3 …</span>
+        </div>
+        <div class="eg">例：市值 400 亿 → 800 亿有翻倍空间；<b>MOC 涨价</b>（产品涨价 → 公司多赚 → 股价涨）…</div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="no">3</div>
+      <div>
+        <h3>公司信息 · 背景资料 + 谁说了啥</h3>
+        <div class="desc">股票背后公司的信息，以及每个人的评价，逐条列</div>
+        <div class="chips">
+          <span class="chip">公司背景</span><span class="chip">行业地位</span><span class="chip">众人评价</span>
+        </div>
+        <div class="eg">例：做半导体材料 · 张三说「核心标的」 · 李四说「涨太多、等回调」</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>③ 两个交叉视图——同一批数据，换两个角度看</h2>
+  <div class="views">
+    <div class="view a">
+      <span class="tag">视图 A · 以票查人</span>
+      <h3>点开「一支票」</h3>
+      <div class="q">想知道：这支票被谁看好、看多高？</div>
+      <ul>
+        <li>被<b>哪些人</b>推荐过</li>
+        <li>各自的时间 · 价格 · 看几倍</li>
+        <li>一共<b>有多少人在推</b></li>
+        <li>可按 涨幅倍数 / 推荐时间 排序</li>
+      </ul>
+      <div class="key">💡 推的人越多 = 越是「核心标的」（如 50 个核心标的），优先关注</div>
+    </div>
+    <div class="view b">
+      <span class="tag">视图 B · 以人查票</span>
+      <h3>点开「一个人 / 首席」</h3>
+      <div class="q">想知道：这个人都推过哪些票？</div>
+      <ul>
+        <li>他<b>推荐过的所有股票</b></li>
+        <li>每支的时间 · 看几倍</li>
+        <li>看某人的战绩 / 风格</li>
+      </ul>
+      <div class="key">用途：判断某位首席靠不靠谱、偏好什么赛道</div>
+    </div>
+  </div>
+  <div class="crosshint">本质：一份荐股记录（谁 + 哪票 + 何时 + 几倍），按「票」聚合是 A，按「人」聚合是 B —— 一份数据，两个入口</div>
+
+  <h2>④ 数据从哪来</h2>
+  <div class="src">
+    <div class="box ai">
+      <div class="h">AI 从聊天记录抽取</div>
+      <p>谁推了什么票、逻辑、目标价、看几倍 —— 聊天记录是唯一原始数据源</p>
+    </div>
+    <div class="box db">
+      <div class="h">数据库取「现价」</div>
+      <p>只有「现价」这一个字段单独从数据库查，不追求实时</p>
+    </div>
+  </div>
+
+  <h2>⑤ 全流程一个完整故事</h2>
+  <div class="flow">
+    <div class="step"><span class="sn">STEP 1</span><span class="arrow">→</span>
+      微信里张三说：<b>「江化微重点看，现在40块，能到500亿，MOC涨价逻辑，看2倍」</b></div>
+    <div class="step"><span class="sn">STEP 2</span><span class="arrow">→</span>
+      AI 抽成结构化记录
+      <div class="mono">{票:江化微, 人:张三,<br>时间:3月, 目标:500亿,<br>倍数:2倍, 逻辑:MOC涨价}</div></div>
+    <div class="step"><span class="sn">STEP 3</span><span class="arrow">→</span>
+      存进<b>江化微</b>的三层档案<br>（现价40元 另从数据库补上）</div>
+    <div class="step"><span class="sn">STEP 4</span>
+      反查：点「江化微」发现<b>30人在推</b>→核心标的！<br>点「张三」看他今年<b>推的20支票</b></div>
+  </div>
+
+  <footer>
+    年轮 Nianlun · 本地优先 · 保护隐私　｜　对接示意图，最终以客户当面确认为准 · 2026-07-02
+  </footer>
+
+</div>
+</body>
+</html>
