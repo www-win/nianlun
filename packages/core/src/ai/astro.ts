@@ -19,6 +19,7 @@ function pickText(v: unknown): string | undefined {
  */
 export function buildAstroPrompt(
   friend: Friend, chart: BaziChart, dayFortune: DayFortune, compat: Compatibility | null,
+  dayClash?: { friend: string[]; my: string[] },
 ): string {
   const displayName = friend.alias || friend.name
   const pillars = [chart.pillars.year, chart.pillars.month, chart.pillars.day, chart.pillars.hour]
@@ -27,6 +28,9 @@ export function buildAstroPrompt(
   const compatLine = compat
     ? `与我合盘：相合[${compat.harmonies.join('、') || '无'}]，相冲[${compat.clashes.join('、') || '无'}]`
     : '与我合盘：我的命盘未设置，暂不评相性'
+  const clashLine = dayClash && (dayClash.friend.length || dayClash.my.length)
+    ? `今日流日相冲：好友本命[${dayClash.friend.join('、') || '无'}]，我本命[${dayClash.my.join('、') || '无'}]`
+    : '今日流日相冲：无明显相冲'
 
   return [
     '你是一位擅长把命盘转成通俗解读的观察者。以下命盘、流日、合盘均「已算好」，',
@@ -50,6 +54,7 @@ export function buildAstroPrompt(
     `- 生肖：${chart.zodiac}；星座：${chart.constellation}`,
     `- 当前流日：${dayFortune.ganzhi}（对其本命日主为「${dayFortune.relation}」）`,
     `- ${compatLine}`,
+    `- ${clashLine}`,
   ].join('\n')
 }
 

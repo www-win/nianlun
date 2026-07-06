@@ -40,3 +40,14 @@ export function getCompatibility(a: BaziChart, b: BaziChart): Compatibility {
 
   return { harmonies, clashes }
 }
+
+/**
+ * 今日流日支 是否冲某盘的本命年支/日支。返回相冲描述数组（空=不冲）。
+ * dayBranch 为当日干支的地支（流日支）。
+ */
+export function dayBranchClashes(dayBranch: string, chart: BaziChart): string[] {
+  const out: string[] = []
+  if (isBranchClash(dayBranch, chart.pillars.year.charAt(1))) out.push('流日冲本命年支')
+  if (isBranchClash(dayBranch, chart.pillars.day.charAt(1))) out.push('流日冲本命日支')
+  return out
+}

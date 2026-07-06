@@ -13031,16 +13031,23 @@ function getCompatibility(a, b) {
   else if (rel === "\u514B") clashes.push("\u5BF9\u65B9\u65E5\u4E3B\u514B\u6211\uFF0C\u6613\u53D7\u7275\u5236");
   return { harmonies, clashes };
 }
+function dayBranchClashes(dayBranch, chart) {
+  const out = [];
+  if (isBranchClash(dayBranch, chart.pillars.year.charAt(1))) out.push("\u6D41\u65E5\u51B2\u672C\u547D\u5E74\u652F");
+  if (isBranchClash(dayBranch, chart.pillars.day.charAt(1))) out.push("\u6D41\u65E5\u51B2\u672C\u547D\u65E5\u652F");
+  return out;
+}
 
 // src/ai/astro.ts
 function pickText2(v) {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : void 0;
 }
-function buildAstroPrompt(friend, chart, dayFortune, compat) {
+function buildAstroPrompt(friend, chart, dayFortune, compat, dayClash) {
   const displayName = friend.alias || friend.name;
   const pillars = [chart.pillars.year, chart.pillars.month, chart.pillars.day, chart.pillars.hour].filter(Boolean).join(" ");
   const wuxing = Object.entries(chart.fiveElements).map(([k, v]) => `${k}${v}`).join(" ");
   const compatLine = compat ? `\u4E0E\u6211\u5408\u76D8\uFF1A\u76F8\u5408[${compat.harmonies.join("\u3001") || "\u65E0"}]\uFF0C\u76F8\u51B2[${compat.clashes.join("\u3001") || "\u65E0"}]` : "\u4E0E\u6211\u5408\u76D8\uFF1A\u6211\u7684\u547D\u76D8\u672A\u8BBE\u7F6E\uFF0C\u6682\u4E0D\u8BC4\u76F8\u6027";
+  const clashLine = dayClash && (dayClash.friend.length || dayClash.my.length) ? `\u4ECA\u65E5\u6D41\u65E5\u76F8\u51B2\uFF1A\u597D\u53CB\u672C\u547D[${dayClash.friend.join("\u3001") || "\u65E0"}]\uFF0C\u6211\u672C\u547D[${dayClash.my.join("\u3001") || "\u65E0"}]` : "\u4ECA\u65E5\u6D41\u65E5\u76F8\u51B2\uFF1A\u65E0\u660E\u663E\u76F8\u51B2";
   return [
     "\u4F60\u662F\u4E00\u4F4D\u64C5\u957F\u628A\u547D\u76D8\u8F6C\u6210\u901A\u4FD7\u89E3\u8BFB\u7684\u89C2\u5BDF\u8005\u3002\u4EE5\u4E0B\u547D\u76D8\u3001\u6D41\u65E5\u3001\u5408\u76D8\u5747\u300C\u5DF2\u7B97\u597D\u300D\uFF0C",
     "\u4F60\u53EA\u9700\u636E\u6B64\u505A\u81EA\u7136\u8BED\u8A00\u89E3\u8BFB\uFF0C\u5207\u52FF\u81EA\u884C\u63A8\u7B97\u5E72\u652F\u6216\u6539\u52A8\u76D8\u9762\u6570\u636E\u3002",
@@ -13062,7 +13069,8 @@ function buildAstroPrompt(friend, chart, dayFortune, compat) {
     `- \u65E5\u4E3B\uFF1A${chart.dayMaster}\uFF1B\u4E94\u884C\u5206\u5E03\uFF1A${wuxing}`,
     `- \u751F\u8096\uFF1A${chart.zodiac}\uFF1B\u661F\u5EA7\uFF1A${chart.constellation}`,
     `- \u5F53\u524D\u6D41\u65E5\uFF1A${dayFortune.ganzhi}\uFF08\u5BF9\u5176\u672C\u547D\u65E5\u4E3B\u4E3A\u300C${dayFortune.relation}\u300D\uFF09`,
-    `- ${compatLine}`
+    `- ${compatLine}`,
+    `- ${clashLine}`
   ].join("\n");
 }
 function parseAstroReading(text) {
@@ -13151,6 +13159,7 @@ export {
   classify,
   countWords,
   createFriend,
+  dayBranchClashes,
   extractFriendSamples,
   getCompatibility,
   getDayFortune,

@@ -313,6 +313,11 @@ declare function isBranchHarmony(a: string, b: string): boolean;
  * 纯机械判定，不涉 AI。
  */
 declare function getCompatibility(a: BaziChart, b: BaziChart): Compatibility;
+/**
+ * 今日流日支 是否冲某盘的本命年支/日支。返回相冲描述数组（空=不冲）。
+ * dayBranch 为当日干支的地支（流日支）。
+ */
+declare function dayBranchClashes(dayBranch: string, chart: BaziChart): string[];
 
 interface AstroReading {
     personality?: string;
@@ -324,7 +329,10 @@ interface AstroReading {
  * 命理解读提示词：把「已算好的」结构化盘 + 流日 + 合盘交给 AI，只做自然语言解读。
  * 明确禁止 AI 自己推算干支；无线索填「暂无足够线索」；社交建议软化、娱乐向。
  */
-declare function buildAstroPrompt(friend: Friend, chart: BaziChart, dayFortune: DayFortune, compat: Compatibility | null): string;
+declare function buildAstroPrompt(friend: Friend, chart: BaziChart, dayFortune: DayFortune, compat: Compatibility | null, dayClash?: {
+    friend: string[];
+    my: string[];
+}): string;
 /** 容错解析命理解读 JSON：剥围栏、定位花括号、逐字段取非空串；垃圾输入返回 {}，永不抛异常。 */
 declare function parseAstroReading(text: string): AstroReading;
 /** 抽生辰提示词：从有界样本里找好友透露的出生信息；找不到留空，禁止编造。 */
@@ -334,4 +342,4 @@ declare function parseBirthInfo(text: string): BirthInfo | null;
 
 declare const version = "0.1.0";
 
-export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type Relation, type ReportData, type Sentiment, aggregate, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };
+export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type Relation, type ReportData, type Sentiment, aggregate, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };

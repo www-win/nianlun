@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isBranchClash, isBranchHarmony, getCompatibility } from '../compat'
+import { isBranchClash, isBranchHarmony, getCompatibility, dayBranchClashes } from '../compat'
 import { buildBaziChart } from '../chart'
 
 describe('地支冲合对照表', () => {
@@ -27,5 +27,19 @@ describe('getCompatibility', () => {
     const c = getCompatibility(a, a)
     expect(Array.isArray(c.harmonies)).toBe(true)
     expect(Array.isArray(c.clashes)).toBe(true)
+  })
+})
+
+describe('dayBranchClashes 流日相冲', () => {
+  it('流日支冲本命年支时返回非空', () => {
+    // 好友本命年支为午(1990马年)；流日支子 → 子午相冲
+    const b = buildBaziChart({ year: 1990, month: 6, day: 1 })
+    const res = dayBranchClashes('子', b)
+    expect(res.some((s) => s.includes('年支'))).toBe(true)
+  })
+  it('不冲时返回空数组', () => {
+    const b = buildBaziChart({ year: 1990, month: 6, day: 1 })
+    // 与午不冲、也需与其日支不冲：用与午相同的支‘午’不构成冲
+    expect(dayBranchClashes('午', b).some((s) => s.includes('年支'))).toBe(false)
   })
 })

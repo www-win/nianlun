@@ -25,6 +25,11 @@ describe('assembleAstro', () => {
     expect(a.myChart).toBeNull()
     expect(a.compat).toBeNull()
   })
+  it('装配结果含流日相冲数组', () => {
+    const a = assembleAstro(BIRTH, { year: 1984, month: 6, day: 1 }, { year: 2026, month: 7, day: 6 })
+    expect(Array.isArray(a.friendDayClash)).toBe(true)
+    expect(Array.isArray(a.myDayClash)).toBe(true)
+  })
 })
 
 describe('astroExpired', () => {

@@ -33,8 +33,9 @@ export function makeAiClient(transport: Transport) {
     },
     async analyzeAstro(
       friend: Friend, chart: BaziChart, fortune: DayFortune, compat: Compatibility | null,
+      dayClash?: { friend: string[]; my: string[] },
     ): Promise<AstroReading> {
-      const text = await transport(buildAstroPrompt(friend, chart, fortune, compat), 1024)
+      const text = await transport(buildAstroPrompt(friend, chart, fortune, compat, dayClash), 1024)
       return parseAstroReading(text)
     },
     async extractBirth(friend: Friend, samples: string[]): Promise<BirthInfo | null> {

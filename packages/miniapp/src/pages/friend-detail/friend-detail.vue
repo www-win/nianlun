@@ -214,6 +214,12 @@ function loadAstroCache() {
 // 从「我的命盘」设置页返回后刷新生辰与缓存
 onShow(() => { reloadBirths(); loadAstroCache() })
 
+// 实时装配（用于机械展示：五行/合盘/流日相冲——不进 AI 缓存，随日期与我的盘实时算）
+const astroLive = computed(() => {
+  if (!astro.value || !friendBirth.value) return null
+  return assembleAstro(friendBirth.value, myBazi.value, todayParts())
+})
+
 function goSetMyBazi() {
   uni.navigateTo({ url: '/pages/my-bazi/my-bazi' })
 }
@@ -271,7 +277,10 @@ async function generateAstro() {
   loadingAstro.value = true
   try {
     const asm = assembleAstro(friendBirth.value, myBazi.value, todayParts())
-    const reading = await aiClient.analyzeAstro(f, asm.friendChart, asm.fortune, asm.compat)
+    const reading = await aiClient.analyzeAstro(
+      f, asm.friendChart, asm.fortune, asm.compat,
+      { friend: asm.friendDayClash, my: asm.myDayClash },
+    )
     const stored: StoredAstroReading = {
       reading, chart: asm.friendChart, generatedDate: todayStr(),
       birthFingerprint: birthFingerprint(friendBirth.value),
@@ -467,13 +476,27 @@ async function generateAstro() {
           <view class="astro-glance">
             <text class="ag-i">{{ astro.chart.pillars.year }} {{ astro.chart.pillars.month }} {{ astro.chart.pillars.day }}<text v-if="astro.chart.pillars.hour"> {{ astro.chart.pillars.hour }}</text></text>
             <text class="ag-sub">{{ astro.chart.zodiac }} · {{ astro.chart.constellation }}<text v-if="!astro.chart.pillars.hour"> · 未含时柱，结果偏粗</text></text>
+            <text class="ag-wx">五行：<text v-for="(n, k) in astro.chart.fiveElements" :key="k">{{ k }}{{ n }} </text></text>
           </view>
           <view class="prof-row"><text class="prof-k">性格</text><text class="prof-v">{{ astro.reading.personality || '暂无足够线索' }}</text></view>
           <view class="prof-row"><text class="prof-k">近期运势</text><text class="prof-v">{{ astro.reading.fortune || '暂无足够线索' }}</text></view>
           <view class="prof-row"><text class="prof-k">与我相性</text><text class="prof-v">{{ astro.reading.affinity || '暂无足够线索' }}</text></view>
+          <view v-if="astroLive" class="astro-mech">
+            <view v-if="astroLive.compat && astroLive.compat.clashes.length" class="mech-clash">
+              <text v-for="(c, i) in astroLive.compat.clashes" :key="'c'+i" class="mech-tag clash">{{ c }}</text>
+            </view>
+            <view v-if="astroLive.compat && astroLive.compat.harmonies.length" class="mech-harm">
+              <text v-for="(h, i) in astroLive.compat.harmonies" :key="'h'+i" class="mech-tag harm">{{ h }}</text>
+            </view>
+            <view v-if="astroLive.friendDayClash.length || astroLive.myDayClash.length" class="mech-day">
+              <text v-if="astroLive.friendDayClash.length" class="mech-tag clash">今日与TA相冲（{{ astroLive.friendDayClash.join('、') }}）</text>
+              <text v-if="astroLive.myDayClash.length" class="mech-tag clash">今日冲你自身（{{ astroLive.myDayClash.join('、') }}）</text>
+            </view>
+          </view>
           <view class="prof-row"><text class="prof-k">社交提示</text><text class="prof-v">{{ astro.reading.advice || '暂无足够线索' }}</text></view>
           <text class="senti-note faint">命理内容仅供娱乐参考</text>
           <text class="astro-reset" @click="openBirthForm">修改生辰</text>
+          <text class="astro-reset" @click="goSetMyBazi">修改我的命盘</text>
         </view>
 
         <!-- 态3：齐全，尚未生成 -->
@@ -596,4 +619,10 @@ async function generateAstro() {
 .astro-glance { padding: 20rpx; margin-bottom: 12rpx; background: var(--accent-wash); border-radius: 16rpx; }
 .ag-i { display: block; font-size: 30rpx; font-weight: 700; letter-spacing: 4rpx; color: var(--accent-strong); }
 .ag-sub { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--muted); }
+.ag-wx { display: block; margin-top: 8rpx; font-size: 22rpx; color: var(--muted); }
+.astro-mech { margin-top: 12rpx; display: flex; flex-direction: column; gap: 10rpx; }
+.mech-clash, .mech-harm, .mech-day { display: flex; flex-wrap: wrap; gap: 10rpx; }
+.mech-tag { padding: 6rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; }
+.mech-tag.clash { background: rgba(217,106,90,0.14); color: #c0392b; }
+.mech-tag.harm { background: var(--accent-wash); color: var(--accent-strong); }
 </style>

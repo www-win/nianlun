@@ -1,4 +1,4 @@
-import { buildBaziChart, getDayFortune, getCompatibility } from '@nianlun/core'
+import { buildBaziChart, getDayFortune, getCompatibility, dayBranchClashes } from '@nianlun/core'
 import type { BirthInfo, BaziChart, DayFortune, Compatibility } from '@nianlun/core'
 
 export interface AstroAssembly {
@@ -6,6 +6,8 @@ export interface AstroAssembly {
   myChart: BaziChart | null
   fortune: DayFortune
   compat: Compatibility | null
+  friendDayClash: string[]   // 今日流日冲好友本命
+  myDayClash: string[]       // 今日流日冲我的本命
 }
 
 /** 生辰指纹：字段变化即变化；空生辰为空串。 */
@@ -24,7 +26,10 @@ export function assembleAstro(
   const myChart = myBirth ? buildBaziChart(myBirth) : null
   const fortune = getDayFortune(today, friendChart)
   const compat = myChart ? getCompatibility(myChart, friendChart) : null
-  return { friendChart, myChart, fortune, compat }
+  const dayBranch = fortune.ganzhi.charAt(1)
+  const friendDayClash = dayBranchClashes(dayBranch, friendChart)
+  const myDayClash = myChart ? dayBranchClashes(dayBranch, myChart) : []
+  return { friendChart, myChart, fortune, compat, friendDayClash, myDayClash }
 }
 
 /** 缓存是否过期：跨天或任一指纹变更即过期。 */

@@ -36,6 +36,11 @@ describe('buildAstroPrompt', () => {
   it('compat 为 null 也不抛', () => {
     expect(() => buildAstroPrompt(friend, chart, fortune, null)).not.toThrow()
   })
+  it('带 dayClash 时 prompt 含「今日流日相冲」', () => {
+    const p = buildAstroPrompt(friend, chart, fortune, compat, { friend: ['流日冲本命年支'], my: [] })
+    expect(p).toContain('今日流日相冲')
+    expect(p).toContain('流日冲本命年支')
+  })
 })
 
 describe('parseAstroReading', () => {
