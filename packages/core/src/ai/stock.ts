@@ -150,3 +150,22 @@ export function aggregateByStock(picks: StockPick[]): StockCard[] {
   }
   return cards
 }
+
+/** 视图B：按推荐人聚合。 */
+export function aggregateByRecommender(picks: StockPick[]): RecommenderPicks[] {
+  const groups = new Map<string, StockPick[]>()
+  for (const p of picks) {
+    const g = groups.get(p.recommenderId)
+    if (g) g.push(p); else groups.set(p.recommenderId, [p])
+  }
+  const out: RecommenderPicks[] = []
+  for (const [recommenderId, gp] of groups) {
+    out.push({
+      recommenderId,
+      recommender: gp[0].recommender,
+      stockCount: new Set(gp.map((p) => p.stockNorm)).size,
+      picks: gp,
+    })
+  }
+  return out
+}

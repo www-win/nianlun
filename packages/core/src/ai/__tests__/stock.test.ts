@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock } from '../stock'
+import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock, aggregateByRecommender } from '../stock'
 import type { ExtractCtx } from '../stock'
 
 describe('normalizeStockName', () => {
@@ -90,5 +90,22 @@ describe('aggregateByStock', () => {
     expect(card.latestMultiple).toBe('3倍')          // ts=300 那条
     expect(card.latestTargetMarketCap).toBe('500亿') // ts=300 无市值 → 回退到有值的最新(ts=100)
     expect(card.logics).toEqual(['L1', 'L2'])        // 去重合并
+  })
+})
+
+describe('aggregateByRecommender', () => {
+  it('按 recommenderId 聚合，stockCount 计不同 stockNorm', () => {
+    const picks = [
+      mk({ recommenderId: '张三', recommender: '张三首席', stockNorm: 'A' }),
+      mk({ recommenderId: '张三', recommender: '张三首席', stockNorm: 'B' }),
+      mk({ recommenderId: '张三', recommender: '张三首席', stockNorm: 'A', ts: 999 }),
+      mk({ recommenderId: '李四', recommender: '李四', stockNorm: 'A' }),
+    ]
+    const out = aggregateByRecommender(picks).sort((a, b) => a.recommenderId.localeCompare(b.recommenderId))
+    expect(out).toHaveLength(2)
+    const zhang = out.find((r) => r.recommenderId === '张三')!
+    expect(zhang.recommender).toBe('张三首席')
+    expect(zhang.picks).toHaveLength(3)
+    expect(zhang.stockCount).toBe(2)   // A、B
   })
 })
