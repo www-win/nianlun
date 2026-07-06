@@ -2,12 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Friend, ReportData, Relation } from '@nianlun/core'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
-import { rawStore as defaultRawStore } from '../adapters/rawStore'
+import { rawStore as defaultRawStore, makeRawStore } from '../adapters/rawStore'
 
 type Storage = ReturnType<typeof makeStorage>
+type RawStore = ReturnType<typeof makeRawStore>
 
-// 工厂：测试注入内存 storage；运行时用默认 wx storage。
-export function createDataStore(storage: Storage = defaultStorage) {
+// 工厂：测试注入内存 storage/rawStore；运行时用默认 wx storage/文件系统。
+export function createDataStore(storage: Storage = defaultStorage, rawStore: RawStore = defaultRawStore) {
   return defineStore('data', () => {
     const friends = ref<Friend[]>([])
     const report = ref<ReportData | null>(null)
@@ -32,7 +33,7 @@ export function createDataStore(storage: Storage = defaultStorage) {
       storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))
     }
     async function clear() {
-      friends.value = []; report.value = null; storage.clearAll(); defaultRawStore.clear()
+      friends.value = []; report.value = null; storage.clearAll(); rawStore.clear()
     }
     return { friends, report, hasData, hydrate, setData, updateFriend, clear }
   })

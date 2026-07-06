@@ -72,6 +72,31 @@ describe('import store', () => {
     expect(imp.rawSavedCount).toBe(1) // 供导入页显示「已留存原文 X 个」
   })
 
+  it('原文留存写满(skipped>0)时追加提示，且不覆盖 outcome.warnings（偏离2回归）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    // 写满模拟：第一次 writeFile 就抛异常（如同磁盘配额超限）
+    const fullRaw = makeRawStore({
+      ensureDir: () => {},
+      writeFile: () => { throw new Error('磁盘已满') },
+      readFile: () => { throw new Error('ENOENT') },
+      readdir: () => [],
+      size: () => 0,
+      unlink: () => {},
+      exists: () => false,
+    }, '/raw')
+    const useImport = createImportStore({
+      useData, storage: s, suggest: async () => ({}), loadSamples: () => [], rawStore: fullRaw,
+    })
+    const imp = useImport()
+    // 无法识别的文件 → parseLocal 会产出 outcome.warnings（校验其未被覆盖）
+    await imp.run([{ name: 'c.txt', content: TXT }, { name: 'x.bin', content: '###' }], 2025)
+    expect(imp.status).toBe('done')
+    expect(imp.warnings.some((w) => w.includes('跳过'))).toBe(true)
+    // outcome.warnings（解析告警，如无法识别的文件）仍保留，未被 skipped 提示覆盖
+    expect(imp.warnings.length).toBeGreaterThan(1)
+  })
+
   it('run 持久化最近一个月的洞察与样本，供好友详情页使用', async () => {
     const s = memStorage()
     const useData = createDataStore(s)
