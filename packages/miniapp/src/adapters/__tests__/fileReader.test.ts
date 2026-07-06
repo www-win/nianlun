@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { makeFileReader, purgeUnzipTemp } from '../fileReader'
+import { makeFileReader, purgeUnzipTemp, removeDirDeep } from '../fileReader'
 
 describe('fileReader 适配器', () => {
   it('选中文件后逐个读出内容', async () => {
@@ -66,27 +66,64 @@ describe('fileReader 适配器', () => {
   })
 })
 
-describe('purgeUnzipTemp', () => {
-  it('删除所有 nianlun_unzip_* 目录，保留其它', () => {
-    const removed: string[] = []
-    const fs = {
-      readdirSync: () => ['nianlun_unzip_1', 'nianlun_unzip_2', 'nianlun_raw', 'other.txt'],
-      rmdirSync: (d: string) => { removed.push(d) },
-    }
-    expect(purgeUnzipTemp(fs, '/data')).toBe(2)
-    expect(removed).toEqual(['/data/nianlun_unzip_1', '/data/nianlun_unzip_2'])
+// 内存目录树 fs：按路径前缀模拟目录/文件，支持递归删除测试。
+function memDirFs() {
+  const files = new Set<string>()
+  const dirs = new Set<string>()
+  const fs = {
+    readdirSync: (dir: string) => {
+      const prefix = dir + '/'
+      const names = new Set<string>()
+      for (const p of [...files, ...dirs]) {
+        if (p.startsWith(prefix)) names.add(p.slice(prefix.length).split('/')[0])
+      }
+      if (names.size === 0 && !dirs.has(dir)) throw new Error('ENOENT') // 目录不存在
+      return [...names]
+    },
+    statSync: (p: string) => ({ isDirectory: () => dirs.has(p) }),
+    unlinkSync: (p: string) => { files.delete(p) },
+    rmdirSync: (p: string) => { dirs.delete(p) },
+  }
+  return {
+    fs,
+    addFile: (p: string) => { files.add(p) },
+    addDir: (p: string) => { dirs.add(p) },
+    has: (p: string) => files.has(p) || dirs.has(p),
+  }
+}
+
+describe('removeDirDeep', () => {
+  it('逐层删除目录树（含子目录与文件）', () => {
+    const m = memDirFs()
+    m.addDir('/t'); m.addDir('/t/sub'); m.addFile('/t/sub/x'); m.addFile('/t/y')
+    removeDirDeep(m.fs, '/t')
+    expect(m.has('/t')).toBe(false)
+    expect(m.has('/t/sub/x')).toBe(false)
+    expect(m.has('/t/y')).toBe(false)
   })
 
-  it('单个目录删除失败时跳过、继续删其它，不抛', () => {
-    const fs = {
-      readdirSync: () => ['nianlun_unzip_1', 'nianlun_unzip_2'],
-      rmdirSync: (d: string) => { if (d.endsWith('_1')) throw new Error('busy') },
-    }
-    expect(purgeUnzipTemp(fs, '/data')).toBe(1)
+  it('目录不存在时不抛', () => {
+    const m = memDirFs()
+    expect(() => removeDirDeep(m.fs, '/nope')).not.toThrow()
+  })
+})
+
+describe('purgeUnzipTemp', () => {
+  it('递归删除所有 nianlun_unzip_* 目录树（含子目录），保留其它', () => {
+    const m = memDirFs()
+    m.addDir('/data/nianlun_unzip_1'); m.addDir('/data/nianlun_unzip_1/batch_01')
+    m.addFile('/data/nianlun_unzip_1/batch_01/a.jsonl')
+    m.addDir('/data/nianlun_unzip_2'); m.addFile('/data/nianlun_unzip_2/b.jsonl')
+    m.addDir('/data/nianlun_raw'); m.addFile('/data/nianlun_raw/keep.jsonl')
+    expect(purgeUnzipTemp(m.fs, '/data')).toBe(2)
+    expect(m.has('/data/nianlun_unzip_1')).toBe(false)
+    expect(m.has('/data/nianlun_unzip_1/batch_01/a.jsonl')).toBe(false)
+    expect(m.has('/data/nianlun_unzip_2/b.jsonl')).toBe(false)
+    expect(m.has('/data/nianlun_raw/keep.jsonl')).toBe(true) // 非 unzip 目录保留
   })
 
   it('baseDir 读不到时返回 0、不抛', () => {
-    const fs = { readdirSync: () => { throw new Error('ENOENT') }, rmdirSync: () => {} }
-    expect(purgeUnzipTemp(fs, '/data')).toBe(0)
+    const m = memDirFs()
+    expect(purgeUnzipTemp(m.fs, '/empty')).toBe(0)
   })
 })
