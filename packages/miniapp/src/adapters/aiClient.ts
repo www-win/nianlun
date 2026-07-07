@@ -2,11 +2,12 @@ import {
   buildReportCopyPrompt, buildFriendSuggestionPrompt, parseFriendSuggestion,
   buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment,
   buildFriendProfilePrompt, parseFriendProfile,
+  buildMbtiPrompt, parseMbti,
   buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirthInfo,
   buildStockExtractionPrompt, parseStockExtraction,
 } from '@nianlun/core'
 import type {
-  Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile,
+  Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile, MbtiResult,
   BaziChart, DayFortune, Compatibility, AstroReading, BirthInfo,
   StockPick, ExtractCtx,
 } from '@nianlun/core'
@@ -29,6 +30,10 @@ export function makeAiClient(transport: Transport) {
     async analyzeFriendProfile(friend: Friend, samples: string[]): Promise<FriendProfile> {
       const text = await transport(buildFriendProfilePrompt(friend, samples), 1024)
       return parseFriendProfile(text)
+    },
+    async analyzeFriendMbti(friend: Friend, samples: string[]): Promise<MbtiResult | null> {
+      const text = await transport(buildMbtiPrompt(friend, samples), 768)
+      return parseMbti(text)
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
       return transport(buildYearSentimentPrompt(report, sampleLines), 1024)

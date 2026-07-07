@@ -44,6 +44,15 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][0]).toContain('张三')
   })
 
+  it('analyzeFriendMbti：transport 返回 JSON → MbtiResult；脏输出 → null', async () => {
+    const good = makeAiClient(async () => '{"code":"INTJ","summary":"理性。"}')
+    const r = await good.analyzeFriendMbti(FRIEND, ['我：hi'])
+    expect(r?.code).toBe('INTJ')
+
+    const bad = makeAiClient(async () => '不是 JSON')
+    expect(await bad.analyzeFriendMbti(FRIEND, [])).toBeNull()
+  })
+
   it('analyzeYearSentiment 回传整段文本', async () => {
     const transport = vi.fn().mockResolvedValue('这一年整体热络、以正向互动为主。')
     const out = await makeAiClient(transport).analyzeYearSentiment(REPORT, ['对方：新年快乐'])

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
 import { makeFsJson } from '../fsStore'
 import type { RawFsBackend } from '../rawStore'
-import type { Friend, ReportData, BirthInfo, StockPick } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, StockPick, MbtiResult } from '@nianlun/core'
 
 function memBackend() {
   const m = new Map<string, unknown>()
@@ -247,6 +247,31 @@ describe('四类 AI 结果持久化', () => {
     expect(s.loadFriendProfile('f1', FRIEND_FP)).toBeNull()
     expect(s.loadReportCopy(REPORT_FP)).toBeNull()
     expect(s.loadYearMood(REPORT_FP)).toBeNull()
+  })
+
+  it('saveFriendMbti/loadFriendMbti 往返，指纹随 msgCount 失效，clearAll 清空', () => {
+    const s = makeStorage(memBackend())
+    const data: MbtiResult = {
+      code: 'INTJ', title: '建筑师', summary: 's',
+      dimensions: [
+        { axis: 'EI', pole: 'I', strength: 70 },
+        { axis: 'SN', pole: 'N', strength: 60 },
+        { axis: 'TF', pole: 'T', strength: 80 },
+        { axis: 'JP', pole: 'J', strength: 55 },
+      ],
+    }
+    s.saveFriendMbti('f1', FRIEND_FP, data)
+
+    const fresh = s.loadFriendMbti('f1', FRIEND_FP)
+    expect(fresh).not.toBeNull()
+    expect(fresh!.data.code).toBe('INTJ')
+    expect(fresh!.stale).toBe(false)
+
+    const changed = { ...FRIEND_FP, msgCount: 200 } as Friend
+    expect(s.loadFriendMbti('f1', changed)!.stale).toBe(true)
+
+    s.clearAll()
+    expect(s.loadFriendMbti('f1', FRIEND_FP)).toBeNull()
   })
 })
 
