@@ -141,6 +141,7 @@ function onRole(e: { detail: { value: string } }) {
 }
 
 const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
+const sentimentStale = ref(false)
 const loadingSent = ref(false)
 async function analyzeSentiment() {
   const f = friend.value
@@ -149,7 +150,13 @@ async function analyzeSentiment() {
   loadingSent.value = true
   try {
     const r = await aiClient.analyzeFriendSentiment(f, s)
-    sentiment.value = (r.tone || r.summary) ? r : { summary: 'AI 无法判断情绪' }
+    if (r.tone || r.summary) {
+      sentiment.value = r
+      storage.saveFriendSentiment(f.id, f, r)   // 仅有效结果落盘
+      sentimentStale.value = false
+    } else {
+      sentiment.value = { summary: 'AI 无法判断情绪' } // 空结果不写盘，允许重试
+    }
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none' })
   } finally {
@@ -158,6 +165,7 @@ async function analyzeSentiment() {
 }
 
 const profile = ref<FriendProfile | null>(null)
+const profileStale = ref(false)
 const loadingProfile = ref(false)
 async function analyzeProfile() {
   const f = friend.value
@@ -166,14 +174,28 @@ async function analyzeProfile() {
   loadingProfile.value = true
   try {
     const r = await aiClient.analyzeFriendProfile(f, s)
-    profile.value = (r.identity || r.family || r.romance || r.lifestyle || r.investment)
-      ? r
-      : { identity: 'AI 无法生成画像' }
+    if (r.identity || r.family || r.romance || r.lifestyle || r.investment) {
+      profile.value = r
+      storage.saveFriendProfile(f.id, f, r)      // 仅有效结果落盘
+      profileStale.value = false
+    } else {
+      profile.value = { identity: 'AI 无法生成画像' } // 空结果不写盘，允许重试
+    }
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none' })
   } finally {
     loadingProfile.value = false
   }
+}
+
+// 进页/返回时装载已持久化的情绪/画像缓存，命中直显、过期打标（不自动重算）。
+function loadAiCache() {
+  const f = friend.value
+  if (!f) return
+  const sent = storage.loadFriendSentiment(f.id, f)
+  if (sent) { sentiment.value = sent.data; sentimentStale.value = sent.stale }
+  const prof = storage.loadFriendProfile(f.id, f)
+  if (prof) { profile.value = prof.data; profileStale.value = prof.stale }
 }
 
 // —— 命理运势 —— //
@@ -211,8 +233,8 @@ function loadAstroCache() {
     : false
 }
 
-// 从「我的命盘」设置页返回后刷新生辰与缓存
-onShow(() => { reloadBirths(); loadAstroCache() })
+// 从「我的命盘」设置页返回后刷新生辰与缓存；顺带装载情绪/画像缓存
+onShow(() => { reloadBirths(); loadAstroCache(); loadAiCache() })
 
 // 实时装配（用于机械展示：五行/合盘/流日相冲——不进 AI 缓存，随日期与我的盘实时算）
 const astroLive = computed(() => {
@@ -412,11 +434,12 @@ async function generateAstro() {
       <view class="card block">
         <view class="edit-row">
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
-          <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : '✦ 情绪分析' }}</text>
-          <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : '✦ 好友画像' }}</text>
+          <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : (sentiment ? '↻ 重新分析' : '✦ 情绪分析') }}</text>
+          <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : (profile ? '↻ 重新生成' : '✦ 好友画像') }}</text>
         </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
         <view v-if="sentiment" class="senti">
+          <text v-if="sentimentStale" class="astro-stale" @click="analyzeSentiment">数据已更新，点「重新分析」刷新</text>
           <view v-if="sentiment.tone" class="senti-tone">{{ sentiment.tone }}</view>
           <text v-if="sentiment.summary" class="senti-sum">{{ sentiment.summary }}</text>
           <text class="senti-note faint">AI 推测，仅供参考</text>
@@ -425,6 +448,7 @@ async function generateAstro() {
 
       <view v-if="profile" class="card block">
         <text class="block-t">好友画像</text>
+        <text v-if="profileStale" class="astro-stale" @click="analyzeProfile">数据已更新，点「重新生成」刷新</text>
         <view class="prof">
           <view class="prof-row"><text class="prof-k">身份/职业</text><text class="prof-v">{{ profile.identity || '暂无足够线索' }}</text></view>
           <view class="prof-row"><text class="prof-k">家庭状况</text><text class="prof-v">{{ profile.family || '暂无足够线索' }}</text></view>

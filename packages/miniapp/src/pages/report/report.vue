@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useDataStore } from '../../stores/data'
 import { aiClient } from '../../adapters/aiClient'
 import { samples } from '../../adapters/samples'
+import { storage } from '../../adapters/storage'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import SunBaby from '../../components/SunBaby.vue'
 import GrassHills from '../../components/GrassHills.vue'
@@ -11,9 +12,11 @@ const data = useDataStore()
 const report = computed(() => data.report)
 
 const copy = ref('')
+const copyStale = ref(false)
 const loadingCopy = ref(false)
 
 const mood = ref('')
+const moodStale = ref(false)
 const loadingMood = ref(false)
 async function genMood() {
   if (!report.value) return
@@ -29,6 +32,8 @@ async function genMood() {
   loadingMood.value = true
   try {
     mood.value = await aiClient.analyzeYearSentiment(report.value, lines)
+    storage.saveYearMood(report.value, mood.value)
+    moodStale.value = false
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none' })
   } finally {
@@ -41,6 +46,8 @@ async function genCopy() {
   loadingCopy.value = true
   try {
     copy.value = await aiClient.generateReportCopy(report.value, data.friends)
+    storage.saveReportCopy(report.value, copy.value)
+    copyStale.value = false
     draw()
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none' })
@@ -145,7 +152,17 @@ function save() {
   })
 }
 
-onMounted(draw)
+// 进页装载已持久化的文案/全年情绪缓存：命中直显（文案命中则出图），过期打标不重算。
+onMounted(() => {
+  const r = report.value
+  if (r) {
+    const c = storage.loadReportCopy(r)
+    if (c) { copy.value = c.data; copyStale.value = c.stale }
+    const m = storage.loadYearMood(r)
+    if (m) { mood.value = m.data; moodStale.value = m.stale }
+  }
+  draw()
+})
 </script>
 
 <template>
@@ -193,12 +210,14 @@ onMounted(draw)
         </view>
         <view class="btn-primary half" hover-class="hover" @click="save">保存到相册</view>
       </view>
+      <text v-if="copyStale" class="stale-hint" @click="genCopy">数据已更新，点「生成年度文案」刷新</text>
 
       <view class="card mood">
         <view class="mood-head">
           <text class="mood-t">全年情绪</text>
           <text class="mood-btn" @click="genMood">{{ loadingMood ? '分析中…' : '✦ AI 分析' }}</text>
         </view>
+        <text v-if="moodStale" class="stale-hint" @click="genMood">数据已更新，点「AI 分析」刷新</text>
         <text v-if="mood" class="mood-body">{{ mood }}</text>
         <text v-else class="mood-body ph">点右上「AI 分析」，让 AI 说说你这一年的社交情绪基调</text>
         <text v-if="mood" class="mood-note faint">AI 推测，仅供参考</text>
@@ -251,6 +270,8 @@ onMounted(draw)
 .mood-body { display: block; margin-top: 20rpx; font-size: 28rpx; line-height: 1.85; color: var(--fg); }
 .mood-body.ph { color: var(--faint); font-size: 26rpx; }
 .mood-note { display: block; margin-top: 14rpx; font-size: 21rpx; }
+
+.stale-hint { display: block; margin-top: 16rpx; padding: 10rpx 18rpx; font-size: 22rpx; color: #b8860b; background: rgba(184,134,11,0.1); border-radius: 10rpx; }
 
 .offscreen { position: fixed; left: -9999px; top: 0; }
 </style>
