@@ -119,8 +119,7 @@ export function createImportStore(deps: Deps = {}) {
           storage.saveRecentInsights({ ...storage.loadRecentInsights(), ...outcome.recentInsights })
           storage.saveRecentSamples({ ...storage.loadRecentSamples(), ...outcome.recentSamples })
           warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
-          status.value = 'done'                 // 导入完成：好友列表立即可用
-          await analyzePendingRoles()            // 之后后台补分析（达标未分析的），UI 已解锁
+          status.value = 'done'                 // 导入完成：好友列表立即可用（分析改为好友列表手动触发）
         } else if (contactNames.length) {
           // 只导入了 contacts.json：给已有好友套真名，报告不变
           if (!prevReport) {

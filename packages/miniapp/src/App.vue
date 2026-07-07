@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
-import { useImportStore } from './stores/import'
 import { purgeUnzipTemp } from './adapters/fileReader'
 import { storage } from './adapters/storage'
 import { rawStore } from './adapters/rawStore'
@@ -23,8 +22,6 @@ onLaunch(async () => {
     wx.cloud.init({ env: 'cloud1-d4gzww8dp909b47cb' })
   }
   await useDataStore().hydrate()
-  // 启动后台补分析：存量里「消息达标且未分析」的好友，串行渐进补关系/职务，不阻塞启动。
-  void useImportStore().analyzePendingRoles()
 })
 </script>
 
