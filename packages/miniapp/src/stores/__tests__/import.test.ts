@@ -315,3 +315,77 @@ describe('analyzeStocks（重新导入当场抽取）', () => {
     expect(imp.warnings.some((w) => w.includes('messy.txt') && w.includes('无法识别的行'))).toBe(true)
   })
 })
+
+describe('analyzeOne（手动单个分析）', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('成功：写入 rel/role、计入 analyzedIds、返回 ok（不受门槛限制）', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({ rel: '同事', role: '产品经理' })
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => ['我：hi'] })
+    const imp = useImport()
+    await useData().setData([mkFriend('a', 5)], REPORT)     // 5 条 < 20，验证手动不套门槛
+    const r = await imp.analyzeOne('a')
+    expect(r.status).toBe('ok')
+    expect(suggest).toHaveBeenCalledTimes(1)
+    expect(useData().friends[0].role).toBe('产品经理')
+    expect(useData().friends[0].rel).toBe('同事')
+    expect(s.loadAnalyzedIds()).toContain('a')
+    expect(imp.analyzingIds.has('a')).toBe(false)           // 收尾清空
+  })
+
+  it('AI 无结果：返回 empty，不写入、不计集合', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockResolvedValue({})
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await useData().setData([mkFriend('a', 30)], REPORT)
+    const r = await imp.analyzeOne('a')
+    expect(r.status).toBe('empty')
+    expect(useData().friends[0].role).toBe('')
+    expect(s.loadAnalyzedIds()).toEqual([])
+  })
+
+  it('suggest 抛异常：返回 error 带 message、不 reject、状态复位', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn().mockRejectedValue(new Error('云函数超时'))
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await useData().setData([mkFriend('a', 30)], REPORT)
+    const r = await imp.analyzeOne('a')
+    expect(r.status).toBe('error')
+    expect(r.error).toContain('云函数超时')
+    expect(imp.analyzingIds.has('a')).toBe(false)
+  })
+
+  it('重入保护：该好友分析中再次调用返回 skipped、不重复触发 suggest', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    let release!: (v: unknown) => void
+    const suggest = vi.fn(() => new Promise((res) => { release = res }))
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await useData().setData([mkFriend('a', 30)], REPORT)
+    const p1 = imp.analyzeOne('a')            // 挂起中（suggest 未 resolve）
+    const r2 = await imp.analyzeOne('a')      // 同一好友：立即 skipped
+    expect(r2.status).toBe('skipped')
+    expect(suggest).toHaveBeenCalledTimes(1)
+    release({ role: 'PM' })
+    await p1
+  })
+
+  it('好友不存在：返回 skipped、不触发 suggest', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const suggest = vi.fn()
+    const useImport = createImportStore({ useData, storage: s, suggest, loadSamples: () => [] })
+    const imp = useImport()
+    await useData().setData([mkFriend('a', 30)], REPORT)
+    const r = await imp.analyzeOne('missing')
+    expect(r.status).toBe('skipped')
+    expect(suggest).not.toHaveBeenCalled()
+  })
+})

@@ -35,6 +35,14 @@ type Deps = {
 }
 export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
 
+/** 单个好友手动分析的结果状态。store 不触碰 uni，toast 交页面按此枚举处理。 */
+export type AnalyzeOneStatus = 'ok' | 'empty' | 'error' | 'skipped'
+export interface AnalyzeOneResult {
+  status: AnalyzeOneStatus
+  /** status==='error' 时的错误信息，供页面 toast。 */
+  error?: string
+}
+
 export function createImportStore(deps: Deps = {}) {
   const useData = deps.useData ?? defaultUseData
   const storage = deps.storage ?? defaultStorage
@@ -79,6 +87,34 @@ export function createImportStore(deps: Deps = {}) {
         warnings.value = [...warnings.value, `自动分析未完成：${(e as Error).message}`]
       } finally {
         analyzing.value = null
+      }
+    }
+
+    // 好友列表「手动分析」正在进行的好友 id（按钮 loading + 防重复点击）。替换新 Set 触发响应式。
+    const analyzingIds = ref<Set<string>>(new Set())
+
+    /**
+     * 手动分析单个好友：推断关系/职务并写入。手动触发，不套用消息数门槛。
+     * store 保持纯逻辑、不碰 uni；返回结果枚举，由页面 toast。重入保护（同一好友分析中返回 skipped）。
+     */
+    async function analyzeOne(id: string): Promise<AnalyzeOneResult> {
+      if (analyzingIds.value.has(id)) return { status: 'skipped' }
+      const d = useData()
+      const f = d.friends.find((x) => x.id === id)
+      if (!f) return { status: 'skipped' }
+      analyzingIds.value = new Set(analyzingIds.value).add(id)   // await 前置位守卫
+      try {
+        const sug = await suggest(f, loadSamples(f.id))
+        if (sug.rel || sug.role) {
+          await d.updateFriend(id, { rel: sug.rel, role: sug.role })
+          storage.saveAnalyzedIds([...new Set([...storage.loadAnalyzedIds(), id])])
+          return { status: 'ok' }
+        }
+        return { status: 'empty' }
+      } catch (e) {
+        return { status: 'error', error: (e as Error)?.message ?? String(e) }
+      } finally {
+        const next = new Set(analyzingIds.value); next.delete(id); analyzingIds.value = next
       }
     }
 
@@ -188,7 +224,8 @@ export function createImportStore(deps: Deps = {}) {
     function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; analyzingStocks.value = null; stocksSavedCount.value = 0 }
     return {
       status, progress, warnings, error, analyzing, analyzingStocks, stocksSavedCount,
-      run, analyzePendingRoles, analyzeStocks, reset,
+      analyzingIds,
+      run, analyzePendingRoles, analyzeOne, analyzeStocks, reset,
     }
   })
 }
