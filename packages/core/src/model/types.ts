@@ -1,5 +1,11 @@
 export type Relation = '家人' | '挚友' | '同事' | '同学' | '客户' | '其他'
 
+export type MbtiCode =
+  | 'INTJ' | 'INTP' | 'ENTJ' | 'ENTP'
+  | 'INFJ' | 'INFP' | 'ENFJ' | 'ENFP'
+  | 'ISTJ' | 'ISFJ' | 'ESTJ' | 'ESFJ'
+  | 'ISTP' | 'ISFP' | 'ESTP' | 'ESFP'
+
 export interface Message {
   ts: number
   from: 'me' | 'them'
@@ -50,7 +56,7 @@ export interface Friend {
   hourly: number[]       // 长度 24，按小时(0–23)消息数
   weekHour: number[]     // 长度 168，索引 = getDay(0=周日)*24 + 小时
   keywords: Array<{ word: string; count: number }>  // 该好友 Top 20 高频词
-  userEdited: { role?: string; rel?: Relation; alias?: string; name?: string }
+  userEdited: { role?: string; rel?: Relation; alias?: string; name?: string; mbti?: MbtiCode }
   emotion?: FriendEmotion
 }
 

@@ -66,6 +66,14 @@ describe('mergeFriends', () => {
     expect(friends[0].msgCount).toBe(150)  // 统计用新值
     expect(friends[0].name).toBe('张兴国')  // 套用的名字保留
   })
+
+  it('mergeFriends 保留用户手改的 userEdited.mbti，不被重新导入覆盖', () => {
+    const old = createFriend('u1', '老王')
+    old.userEdited.mbti = 'INTJ'
+    const inc = createFriend('u1', '老王') // 重新导入，无 mbti
+    const { friends } = mergeFriends([old], [inc])
+    expect(friends[0].userEdited.mbti).toBe('INTJ')
+  })
 })
 
 describe('mergeFriends emotion', () => {

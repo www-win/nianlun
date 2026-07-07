@@ -1,7 +1,7 @@
 export const version = '0.1.0'
 
 export type {
-  Message, Conversation, Friend, ReportData, Relation,
+  Message, Conversation, Friend, ReportData, Relation, MbtiCode,
   ParseWarning, ParseResult, Parser,
 } from './model/types'
 
