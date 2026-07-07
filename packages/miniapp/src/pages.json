@@ -5,7 +5,8 @@
     { "path": "pages/friends/friends", "style": { "navigationBarTitleText": "好友" } },
     { "path": "pages/friend-detail/friend-detail", "style": { "navigationBarTitleText": "好友详情" } },
     { "path": "pages/my-bazi/my-bazi", "style": { "navigationBarTitleText": "我的命盘" } },
-    { "path": "pages/network/network", "style": { "navigationBarTitleText": "关系网" } },
+    { "path": "pages/stock/stock", "style": { "navigationBarTitleText": "二级市场" } },
+    { "path": "pages/stock-detail/stock-detail", "style": { "navigationBarTitleText": "荐股详情" } },
     { "path": "pages/report/report", "style": { "navigationBarTitleText": "年度报告" } }
   ],
   "tabBar": {
@@ -17,7 +18,7 @@
       { "pagePath": "pages/import/import", "text": "导入" },
       { "pagePath": "pages/overview/overview", "text": "概览" },
       { "pagePath": "pages/friends/friends", "text": "好友" },
-      { "pagePath": "pages/network/network", "text": "关系网" },
+      { "pagePath": "pages/stock/stock", "text": "二级市场" },
       { "pagePath": "pages/report/report", "text": "报告" }
     ]
   }
