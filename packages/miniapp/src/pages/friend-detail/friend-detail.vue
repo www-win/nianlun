@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
-import type { Relation, FriendProfile, BirthInfo } from '@nianlun/core'
+import type { Relation, FriendProfile, BirthInfo, MbtiResult } from '@nianlun/core'
+import { effectiveMbtiCode, mbtiTitle, MBTI_CODES } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
@@ -188,6 +189,38 @@ async function analyzeProfile() {
   }
 }
 
+const mbtiAi = ref<MbtiResult | null>(null)
+const mbtiStale = ref(false)
+const loadingMbti = ref(false)
+const MBTI_SRC_LABEL: Record<string, string> = { manual: '手动', remark: '备注', ai: 'AI', none: '' }
+const AXIS_POLES: Record<string, [string, string]> = {
+  EI: ['E 外向', 'I 内向'], SN: ['S 实感', 'N 直觉'], TF: ['T 思考', 'F 情感'], JP: ['J 判断', 'P 知觉'],
+}
+const mbtiEff = computed(() =>
+  friend.value ? effectiveMbtiCode(friend.value, mbtiAi.value?.code ?? null) : { code: null, source: 'none' as const },
+)
+const mbtiPickerOptions = [...MBTI_CODES, '清除']
+
+async function analyzeMbti() {
+  const f = friend.value
+  if (!f || loadingMbti.value) return
+  const s = samples.loadSamplesFor(f.id)
+  loadingMbti.value = true
+  try {
+    const r = await aiClient.analyzeFriendMbti(f, s)
+    if (r) { mbtiAi.value = r; storage.saveFriendMbti(f.id, f, r); mbtiStale.value = false }
+    else uni.showToast({ title: 'AI 未能判断 MBTI', icon: 'none' })
+  } finally { loadingMbti.value = false }
+}
+
+function onMbtiPick(e: { detail: { value: number | string } }) {
+  const f = friend.value
+  if (!f) return
+  const i = Number(e.detail.value)
+  if (i >= MBTI_CODES.length) data.updateFriend(f.id, { mbti: null })
+  else data.updateFriend(f.id, { mbti: MBTI_CODES[i] })
+}
+
 // 进页/返回时装载已持久化的情绪/画像缓存，命中直显、过期打标（不自动重算）。
 function loadAiCache() {
   const f = friend.value
@@ -196,6 +229,8 @@ function loadAiCache() {
   if (sent) { sentiment.value = sent.data; sentimentStale.value = sent.stale }
   const prof = storage.loadFriendProfile(f.id, f)
   if (prof) { profile.value = prof.data; profileStale.value = prof.stale }
+  const mb = storage.loadFriendMbti(f.id, f)
+  if (mb) { mbtiAi.value = mb.data; mbtiStale.value = mb.stale }
 }
 
 // —— 命理运势 —— //
@@ -466,6 +501,46 @@ async function generateAstro() {
         <text class="senti-note faint">AI 推测，仅供参考</text>
       </view>
 
+      <view class="card block">
+        <view class="mbti-head">
+          <text class="block-t">MBTI 人格</text>
+          <text v-if="mbtiEff.code" class="mbti-src">{{ MBTI_SRC_LABEL[mbtiEff.source] }}</text>
+        </view>
+        <text v-if="mbtiStale && mbtiEff.source === 'ai'" class="astro-stale" @click="analyzeMbti">数据已更新，点「重新分析」刷新</text>
+
+        <view v-if="mbtiEff.code" class="mbti-code-row">
+          <text class="mbti-code">{{ mbtiEff.code }}</text>
+          <text class="mbti-title">{{ mbtiTitle(mbtiEff.code) }}</text>
+        </view>
+        <text v-else class="prof-v">尚未识别，可从备注写入类型码、AI 分析或手动选择。</text>
+
+        <view v-if="mbtiAi" class="mbti-dims">
+          <view v-for="d in mbtiAi.dimensions" :key="d.axis" class="mbti-dim">
+            <text class="mbti-dim-l">{{ AXIS_POLES[d.axis][0] }}</text>
+            <view class="mbti-bar">
+              <view
+                class="mbti-fill"
+                :class="{ right: d.pole === d.axis[1] }"
+                :style="{ width: d.strength + '%' }"
+              ></view>
+            </view>
+            <text class="mbti-dim-r">{{ AXIS_POLES[d.axis][1] }}</text>
+          </view>
+        </view>
+        <text v-if="mbtiAi && mbtiAi.summary" class="prof-v mbti-summary">{{ mbtiAi.summary }}</text>
+
+        <view class="mbti-acts">
+          <picker :range="mbtiPickerOptions" @change="onMbtiPick">
+            <text class="act">✎ 手动设置</text>
+          </picker>
+          <text
+            v-if="mbtiEff.source === 'ai' || mbtiEff.source === 'none'"
+            class="act act-ai"
+            @click="analyzeMbti"
+          >{{ loadingMbti ? '分析中…' : (mbtiAi ? '↻ 重新分析' : '✦ AI 分析 MBTI') }}</text>
+        </view>
+      </view>
+
       <!-- 命理运势 -->
       <view class="card block">
         <view class="edit-row">
@@ -649,4 +724,19 @@ async function generateAstro() {
 .mech-tag { padding: 6rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; }
 .mech-tag.clash { background: rgba(217,106,90,0.14); color: #c0392b; }
 .mech-tag.harm { background: var(--accent-wash); color: var(--accent-strong); }
+
+.mbti-head { display: flex; align-items: center; justify-content: space-between; }
+.mbti-src { font-size: 22rpx; color: #8a8f99; }
+.mbti-code-row { display: flex; align-items: baseline; gap: 16rpx; margin: 12rpx 0; }
+.mbti-code { font-size: 48rpx; font-weight: 700; letter-spacing: 4rpx; }
+.mbti-title { font-size: 26rpx; color: #5a7fd0; }
+.mbti-dims { margin: 12rpx 0; }
+.mbti-dim { display: flex; align-items: center; gap: 12rpx; margin: 8rpx 0; }
+.mbti-dim-l, .mbti-dim-r { font-size: 22rpx; color: #8a8f99; width: 120rpx; }
+.mbti-dim-r { text-align: right; }
+.mbti-bar { flex: 1; height: 12rpx; background: #eceef2; border-radius: 6rpx; overflow: hidden; position: relative; }
+.mbti-fill { height: 100%; background: #5a7fd0; }
+.mbti-fill.right { margin-left: auto; }
+.mbti-summary { display: block; margin-top: 8rpx; }
+.mbti-acts { display: flex; align-items: center; gap: 24rpx; margin-top: 12rpx; }
 </style>

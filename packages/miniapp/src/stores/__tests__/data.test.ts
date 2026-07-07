@@ -55,6 +55,17 @@ describe('data store', () => {
     expect(s.loadFriends()[0].role).toBe('产品经理')
   })
 
+  it('updateFriend 设置与清除 userEdited.mbti', async () => {
+    const s = memStorage()
+    const d = createDataStore(s)()
+    await d.setData([FRIEND], REPORT)
+    await d.updateFriend('f1', { mbti: 'INTJ' })
+    expect(d.friends.find((f) => f.id === 'f1')!.userEdited.mbti).toBe('INTJ')
+
+    await d.updateFriend('f1', { mbti: null })
+    expect(d.friends.find((f) => f.id === 'f1')!.userEdited.mbti).toBeUndefined()
+  })
+
   it('clear 清空 friends/report 并调用 storage.clearAll 与 rawStore.clear', async () => {
     const s = memStorage()
     const rs = fakeRawStore()

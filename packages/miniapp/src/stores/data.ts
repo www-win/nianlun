@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Friend, ReportData, Relation } from '@nianlun/core'
+import type { Friend, ReportData, Relation, MbtiCode } from '@nianlun/core'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
 import { rawStore as defaultRawStore, makeRawStore } from '../adapters/rawStore'
 
@@ -24,12 +24,19 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
       storage.saveFriends(JSON.parse(JSON.stringify(newFriends)))
       storage.saveReport(JSON.parse(JSON.stringify(newReport)))
     }
-    async function updateFriend(id: string, patch: { role?: string; rel?: Relation; alias?: string }) {
+    async function updateFriend(
+      id: string,
+      patch: { role?: string; rel?: Relation; alias?: string; mbti?: MbtiCode | null },
+    ) {
       const f = friends.value.find((x) => x.id === id)
       if (!f) return
       if (patch.role !== undefined) { f.role = patch.role; f.userEdited.role = patch.role }
       if (patch.rel !== undefined) { f.rel = patch.rel; f.userEdited.rel = patch.rel }
       if (patch.alias !== undefined) { f.alias = patch.alias; f.userEdited.alias = patch.alias }
+      if (patch.mbti !== undefined) {
+        if (patch.mbti === null) delete f.userEdited.mbti
+        else f.userEdited.mbti = patch.mbti
+      }
       storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))
     }
     async function clear() {
