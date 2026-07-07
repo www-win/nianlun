@@ -8,6 +8,7 @@ onLaunch(async () => {
   // 已停止留存原文（将来二级分析改为导入时即时提取），这里一次性回收历史囤积、避免占配额：
   // ① Storage 原文残留键(nianlun:raw:*)——真机无 Console 手动清；② 文件系统原文目录(nianlun_raw)；③ 解压临时目录。
   storage.purgeLegacyRaw()
+  storage.purgeLegacyBigKeys()   // ← 新增：清掉旧版存 KV 的大数据(已迁文件系统)，回收配额
   // @ts-ignore wx 由微信小程序运行时提供
   if (typeof wx !== 'undefined' && wx.getFileSystemManager) {
     rawStore.clear()
