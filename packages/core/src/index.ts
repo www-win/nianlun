@@ -19,7 +19,11 @@ export { buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment, b
 export type { Sentiment, DeepSentiment, MoodTimelinePoint } from './ai/sentiment'
 export { buildFriendProfilePrompt, parseFriendProfile } from './ai/profile'
 export type { FriendProfile, InvestmentProfile } from './ai/profile'
-export { MBTI_CODES, MBTI_TITLES, mbtiTitle, detectMbtiFromText } from './ai/mbti'
+export {
+  MBTI_CODES, MBTI_TITLES, mbtiTitle, detectMbtiFromText,
+  buildMbtiPrompt, parseMbti, effectiveMbtiCode,
+} from './ai/mbti'
+export type { MbtiAxis, MbtiDimension, MbtiResult, MbtiSource } from './ai/mbti'
 export {
   extractFriendSamples, buildFriendSuggestionPrompt, parseFriendSuggestion,
 } from './ai/suggestion'
