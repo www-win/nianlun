@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useDataStore } from '../../stores/data'
+import { useImportStore } from '../../stores/import'
 import type { Relation } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 
 const data = useDataStore()
+const imp = useImportStore()
 const kw = ref('')
 const sortKey = ref<'msgCount' | 'lastContact'>('msgCount')
 const RELS: Relation[] = ['家人', '挚友', '同事', '同学', '客户', '其他']
@@ -32,6 +34,20 @@ function onRel(id: string, e: { detail: { value: number } }) {
 }
 function onRole(id: string, e: { detail: { value: string } }) {
   data.updateFriend(id, { role: e.detail.value })
+}
+
+// 手动分析单个好友：调 store，按返回枚举 toast（uni 仅在页面层用，store 保持纯）。
+async function onAnalyze(id: string) {
+  const f = data.friends.find((x) => x.id === id)
+  const r = await imp.analyzeOne(id)
+  if (r.status === 'ok') {
+    uni.showToast({ title: `已分析：${f?.alias || f?.name || ''}`, icon: 'none' })
+  } else if (r.status === 'empty') {
+    uni.showToast({ title: '未分析出结果', icon: 'none' })
+  } else if (r.status === 'error') {
+    uni.showToast({ title: `分析失败：${r.error ?? ''}`, icon: 'none' })
+  }
+  // skipped（重入/无此人）：不提示
 }
 </script>
 
@@ -76,6 +92,12 @@ function onRole(id: string, e: { detail: { value: string } }) {
           <picker class="act" :range="RELS" @change="(e) => onRel(f.id, e)">
             <text class="act-t">改关系</text>
           </picker>
+          <view
+            class="act act-ai" :class="{ busy: imp.analyzingIds.has(f.id) }"
+            @click="onAnalyze(f.id)"
+          >
+            <text class="act-t">{{ imp.analyzingIds.has(f.id) ? '分析中…' : '🪄 AI分析' }}</text>
+          </view>
           <input
             class="role-input" :value="f.role" placeholder="职务 / 备注"
             placeholder-class="ph" @blur="(e) => onRole(f.id, e)"
@@ -132,6 +154,7 @@ function onRole(id: string, e: { detail: { value: string } }) {
 }
 .act-t { font-size: 24rpx; }
 .act-ai { color: var(--accent-strong); background: var(--accent-wash); }
+.act-ai.busy { opacity: 0.5; }
 .role-input {
   flex: 1; min-width: 160rpx; height: 60rpx; padding: 0 18rpx;
   font-size: 24rpx; color: var(--fg);
