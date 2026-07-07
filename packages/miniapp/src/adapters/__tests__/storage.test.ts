@@ -163,6 +163,93 @@ describe('命理存储', () => {
   })
 })
 
+describe('四类 AI 结果持久化', () => {
+  const FRIEND_FP = { id: 'f1', name: '张三', msgCount: 100, lastContact: 1700000000000 } as unknown as Friend
+  const REPORT_FP = { year: 2025, totalMessages: 5000, friendCount: 50, activeDays: 200 } as unknown as ReportData
+
+  it('好友情绪：save/load 往返一致且新鲜', () => {
+    const s = makeStorage(memBackend())
+    s.saveFriendSentiment('f1', FRIEND_FP, { tone: '热络', summary: '常聊' })
+    expect(s.loadFriendSentiment('f1', FRIEND_FP)).toEqual({ data: { tone: '热络', summary: '常聊' }, stale: false })
+  })
+
+  it('好友情绪：msgCount 变化 → 旧缓存 + stale=true，且未清空', () => {
+    const s = makeStorage(memBackend())
+    s.saveFriendSentiment('f1', FRIEND_FP, { tone: '热络' })
+    const changed = { ...FRIEND_FP, msgCount: 200 } as Friend
+    expect(s.loadFriendSentiment('f1', changed)).toEqual({ data: { tone: '热络' }, stale: true })
+    expect(s.loadFriendSentiment('f1', FRIEND_FP)!.stale).toBe(false) // 未被清空
+  })
+
+  it('好友情绪：lastContact 变化也判过期', () => {
+    const s = makeStorage(memBackend())
+    s.saveFriendSentiment('f1', FRIEND_FP, { tone: '热络' })
+    const changed = { ...FRIEND_FP, lastContact: 1800000000000 } as Friend
+    expect(s.loadFriendSentiment('f1', changed)!.stale).toBe(true)
+  })
+
+  it('好友情绪：无缓存返回 null', () => {
+    expect(makeStorage(memBackend()).loadFriendSentiment('f1', FRIEND_FP)).toBeNull()
+  })
+
+  it('好友级 map 隔离：写 A 不影响 B', () => {
+    const s = makeStorage(memBackend())
+    const A = { ...FRIEND_FP, id: 'A' } as Friend
+    const B = { ...FRIEND_FP, id: 'B' } as Friend
+    s.saveFriendSentiment('A', A, { tone: 'A调' })
+    expect(s.loadFriendSentiment('B', B)).toBeNull()
+    expect(s.loadFriendSentiment('A', A)!.data.tone).toBe('A调')
+  })
+
+  it('好友画像：save/load 往返 + msgCount 变化判过期', () => {
+    const s = makeStorage(memBackend())
+    s.saveFriendProfile('f1', FRIEND_FP, { identity: '医生' })
+    expect(s.loadFriendProfile('f1', FRIEND_FP)).toEqual({ data: { identity: '医生' }, stale: false })
+    const changed = { ...FRIEND_FP, msgCount: 300 } as Friend
+    expect(s.loadFriendProfile('f1', changed)!.stale).toBe(true)
+  })
+
+  it('报告文案：save/load 往返新鲜；totalMessages 变化 → stale 且保留旧值', () => {
+    const s = makeStorage(memBackend())
+    s.saveReportCopy(REPORT_FP, '这一年很温暖')
+    expect(s.loadReportCopy(REPORT_FP)).toEqual({ data: '这一年很温暖', stale: false })
+    const changed = { ...REPORT_FP, totalMessages: 6000 } as ReportData
+    expect(s.loadReportCopy(changed)).toEqual({ data: '这一年很温暖', stale: true })
+  })
+
+  it('全年情绪：save/load 往返 + friendCount 变化判过期', () => {
+    const s = makeStorage(memBackend())
+    s.saveYearMood(REPORT_FP, '整体热络')
+    expect(s.loadYearMood(REPORT_FP)).toEqual({ data: '整体热络', stale: false })
+    const changed = { ...REPORT_FP, friendCount: 60 } as ReportData
+    expect(s.loadYearMood(changed)!.stale).toBe(true)
+  })
+
+  it('无缓存/缺键空串兜底一律返回 null，不抛', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadReportCopy(REPORT_FP)).toBeNull()
+    expect(s.loadYearMood(REPORT_FP)).toBeNull()
+    const wxLike = { get: (_k: string) => '', set: () => {}, remove: () => {} }
+    const s2 = makeStorage(wxLike)
+    expect(s2.loadFriendSentiment('f1', FRIEND_FP)).toBeNull()
+    expect(s2.loadFriendProfile('f1', FRIEND_FP)).toBeNull()
+    expect(s2.loadReportCopy(REPORT_FP)).toBeNull()
+    expect(s2.loadYearMood(REPORT_FP)).toBeNull()
+  })
+
+  it('clearAll 清除四类 AI 结果', () => {
+    const s = makeStorage(memBackend())
+    s.saveFriendSentiment('f1', FRIEND_FP, { tone: 'x' })
+    s.saveFriendProfile('f1', FRIEND_FP, { identity: 'y' })
+    s.saveReportCopy(REPORT_FP, 'c'); s.saveYearMood(REPORT_FP, 'm')
+    s.clearAll()
+    expect(s.loadFriendSentiment('f1', FRIEND_FP)).toBeNull()
+    expect(s.loadFriendProfile('f1', FRIEND_FP)).toBeNull()
+    expect(s.loadReportCopy(REPORT_FP)).toBeNull()
+    expect(s.loadYearMood(REPORT_FP)).toBeNull()
+  })
+})
+
 const PICK = (over: Partial<StockPick> = {}): StockPick => ({
   stock: '江化微', stockNorm: '江化微', recommenderId: '张三', recommender: '张三首席',
   ts: 100, logics: [], companyNotes: [], ...over,

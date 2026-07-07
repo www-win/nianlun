@@ -1,10 +1,14 @@
-import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick, Sentiment, FriendProfile } from '@nianlun/core'
 import type { RecentInsight } from './parseLocal'
 import { makeFsJson, makeKvFsJson, type FsJsonBackend } from './fsStore'
 import { wxRawFs } from './rawStore'
 
 const K_REPORT = 'nianlun:report'
 const K_ANALYZED = 'nianlun:analyzedIds'
+const K_FRIEND_SENTIMENT = 'nianlun:friendSentiment'
+const K_FRIEND_PROFILE = 'nianlun:friendProfile'
+const K_REPORT_COPY = 'nianlun:reportCopy'
+const K_YEAR_MOOD = 'nianlun:yearMood'
 // 旧版本把原文分块存 Storage 用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const K_RAW_INDEX_LEGACY = 'nianlun:rawIndex'
 const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
@@ -32,6 +36,37 @@ export interface StorageBackend {
 }
 
 export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvFsJson(backend)) {
+  // ── 四类 AI 结果持久化：指纹 + 好友级/报告级通用读写 ──────────────
+  // 指纹 = 生成时喂给 AI 的输入的轻量摘要；输入不变则缓存新鲜。
+  const friendFp = (f: Friend): string => `${f.msgCount}:${f.lastContact}`
+  const reportFp = (r: ReportData): string => `${r.totalMessages}:${r.friendCount}:${r.activeDays}`
+  // 好友级：键存 { [id]: { data, fp } }，按当前 friend 现算 fp 比对新鲜度。
+  function loadFriendMap(key: string): Record<string, { data: unknown; fp: string }> {
+    const raw = backend.get(key)
+    return raw && typeof raw === 'object' ? (raw as Record<string, { data: unknown; fp: string }>) : {}
+  }
+  function saveFriendEntry(key: string, id: string, friend: Friend, data: unknown): void {
+    const all = loadFriendMap(key)
+    all[id] = { data, fp: friendFp(friend) }
+    backend.set(key, all)
+  }
+  function loadFriendEntry<T>(key: string, id: string, friend: Friend): { data: T; stale: boolean } | null {
+    const entry = loadFriendMap(key)[id]
+    if (!entry || typeof entry !== 'object') return null
+    return { data: entry.data as T, stale: entry.fp !== friendFp(friend) }
+  }
+  // 报告级：单键存 { text, fp }。
+  function saveReportEntry(key: string, report: ReportData, text: string): void {
+    backend.set(key, { text, fp: reportFp(report) })
+  }
+  function loadReportEntry(key: string, report: ReportData): { data: string; stale: boolean } | null {
+    const raw = backend.get(key)
+    if (!raw || typeof raw !== 'object') return null
+    const e = raw as { text?: unknown; fp?: unknown }
+    if (typeof e.text !== 'string') return null
+    return { data: e.text, stale: e.fp !== reportFp(report) }
+  }
+
   return {
     // —— 大数据：文件后端 ——
     saveFriends(friends: Friend[]): void { fs.write('friends', friends) },
@@ -94,9 +129,33 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       return raw && typeof raw === 'object' ? (raw as Record<string, StoredAstroReading>) : {}
     },
 
+    // —— 四类 AI 结果：好友级(情绪/画像) + 报告级(文案/全年情绪)，命中缓存免重复调用 ——
+    saveFriendSentiment(id: string, friend: Friend, data: Sentiment): void {
+      saveFriendEntry(K_FRIEND_SENTIMENT, id, friend, data)
+    },
+    loadFriendSentiment(id: string, friend: Friend): { data: Sentiment; stale: boolean } | null {
+      return loadFriendEntry<Sentiment>(K_FRIEND_SENTIMENT, id, friend)
+    },
+    saveFriendProfile(id: string, friend: Friend, data: FriendProfile): void {
+      saveFriendEntry(K_FRIEND_PROFILE, id, friend, data)
+    },
+    loadFriendProfile(id: string, friend: Friend): { data: FriendProfile; stale: boolean } | null {
+      return loadFriendEntry<FriendProfile>(K_FRIEND_PROFILE, id, friend)
+    },
+    saveReportCopy(report: ReportData, text: string): void { saveReportEntry(K_REPORT_COPY, report, text) },
+    loadReportCopy(report: ReportData): { data: string; stale: boolean } | null {
+      return loadReportEntry(K_REPORT_COPY, report)
+    },
+    saveYearMood(report: ReportData, text: string): void { saveReportEntry(K_YEAR_MOOD, report, text) },
+    loadYearMood(report: ReportData): { data: string; stale: boolean } | null {
+      return loadReportEntry(K_YEAR_MOOD, report)
+    },
+
     clearAll(): void {
       backend.remove(K_REPORT); backend.remove(K_ANALYZED)
       backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO)
+      backend.remove(K_FRIEND_SENTIMENT); backend.remove(K_FRIEND_PROFILE)
+      backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')
     },
     /** 删除旧版本存 KV 单键的大数据（现已迁文件），回收配额。真机启动调用一次。 */
