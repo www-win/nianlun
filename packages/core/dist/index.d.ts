@@ -1,4 +1,5 @@
 type Relation = '家人' | '挚友' | '同事' | '同学' | '客户' | '其他';
+type MbtiCode = 'INTJ' | 'INTP' | 'ENTJ' | 'ENTP' | 'INFJ' | 'INFP' | 'ENFJ' | 'ENFP' | 'ISTJ' | 'ISFJ' | 'ESTJ' | 'ESFJ' | 'ISTP' | 'ISFP' | 'ESTP' | 'ESFP';
 interface Message {
     ts: number;
     from: 'me' | 'them';
@@ -59,6 +60,7 @@ interface Friend {
         rel?: Relation;
         alias?: string;
         name?: string;
+        mbti?: MbtiCode;
     };
     emotion?: FriendEmotion;
 }
@@ -197,6 +199,35 @@ declare function buildFriendProfilePrompt(friend: Friend, samples: string[]): st
  * investment 内部全空则省略整块。无法解析返回 {}，永不抛异常。
  */
 declare function parseFriendProfile(text: string): FriendProfile;
+
+declare const MBTI_CODES: readonly MbtiCode[];
+declare const MBTI_TITLES: Record<MbtiCode, string>;
+declare function mbtiTitle(code: MbtiCode): string;
+/** 从任意文本（昵称/备注/职务）识别首个 16 型码，返回大写规范码；无则 null。永不抛异常。 */
+declare function detectMbtiFromText(text: string): MbtiCode | null;
+type MbtiAxis = 'EI' | 'SN' | 'TF' | 'JP';
+interface MbtiDimension {
+    axis: MbtiAxis;
+    pole: string;
+    strength: number;
+    note?: string;
+}
+interface MbtiResult {
+    code: MbtiCode;
+    title: string;
+    summary: string;
+    dimensions: MbtiDimension[];
+}
+type MbtiSource = 'manual' | 'remark' | 'ai' | 'none';
+/** MBTI 提示词：喂聚合统计 + 有界样本，要求 AI 输出严格 JSON。参照 buildFriendProfilePrompt。 */
+declare function buildMbtiPrompt(friend: Friend, samples: string[]): string;
+/** 容错解析 MBTI JSON：剥围栏、定花括号、校验 code；缺字段补齐。无法解析返回 null，永不抛异常。 */
+declare function parseMbti(text: string): MbtiResult | null;
+/** 计算好友的有效 MBTI 码与来源：手改 > 备注识别(alias>role>name) > AI 码 > 无。 */
+declare function effectiveMbtiCode(friend: Friend, aiCode?: MbtiCode | null): {
+    code: MbtiCode | null;
+    source: MbtiSource;
+};
 
 interface ExtractSamplesOptions {
     /** 每个好友最多保留的样本条数（默认 30） */
@@ -395,4 +426,4 @@ declare function buildStockExtractionPrompt(friend: Friend, samples: string[]): 
 
 declare const version = "0.1.0";
 
-export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };
+export { type AstroReading, type BaziChart, type BirthInfo, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendSuggestion, type InvestmentProfile, MBTI_CODES, MBTI_TITLES, type MbtiAxis, type MbtiCode, type MbtiDimension, type MbtiResult, type MbtiSource, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildMbtiPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, detectMbtiFromText, effectiveMbtiCode, extractFriendSamples, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mbtiTitle, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseMbti, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, wordPolarity, wuxingRelation };

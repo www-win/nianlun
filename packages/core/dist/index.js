@@ -12749,6 +12749,134 @@ function parseFriendProfile(text) {
   return out;
 }
 
+// src/ai/mbti.ts
+var MBTI_CODES = [
+  "INTJ",
+  "INTP",
+  "ENTJ",
+  "ENTP",
+  "INFJ",
+  "INFP",
+  "ENFJ",
+  "ENFP",
+  "ISTJ",
+  "ISFJ",
+  "ESTJ",
+  "ESFJ",
+  "ISTP",
+  "ISFP",
+  "ESTP",
+  "ESFP"
+];
+var MBTI_TITLES = {
+  INTJ: "\u5EFA\u7B51\u5E08",
+  INTP: "\u903B\u8F91\u5B66\u5BB6",
+  ENTJ: "\u6307\u6325\u5B98",
+  ENTP: "\u8FA9\u8BBA\u5BB6",
+  INFJ: "\u63D0\u5021\u8005",
+  INFP: "\u8C03\u505C\u8005",
+  ENFJ: "\u4E3B\u4EBA\u516C",
+  ENFP: "\u7ADE\u9009\u8005",
+  ISTJ: "\u7269\u6D41\u5E08",
+  ISFJ: "\u5B88\u536B\u8005",
+  ESTJ: "\u603B\u7ECF\u7406",
+  ESFJ: "\u6267\u653F\u5B98",
+  ISTP: "\u9274\u8D4F\u5BB6",
+  ISFP: "\u63A2\u9669\u5BB6",
+  ESTP: "\u4F01\u4E1A\u5BB6",
+  ESFP: "\u8868\u6F14\u8005"
+};
+function mbtiTitle(code) {
+  return MBTI_TITLES[code] ?? "";
+}
+var CODE_RE = new RegExp(`(^|[^a-z])(${MBTI_CODES.join("|")})([^a-z]|$)`, "i");
+function detectMbtiFromText(text) {
+  if (typeof text !== "string" || text === "") return null;
+  const m = CODE_RE.exec(text);
+  if (!m) return null;
+  const code = m[2].toUpperCase();
+  return MBTI_CODES.includes(code) ? code : null;
+}
+var AXES = ["EI", "SN", "TF", "JP"];
+function buildMbtiPrompt(friend, samples) {
+  const displayName = friend.alias || friend.name;
+  const sampleBlock = samples.length ? samples.map((s, i) => `${i + 1}. ${s}`).join("\n") : "\uFF08\u672C\u6B21\u65E0\u53EF\u7528\u804A\u5929\u6837\u672C\uFF09";
+  return [
+    "\u4F60\u662F\u4E00\u4F4D\u64C5\u957F\u4ECE\u804A\u5929\u8BB0\u5F55\u63A8\u65AD\u4EBA\u683C\u7C7B\u578B\uFF08MBTI\uFF09\u7684\u89C2\u5BDF\u8005\u3002\u8BF7\u6839\u636E\u8FD9\u4F4D\u5FAE\u4FE1\u597D\u53CB\u7684\u5F80\u6765\u7EDF\u8BA1\u4E0E\u90E8\u5206\u804A\u5929\u6837\u672C\uFF0C",
+    "\u63A8\u65AD TA \u7684 MBTI 16 \u578B\u4EBA\u683C\u3002",
+    "",
+    "\u53EA\u8F93\u51FA\u4E00\u4E2A\u4E25\u683C\u7684 JSON \u5BF9\u8C61\uFF0C\u4E0D\u8981\u4EFB\u4F55\u89E3\u91CA\u3001\u4E0D\u8981\u4EE3\u7801\u56F4\u680F\u5916\u7684\u6587\u5B57\u3002\u683C\u5F0F\uFF1A",
+    "{",
+    '  "code": "<\u56DB\u5B57\u6BCD\u7C7B\u578B\u7801\uFF0C\u5982 INTJ>",',
+    '  "title": "<\u8BE5\u7C7B\u578B\u4E2D\u6587\u522B\u540D\uFF0C\u5982 \u5EFA\u7B51\u5E08>",',
+    '  "summary": "<\u4E00\u6BB5\u4EBA\u683C\u89E3\u8BFB\uFF0C\u7EA6 60~100 \u5B57\uFF0C\u70B9\u51FA\u804A\u5929\u91CC\u7684\u4F9D\u636E>",',
+    '  "dimensions": [',
+    '    {"axis":"EI","pole":"<E \u6216 I>","strength":<0-100 \u504F\u5411\u8BE5\u6781\u5F3A\u5EA6>,"note":"<\u4E00\u53E5\u4F9D\u636E>"},',
+    '    {"axis":"SN","pole":"<S \u6216 N>","strength":<0-100>,"note":"<\u4E00\u53E5\u4F9D\u636E>"},',
+    '    {"axis":"TF","pole":"<T \u6216 F>","strength":<0-100>,"note":"<\u4E00\u53E5\u4F9D\u636E>"},',
+    '    {"axis":"JP","pole":"<J \u6216 P>","strength":<0-100>,"note":"<\u4E00\u53E5\u4F9D\u636E>"}',
+    "  ]",
+    "}",
+    "",
+    "\u8981\u6C42\uFF1Acode \u5FC5\u987B\u662F 16 \u4E2A\u5408\u6CD5\u7C7B\u578B\u4E4B\u4E00\uFF0C\u56DB\u4E2A\u7EF4\u5EA6\u843D\u70B9\u987B\u4E0E code \u4E00\u81F4\u3002\u7EBF\u7D22\u4E0D\u8DB3\u65F6\u7ED9\u4FDD\u5B88\u5224\u65AD\u5E76\u5728 note \u91CC\u8BF4\u660E\u4F9D\u636E\u8584\u5F31\uFF0C\u7981\u6B62\u7F16\u9020\u5177\u4F53\u4E8B\u4EF6\u3002",
+    "",
+    "\u805A\u5408\u7EDF\u8BA1\uFF1A",
+    `- \u597D\u53CB\uFF1A${displayName}`,
+    `- \u5173\u7CFB\u6807\u7B7E\uFF1A${friend.rel}`,
+    `- \u804C\u52A1/\u5907\u6CE8\uFF1A${friend.role || "\uFF08\u672A\u586B\uFF09"}`,
+    `- \u5168\u5E74\u6D88\u606F\u5F80\u6765\uFF1A${friend.msgCount} \u6761`,
+    `- \u6211\u65B9\u53D1\u9001\u5360\u6BD4\uFF1A${friend.sentRatio}%`,
+    `- \u6D3B\u8DC3\u65F6\u6BB5\uFF1A${friend.peakPeriod || "\uFF08\u65E0\uFF09"}`,
+    "",
+    "\u90E8\u5206\u804A\u5929\u6837\u672C\uFF08\u300C\u6211\u300D\u4E3A\u7528\u6237\u672C\u4EBA\uFF0C\u300C\u5BF9\u65B9\u300D\u4E3A\u8BE5\u597D\u53CB\uFF09\uFF1A",
+    sampleBlock
+  ].join("\n");
+}
+function normalizeDimensions(raw, code) {
+  const provided = Array.isArray(raw) ? raw : [];
+  return AXES.map((axis, i) => {
+    const pole = code[i];
+    const found = provided.find(
+      (d) => typeof d === "object" && d !== null && d.axis === axis
+    );
+    let strength = 60;
+    if (found && typeof found.strength === "number" && found.strength >= 0 && found.strength <= 100) {
+      strength = Math.round(found.strength);
+    }
+    const dim = { axis, pole, strength };
+    if (found && typeof found.note === "string" && found.note.trim()) dim.note = found.note.trim();
+    return dim;
+  });
+}
+function parseMbti(text) {
+  if (typeof text !== "string") return null;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  let obj;
+  try {
+    obj = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (typeof obj !== "object" || obj === null) return null;
+  const r = obj;
+  const rawCode = typeof r.code === "string" ? r.code.trim().toUpperCase() : "";
+  if (!MBTI_CODES.includes(rawCode)) return null;
+  const code = rawCode;
+  const title = typeof r.title === "string" && r.title.trim() ? r.title.trim() : mbtiTitle(code);
+  const summary = typeof r.summary === "string" && r.summary.trim() ? r.summary.trim() : "";
+  return { code, title, summary, dimensions: normalizeDimensions(r.dimensions, code) };
+}
+function effectiveMbtiCode(friend, aiCode) {
+  const manual = friend.userEdited?.mbti;
+  if (manual && MBTI_CODES.includes(manual)) return { code: manual, source: "manual" };
+  const fromText = detectMbtiFromText(friend.alias || "") || detectMbtiFromText(friend.role || "") || detectMbtiFromText(friend.name || "");
+  if (fromText) return { code: fromText, source: "remark" };
+  if (aiCode && MBTI_CODES.includes(aiCode)) return { code: aiCode, source: "ai" };
+  return { code: null, source: "none" };
+}
+
 // src/ai/suggestion.ts
 var RELATIONS2 = ["\u5BB6\u4EBA", "\u631A\u53CB", "\u540C\u4E8B", "\u540C\u5B66", "\u5BA2\u6237", "\u5176\u4ED6"];
 function extractFriendSamples(conversations, opts = {}) {
@@ -13300,6 +13428,8 @@ function buildStockExtractionPrompt(friend, samples) {
 // src/index.ts
 var version = "0.1.0";
 export {
+  MBTI_CODES,
+  MBTI_TITLES,
   aggregate,
   aggregateByRecommender,
   aggregateByStock,
@@ -13313,6 +13443,7 @@ export {
   buildFriendProfilePrompt,
   buildFriendSentimentPrompt,
   buildFriendSuggestionPrompt,
+  buildMbtiPrompt,
   buildReport,
   buildReportCopyPrompt,
   buildStockExtractionPrompt,
@@ -13321,6 +13452,8 @@ export {
   countWords,
   createFriend,
   dayBranchClashes,
+  detectMbtiFromText,
+  effectiveMbtiCode,
   extractFriendSamples,
   getCompatibility,
   getDayFortune,
@@ -13328,6 +13461,7 @@ export {
   isBranchHarmony,
   isServiceSession,
   isWeliveContacts,
+  mbtiTitle,
   mergeConversations,
   mergeFriends,
   mergeKeywords,
@@ -13340,6 +13474,7 @@ export {
   parseFriendProfile,
   parseFriendSuggestion,
   parseJsonBackup,
+  parseMbti,
   parseSentiment,
   parseStockExtraction,
   parseWeliveContacts,
