@@ -25,9 +25,15 @@ async function onAnalyze() {
     if (!files.length) return
     await imp.analyzeStocks(files)
     reload()
-    uni.showToast({ title: imp.stocksSavedCount ? `已抽取荐股 ${imp.stocksSavedCount} 条` : '未抽到荐股', icon: 'none' })
+    if (imp.stocksSavedCount) {
+      uni.showToast({ title: `已抽取荐股 ${imp.stocksSavedCount} 条`, icon: 'none' })
+    } else {
+      // 未抽到时把诊断详情(已分析几位/几位失败/错误原因，含云函数或 GACCODE 报的错)弹出来，便于定位
+      const detail = imp.warnings[imp.warnings.length - 1] || '未抽到荐股（无更多信息）'
+      uni.showModal({ title: '未抽到荐股', content: detail, showCancel: false })
+    }
   } catch (e) {
-    uni.showToast({ title: (e as Error).message || '分析失败', icon: 'none' })
+    uni.showModal({ title: '分析失败', content: (e as Error).message || '未知错误', showCancel: false })
   }
 }
 
