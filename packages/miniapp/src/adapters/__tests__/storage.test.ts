@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
+import { makeFsJson } from '../fsStore'
+import type { RawFsBackend } from '../rawStore'
 import type { Friend, ReportData, BirthInfo, StockPick } from '@nianlun/core'
 
 function memBackend() {
@@ -180,5 +182,57 @@ describe('storage 荐股', () => {
     s.saveStockPicks([PICK()])
     s.clearAll()
     expect(s.loadStockPicks()).toEqual([])
+  })
+})
+
+function memFsBackend(): RawFsBackend {
+  const files = new Map<string, string>()
+  return {
+    ensureDir: () => {}, writeFile: (p, d) => { files.set(p, d) },
+    readFile: (p) => { if (!files.has(p)) throw new Error('ENOENT'); return files.get(p)! },
+    readdir: () => [...files.keys()], size: (p) => (files.get(p)?.length ?? 0),
+    unlink: (p) => { files.delete(p) },
+  }
+}
+
+describe('storage 大数据走文件后端', () => {
+  it('saveFriends 写文件后端、不写 KV；loadFriends 从文件读回并补默认字段', () => {
+    const kvMap = new Map<string, unknown>()
+    const kv = { get: (k: string) => kvMap.get(k), set: (k: string, v: unknown) => void kvMap.set(k, v), remove: (k: string) => void kvMap.delete(k) }
+    const fs = makeFsJson(memFsBackend(), '/store')
+    const s = makeStorage(kv, fs)
+    s.saveFriends([{ id: 'f1', name: '张三' } as unknown as Friend])
+    // 大数据不落 KV
+    expect(kvMap.has('nianlun:friends')).toBe(false)
+    const f = s.loadFriends()[0]
+    expect(f.id).toBe('f1')
+    expect(f.weekHour).toHaveLength(168)   // 补默认字段逻辑保留
+  })
+  it('saveStockPicks/loadStockPicks 走文件后端往返；clearAll 清文件', () => {
+    const kv = { get: () => undefined, set: () => {}, remove: () => {} }
+    const fs = makeFsJson(memFsBackend(), '/store')
+    const s = makeStorage(kv, fs)
+    s.saveStockPicks([{ stock: '江化微', stockNorm: '江化微', recommenderId: 'x', recommender: 'x', ts: 1, logics: [], companyNotes: [] } as never])
+    expect(s.loadStockPicks()).toHaveLength(1)
+    s.clearAll()
+    expect(s.loadStockPicks()).toEqual([])
+    expect(s.loadFriends()).toEqual([])
+  })
+})
+
+describe('purgeLegacyBigKeys', () => {
+  it('删除旧大 KV 键、保留其它键', () => {
+    const m = new Map<string, unknown>([
+      ['nianlun:friends', [1]], ['nianlun:samples', {}], ['nianlun:recentInsights', {}],
+      ['nianlun:recentSamples', {}], ['nianlun:stocks', [1]],
+      ['nianlun:report', { year: 2026 }], ['nianlun:analyzedIds', ['a']],
+    ])
+    const kv = { get: (k: string) => m.get(k), set: (k: string, v: unknown) => void m.set(k, v), remove: (k: string) => void m.delete(k) }
+    makeStorage(kv).purgeLegacyBigKeys()
+    expect(m.has('nianlun:friends')).toBe(false)
+    expect(m.has('nianlun:samples')).toBe(false)
+    expect(m.has('nianlun:stocks')).toBe(false)
+    expect(m.has('nianlun:report')).toBe(true)      // 小元数据保留
+    expect(m.has('nianlun:analyzedIds')).toBe(true)
   })
 })
