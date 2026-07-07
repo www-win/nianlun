@@ -51,13 +51,17 @@ onLoad((q?: Record<string, string>) => {
       <!-- 第二层·推荐逻辑 -->
       <view class="layer">
         <view class="l-h"><text class="no">2</text><text class="l-t">推荐逻辑</text></view>
-        <view v-if="card.logics.length" v-for="(l, i) in card.logics" :key="i" class="bullet">· {{ l }}</view>
+        <template v-if="card.logics.length">
+          <view v-for="(l, i) in card.logics" :key="i" class="bullet">· {{ l }}</view>
+        </template>
         <text v-else class="faint">暂无</text>
       </view>
       <!-- 第三层·公司信息 -->
       <view class="layer">
         <view class="l-h"><text class="no">3</text><text class="l-t">公司信息 · 谁说了啥</text></view>
-        <view v-if="card.companyNotes.length" v-for="(n, i) in card.companyNotes" :key="i" class="bullet">· {{ n }}</view>
+        <template v-if="card.companyNotes.length">
+          <view v-for="(n, i) in card.companyNotes" :key="i" class="bullet">· {{ n }}</view>
+        </template>
         <text v-else class="faint">暂无</text>
       </view>
       <!-- 推荐记录 -->
