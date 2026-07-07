@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useDataStore } from '../../stores/data'
 import { useImportStore } from '../../stores/import'
 import type { Relation } from '@nianlun/core'
+import { effectiveMbtiCode } from '@nianlun/core'
+import { storage } from '../../adapters/storage'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 
 const data = useDataStore()
+const mbtiMap = ref<Record<string, string>>({})
+function refreshMbti() {
+  const m: Record<string, string> = {}
+  for (const f of data.friends) {
+    const ai = storage.loadFriendMbti(f.id, f)?.data.code ?? null
+    const { code } = effectiveMbtiCode(f, ai)
+    if (code) m[f.id] = code
+  }
+  mbtiMap.value = m
+}
+watch(() => data.friends, refreshMbti, { immediate: true, deep: false })
 const imp = useImportStore()
 const kw = ref('')
 const sortKey = ref<'msgCount' | 'lastContact'>('msgCount')
@@ -83,6 +96,7 @@ async function onAnalyze(id: string) {
             <view class="meta">
               <text class="num">{{ f.msgCount }}</text><text class="mu"> 条</text>
               <view class="tag" :style="{ background: relColor(f.rel) }">{{ f.rel }}</view>
+              <view v-if="mbtiMap[f.id]" class="mbti-badge">{{ mbtiMap[f.id] }}</view>
               <text v-if="f.role" class="role-tag">{{ f.role }}</text>
             </view>
           </view>
@@ -162,4 +176,10 @@ async function onAnalyze(id: string) {
 }
 
 .count-row { display: flex; align-items: center; justify-content: space-between; }
+
+.mbti-badge {
+  display: inline-block; margin-left: 12rpx; padding: 2rpx 12rpx;
+  font-size: 20rpx; letter-spacing: 2rpx; color: #5a7fd0;
+  background: rgba(90, 127, 208, 0.12); border-radius: 8rpx;
+}
 </style>
