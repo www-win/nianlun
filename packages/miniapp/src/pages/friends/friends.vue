@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useDataStore } from '../../stores/data'
 import { useImportStore } from '../../stores/import'
 import type { Relation } from '@nianlun/core'
@@ -18,7 +19,8 @@ function refreshMbti() {
   }
   mbtiMap.value = m
 }
-watch(() => data.friends, refreshMbti, { immediate: true, deep: false })
+watch(() => data.friends, refreshMbti, { immediate: true, deep: true })
+onShow(refreshMbti)
 const imp = useImportStore()
 const kw = ref('')
 const sortKey = ref<'msgCount' | 'lastContact'>('msgCount')

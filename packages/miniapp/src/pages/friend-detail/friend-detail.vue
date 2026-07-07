@@ -514,7 +514,7 @@ async function generateAstro() {
         </view>
         <text v-else class="prof-v">尚未识别，可从备注写入类型码、AI 分析或手动选择。</text>
 
-        <view v-if="mbtiAi" class="mbti-dims">
+        <view v-if="mbtiAi && mbtiEff.source === 'ai'" class="mbti-dims">
           <view v-for="d in mbtiAi.dimensions" :key="d.axis" class="mbti-dim">
             <text class="mbti-dim-l">{{ AXIS_POLES[d.axis][0] }}</text>
             <view class="mbti-bar">
@@ -527,7 +527,7 @@ async function generateAstro() {
             <text class="mbti-dim-r">{{ AXIS_POLES[d.axis][1] }}</text>
           </view>
         </view>
-        <text v-if="mbtiAi && mbtiAi.summary" class="prof-v mbti-summary">{{ mbtiAi.summary }}</text>
+        <text v-if="mbtiAi && mbtiAi.summary && mbtiEff.source === 'ai'" class="prof-v mbti-summary">{{ mbtiAi.summary }}</text>
 
         <view class="mbti-acts">
           <picker :range="mbtiPickerOptions" @change="onMbtiPick">
