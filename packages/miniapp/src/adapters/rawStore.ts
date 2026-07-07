@@ -79,6 +79,17 @@ export function makeRawStore(fs: RawFsBackend, baseDir: string, totalLimitBytes 
   }
 }
 
+// 真机文件系统后端（懒加载：方法体内才访问 wx，模块顶层不触碰）。
+function fsm() { return wx.getFileSystemManager() }
+export const wxRawFs: RawFsBackend = {
+  ensureDir: (d) => { try { fsm().accessSync(d) } catch { fsm().mkdirSync(d, true) } },
+  writeFile: (p, data) => fsm().writeFileSync(p, data, 'utf8'),
+  readFile: (p) => fsm().readFileSync(p, 'utf8'),
+  readdir: (d) => { try { return fsm().readdirSync(d) } catch { return [] } },
+  size: (p) => { try { return fsm().statSync(p).size } catch { return 0 } },
+  unlink: (p) => { try { fsm().unlinkSync(p) } catch { /* 已不存在 */ } },
+}
+
 // 懒加载真机实现：不能在模块顶层求值 wx.env.USER_DATA_PATH ——
 // data.ts/import.ts 会无条件 import 本模块，若在此处立即访问 wx 全局对象，
 // 单元测试(node 环境、无 wx 全局)在收集用例阶段就会抛 ReferenceError，
@@ -88,15 +99,6 @@ let cachedRawStore: ReturnType<typeof makeRawStore> | undefined
 function realRawStore(): ReturnType<typeof makeRawStore> {
   if (!cachedRawStore) {
     const dir = `${wx.env.USER_DATA_PATH}/nianlun_raw`
-    const fsm = () => wx.getFileSystemManager()
-    const wxRawFs: RawFsBackend = {
-      ensureDir: (d) => { try { fsm().accessSync(d) } catch { fsm().mkdirSync(d, true) } },
-      writeFile: (p, data) => fsm().writeFileSync(p, data, 'utf8'),
-      readFile: (p) => fsm().readFileSync(p, 'utf8'),
-      readdir: (d) => { try { return fsm().readdirSync(d) } catch { return [] } },
-      size: (p) => { try { return fsm().statSync(p).size } catch { return 0 } },
-      unlink: (p) => { try { fsm().unlinkSync(p) } catch { /* 已不存在 */ } },
-    }
     cachedRawStore = makeRawStore(wxRawFs, dir)
   }
   return cachedRawStore
