@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { gzipSync, gunzipSync } from 'fflate'
 import { makeCloudBackup } from '../cloudBackup'
 import type { StorageSnapshot } from '../storage'
@@ -84,5 +84,55 @@ describe('cloudBackup 分块降级', () => {
     const cloud = memCloud()
     await makeCloudBackup(deps(src, cloud), { bigThreshold: 8 * 1024 * 1024 }).backup()
     expect([...cloud._files.keys()]).toEqual(['backup.json.gz'])
+  })
+})
+
+describe('cloudBackup mode 标记', () => {
+  it('单包备份成功后 finalize 以 single 调用一次', async () => {
+    const src = memStorage({ kv: {}, files: { friends: '[]' } })
+    const cloud = memCloud()
+    const finalize = vi.fn(async () => {})
+    await makeCloudBackup({ ...deps(src, cloud), finalize }, { bigThreshold: 8 * 1024 * 1024 }).backup()
+    expect(finalize).toHaveBeenCalledTimes(1)
+    expect(finalize).toHaveBeenCalledWith('single')
+  })
+
+  it('分块备份成功后 finalize 以 chunked 调用一次', async () => {
+    const big = 'x'.repeat(50)
+    const src = memStorage({ kv: {}, files: { friends: `["${big}"]` } })
+    const cloud = memCloud()
+    const finalize = vi.fn(async () => {})
+    await makeCloudBackup({ ...deps(src, cloud), finalize }, { bigThreshold: 10 }).backup()
+    expect(finalize).toHaveBeenCalledTimes(1)
+    expect(finalize).toHaveBeenCalledWith('chunked')
+  })
+
+  it('resolveMode 返回 chunked 时 restore 只走 manifest 路径（即便还放了同名单包也不用）', async () => {
+    const big = 'x'.repeat(50)
+    const src = memStorage({ kv: { 'nianlun:report': { note: big } }, files: { friends: `["${big}"]` } })
+    const cloud = memCloud()
+    // 只放 manifest + parts，不放单包，模拟真实的分块态；resolveMode 直接指路
+    await makeCloudBackup(deps(src, cloud), { bigThreshold: 10 }).backup()
+    expect([...cloud._files.keys()]).not.toContain('backup.json.gz')
+
+    const dst = memStorage({ kv: {}, files: {} })
+    const resolveMode = vi.fn(async () => 'chunked' as const)
+    const ok = await makeCloudBackup({ ...deps(dst, cloud), resolveMode }, { bigThreshold: 10 }).restore()
+    expect(ok).toBe(true)
+    expect(resolveMode).toHaveBeenCalledTimes(1)
+    expect(dst._get()).toEqual(src._get())
+  })
+
+  it('resolveMode 返回 single 时 restore 只走单包路径', async () => {
+    const src = memStorage({ kv: { 'nianlun:report': { year: 2025 } }, files: { friends: '[{"id":"a"}]' } })
+    const cloud = memCloud()
+    await makeCloudBackup(deps(src, cloud)).backup()
+    expect([...cloud._files.keys()]).toEqual(['backup.json.gz'])
+
+    const dst = memStorage({ kv: {}, files: {} })
+    const resolveMode = vi.fn(async () => 'single' as const)
+    const ok = await makeCloudBackup({ ...deps(dst, cloud), resolveMode }).restore()
+    expect(ok).toBe(true)
+    expect(dst._get()).toEqual(src._get())
   })
 })

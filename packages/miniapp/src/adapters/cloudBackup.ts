@@ -18,6 +18,10 @@ export interface CloudBackupDeps {
   gzip(data: Uint8Array): Uint8Array
   gunzip(data: Uint8Array): Uint8Array
   now(): number
+  /** 备份成功后记录本次采用的模式（单包/分块），供 restore 判断该走哪条路径。可选：不传则 restore 走旧的“先试单包再试 manifest”兼容逻辑。 */
+  finalize?(mode: 'single' | 'chunked'): Promise<void>
+  /** 读取云端记录的当前模式；无记录或未实现时返回 null，restore 退回兼容逻辑。 */
+  resolveMode?(): Promise<'single' | 'chunked' | null>
 }
 
 const SINGLE_PATH = 'backup.json.gz'
@@ -26,7 +30,7 @@ const DEFAULT_BIG_THRESHOLD = 8 * 1024 * 1024
 const enc = new TextEncoder()
 const dec = new TextDecoder()
 
-interface Manifest { version: 1; createdAt: number; chunked: true; kvKeys: string[]; fileNames: string[] }
+interface Manifest { version: 1; createdAt: number; chunked: true; fileNames: string[] }
 
 export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: number } = {}) {
   const bigThreshold = opts.bigThreshold ?? DEFAULT_BIG_THRESHOLD
@@ -44,6 +48,7 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
     if (estimate(snap) <= bigThreshold) {
       const bytes = gz({ version: 1, createdAt: deps.now(), kv: snap.kv, files: snap.files } as BackupEnvelope)
       await deps.upload(SINGLE_PATH, bytes)
+      await deps.finalize?.('single')
       return { bytes: bytes.length }
     }
     // 分块：每个文件数据集一个 part，KV 整体一个 part
@@ -55,20 +60,23 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
       const b = gz(snap.files[name])
       await deps.upload(`parts/file-${name}.json.gz`, b); total += b.length
     }
-    const manifest: Manifest = { version: 1, createdAt: deps.now(), chunked: true, kvKeys: Object.keys(snap.kv), fileNames }
+    const manifest: Manifest = { version: 1, createdAt: deps.now(), chunked: true, fileNames }
     const mBytes = gz(manifest)
     await deps.upload(MANIFEST_PATH, mBytes); total += mBytes.length
+    await deps.finalize?.('chunked')
     return { bytes: total }
   }
 
-  async function restore(): Promise<boolean> {
+  async function restoreSingle(): Promise<boolean> {
     const single = await deps.download(SINGLE_PATH)
-    if (single) {
-      const env = ungz(single) as BackupEnvelope
-      if (env.version !== 1) throw new Error(`不支持的备份版本：${env.version}`)
-      deps.storage.importAll({ kv: env.kv, files: env.files })
-      return true
-    }
+    if (!single) return false
+    const env = ungz(single) as BackupEnvelope
+    if (env.version !== 1) throw new Error(`不支持的备份版本：${env.version}`)
+    deps.storage.importAll({ kv: env.kv, files: env.files })
+    return true
+  }
+
+  async function restoreChunked(): Promise<boolean> {
     const mBytes = await deps.download(MANIFEST_PATH)
     if (!mBytes) return false
     const manifest = ungz(mBytes) as Manifest
@@ -84,14 +92,28 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
     return true
   }
 
+  async function restore(): Promise<boolean> {
+    const mode = deps.resolveMode ? await deps.resolveMode() : null
+    if (mode === 'single') return restoreSingle()
+    if (mode === 'chunked') return restoreChunked()
+    // mode === null：无 resolveMode（现有单测）或云端无模式记录，走旧的兼容逻辑——先试单包再试 manifest
+    const viaSingle = await restoreSingle()
+    if (viaSingle) return true
+    return restoreChunked()
+  }
+
   return { backup, restore }
 }
 
 // —— 真机 wx.cloud 接线（薄封装，真机验证；wx 惰性访问）——
 // 需先在云开发控制台创建集合 nianlun_backup（权限：仅创建者可读写），并部署 getOpenId。
+let cachedOpenId: string | undefined
 async function wxOpenId(): Promise<string> {
-  const res = await wx.cloud.callFunction({ name: 'getOpenId' })
-  return (res.result as { openid: string }).openid
+  if (!cachedOpenId) {
+    const res = await wx.cloud.callFunction({ name: 'getOpenId' })
+    cachedOpenId = (res.result as { openid: string }).openid
+  }
+  return cachedOpenId
 }
 // 逻辑路径 → 云存储 cloudPath（按 openid 隔离）
 async function cloudPathFor(logical: string): Promise<string> {
@@ -109,13 +131,18 @@ const wxDeps: CloudBackupDeps = {
     const fm = wx.getFileSystemManager()
     const tmp = tempFile(logical)
     fm.writeFileSync(tmp, bytes.buffer as ArrayBuffer)          // 字节 → 临时文件
-    const cloudPath = await cloudPathFor(logical)
-    const up = await wx.cloud.uploadFile({ cloudPath, filePath: tmp })
-    fm.unlinkSync(tmp)
-    // 记录 fileID 指针到数据库（供恢复按逻辑路径找回）
-    const db = wx.cloud.database()
-    await db.collection('nianlun_backup').doc('self').set({ data: { [dbField(logical)]: up.fileID, updatedAt: Date.now() } })
-      .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', [dbField(logical)]: up.fileID } }))
+    try {
+      const cloudPath = await cloudPathFor(logical)
+      const up = await wx.cloud.uploadFile({ cloudPath, filePath: tmp })
+      const db = wx.cloud.database()
+      const field = dbField(logical)
+      // update 是字段合并（cloudPath 确定 → fileID 稳定，幂等）；文档不存在时用 add 兜底创建
+      await db.collection('nianlun_backup').doc('self')
+        .update({ data: { [field]: up.fileID, updatedAt: Date.now() } })
+        .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', [field]: up.fileID, updatedAt: Date.now() } }))
+    } finally {
+      try { fm.unlinkSync(tmp) } catch { /* ignore */ }
+    }
   },
   download: async (logical) => {
     const db = wx.cloud.database()
@@ -130,11 +157,23 @@ const wxDeps: CloudBackupDeps = {
       return new Uint8Array(buf)
     } catch { return null }
   },
+  finalize: async (mode) => {
+    const db = wx.cloud.database()
+    await db.collection('nianlun_backup').doc('self')
+      .update({ data: { mode, updatedAt: Date.now() } })
+      .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', mode, updatedAt: Date.now() } }))
+  },
+  resolveMode: async () => {
+    try {
+      const rec = (await wx.cloud.database().collection('nianlun_backup').doc('self').get()).data as { mode?: 'single' | 'chunked' }
+      return rec?.mode ?? null
+    } catch { return null }
+  },
 }
 /** 逻辑路径 → 数据库字段名（点/斜杠不合法，做映射）。 */
 function dbField(logical: string): string { return 'f_' + logical.replace(/[^a-zA-Z0-9]/g, '_') }
 
 // ⚠️ 真机核对项（部署时逐条验证，微信基础库版本差异）：wx.cloud.uploadFile 的 cloudPath 覆盖语义、
 // downloadFile({ fileID }) 返回 tempFilePath、writeFileSync 接受 ArrayBuffer、数据库 doc('self')
-// 固定 id 的 set/add 幂等。若 doc('self').set 在无记录时报错，用上面的 .catch(add) 兜底；确认后可简化。
+// 固定 id 的 update/add 幂等。
 export const cloudBackup = makeCloudBackup(wxDeps)

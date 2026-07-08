@@ -181,6 +181,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO)
       backend.remove(K_FRIEND_SENTIMENT); backend.remove(K_FRIEND_PROFILE); backend.remove(K_FRIEND_MBTI)
       backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
+      backend.remove(K_LAST_BACKUP_AT)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')
     },
     exportAll(): StorageSnapshot {
@@ -248,6 +249,8 @@ const wxFsJson: FsJsonBackend = {
   read: (n) => realFsJson().read(n),
   write: (n, d) => realFsJson().write(n, d),
   remove: (n) => realFsJson().remove(n),
+  readRaw: (n) => realFsJson().readRaw(n),
+  writeRaw: (n, r) => realFsJson().writeRaw(n, r),
 }
 
 export const storage = makeStorage(wxBackend, wxFsJson)

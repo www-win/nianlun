@@ -15,7 +15,7 @@ async function onBackup() {
 }
 function onRestore() {
   uni.showModal({
-    title: '从云端恢复', content: '将用云端备份覆盖本机数据，确定吗？',
+    title: '从云端恢复', content: '将从云端备份写回本机数据（本地已有的会被云端版本覆盖），确定吗？',
     success: async (r) => {
       if (!r.confirm) return
       const ok = await backup.restoreNow()
