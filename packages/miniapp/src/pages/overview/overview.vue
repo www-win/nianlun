@@ -177,18 +177,19 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
         </view>
         <text v-if="heat.peak" class="hm-peak muted">最活跃：周{{ heat.peak.label }} {{ heat.peak.hour }} 点（{{ heat.peak.count }} 条）</text>
       </view>
-
-      <view class="card" style="margin-top:24rpx;padding:28rpx">
-        <view class="eyebrow">数据与备份</view>
-        <view class="muted" style="margin:12rpx 0">
-          {{ backup.lastBackupAt ? '上次备份：' + new Date(backup.lastBackupAt).toLocaleString() : '尚未备份' }}
-        </view>
-        <view style="display:flex;gap:16rpx">
-          <button class="btn-primary" style="flex:1" :loading="backup.status==='backing'" @click="onBackup">立即备份到云</button>
-          <button class="btn-ghost" style="flex:1" :loading="backup.status==='restoring'" @click="onRestore">从云端恢复</button>
-        </view>
-      </view>
     </template>
+
+    <!-- 数据与备份：始终显示（空状态也要能「从云端恢复」，否则数据丢了反而看不到恢复按钮） -->
+    <view class="card" style="margin-top:24rpx;padding:28rpx">
+      <view class="eyebrow">数据与备份</view>
+      <view class="muted" style="margin:12rpx 0">
+        {{ backup.lastBackupAt ? '上次备份：' + new Date(backup.lastBackupAt).toLocaleString() : '尚未备份' }}
+      </view>
+      <view style="display:flex;gap:16rpx">
+        <button class="btn-primary" style="flex:1" :loading="backup.status==='backing'" @click="onBackup">立即备份到云</button>
+        <button class="btn-ghost" style="flex:1" :loading="backup.status==='restoring'" @click="onRestore">从云端恢复</button>
+      </view>
+    </view>
   </view>
 </template>
 

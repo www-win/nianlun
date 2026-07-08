@@ -122,6 +122,12 @@ async function cloudPathFor(logical: string): Promise<string> {
 }
 function tempFile(name: string): string { return `${wx.env.USER_DATA_PATH}/__bk_${name.replace(/\//g, '_')}` }
 
+// 云存储 fileID 前缀 = cloud://{环境ID}.{存储桶ID}/。存储桶 ID 每个云环境固定不变，
+// 可在任意一次 uploadFile 返回的 fileID 或云开发控制台「存储」里文件详情的 File ID 中看到。
+// 用它 + openid + 路径即可推算出备份文件的 fileID，从而彻底不依赖数据库存指针。
+// 换云环境时需同步改这里（与 App.vue 的 env 一致）。
+const CLOUD_FILE_PREFIX = 'cloud://cloud1-d4gzww8dp909b47cb.636c-cloud1-d4gzww8dp909b47cb-1448757478/'
+
 const wxDeps: CloudBackupDeps = {
   storage: { exportAll: () => storage.exportAll(), importAll: (s) => storage.importAll(s) },
   gzip: (d) => gzipSync(d, { level: 4 }),
@@ -133,47 +139,27 @@ const wxDeps: CloudBackupDeps = {
     fm.writeFileSync(tmp, bytes.buffer as ArrayBuffer)          // 字节 → 临时文件
     try {
       const cloudPath = await cloudPathFor(logical)
-      const up = await wx.cloud.uploadFile({ cloudPath, filePath: tmp })
-      const db = wx.cloud.database()
-      const field = dbField(logical)
-      // update 是字段合并（cloudPath 确定 → fileID 稳定，幂等）；文档不存在时用 add 兜底创建
-      await db.collection('nianlun_backup').doc('self')
-        .update({ data: { [field]: up.fileID, updatedAt: Date.now() } })
-        .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', [field]: up.fileID, updatedAt: Date.now() } }))
+      await wx.cloud.uploadFile({ cloudPath, filePath: tmp })   // 覆盖上传；fileID 可推算，无需存库
     } finally {
       try { fm.unlinkSync(tmp) } catch { /* ignore */ }
     }
   },
   download: async (logical) => {
-    const db = wx.cloud.database()
-    let rec: any
-    try { rec = (await db.collection('nianlun_backup').doc('self').get()).data } catch { return null }
-    const fileID = rec?.[dbField(logical)]
-    if (!fileID) return null
+    // 直接推算 fileID（前缀固定 + openid + 路径），不查数据库
+    const fileID = `${CLOUD_FILE_PREFIX}${await cloudPathFor(logical)}`
     try {
       const res = await wx.cloud.downloadFile({ fileID })
+      if (res.statusCode && res.statusCode !== 200) return null  // 文件不存在等
       const fm = wx.getFileSystemManager()
       const buf = fm.readFileSync(res.tempFilePath) as ArrayBuffer
       return new Uint8Array(buf)
-    } catch { return null }
+    } catch { return null }  // 无此文件/网络错误 → 视作不存在
   },
-  finalize: async (mode) => {
-    const db = wx.cloud.database()
-    await db.collection('nianlun_backup').doc('self')
-      .update({ data: { mode, updatedAt: Date.now() } })
-      .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', mode, updatedAt: Date.now() } }))
-  },
-  resolveMode: async () => {
-    try {
-      const rec = (await wx.cloud.database().collection('nianlun_backup').doc('self').get()).data as { mode?: 'single' | 'chunked' }
-      return rec?.mode ?? null
-    } catch { return null }
-  },
+  // 不再用 finalize/resolveMode：restore 退回「先试单包 backup.json.gz，再试 manifest」的兼容逻辑，
+  // 靠 downloadFile 能否取到文件来判断走哪条路径，无需 mode 记录。
 }
-/** 逻辑路径 → 数据库字段名（点/斜杠不合法，做映射）。 */
-function dbField(logical: string): string { return 'f_' + logical.replace(/[^a-zA-Z0-9]/g, '_') }
 
 // ⚠️ 真机核对项（部署时逐条验证，微信基础库版本差异）：wx.cloud.uploadFile 的 cloudPath 覆盖语义、
-// downloadFile({ fileID }) 返回 tempFilePath、writeFileSync 接受 ArrayBuffer、数据库 doc('self')
-// 固定 id 的 update/add 幂等。
+// downloadFile({ fileID }) 返回 tempFilePath 与 statusCode、writeFileSync 接受 ArrayBuffer、
+// CLOUD_FILE_PREFIX 的存储桶 ID 与当前云环境一致。
 export const cloudBackup = makeCloudBackup(wxDeps)
