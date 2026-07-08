@@ -25,14 +25,18 @@ onLaunch(async () => {
   }
   await useDataStore().hydrate()
 
-  const data = useDataStore()
-  data.setOnSaved(() => useBackupStore().scheduleBackup())
-  if (data.friends.length === 0) {
-    try {
-      const ok = await useBackupStore().restoreNow()
-      if (ok) await data.hydrate()
-    } catch { /* 无网/云端无备份：静默，不打断启动 */ }
-  }
+  // 备份接线 + 自动恢复放到启动后的下一个 tick，绝不挂在 onLaunch 的 await 链上：
+  // 真机上若在 onLaunch 内 await 云端恢复(getOpenId 云函数 + 数据库)，云调用会拖慢 app 就绪，
+  // 导致页面组件 attached 时 $vm 未就绪(点按钮无反应/报 $vm 错)。延后一 tick 即规避，且不影响功能。
+  setTimeout(() => {
+    const data = useDataStore()
+    data.setOnSaved(() => useBackupStore().scheduleBackup())
+    if (data.friends.length === 0) {
+      useBackupStore().restoreNow()
+        .then((ok) => { if (ok) return data.hydrate() })
+        .catch(() => { /* 无网/云端无备份/未部署：静默，不打断使用 */ })
+    }
+  }, 0)
 })
 </script>
 

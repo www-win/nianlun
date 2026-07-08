@@ -1,4 +1,4 @@
-import { gzipSync, gunzipSync } from 'fflate'
+import { gzipSync, gunzipSync, strToU8, strFromU8 } from 'fflate'
 import { storage } from './storage'
 import type { StorageSnapshot } from './storage'
 
@@ -27,15 +27,15 @@ export interface CloudBackupDeps {
 const SINGLE_PATH = 'backup.json.gz'
 const MANIFEST_PATH = 'manifest.json.gz'
 const DEFAULT_BIG_THRESHOLD = 8 * 1024 * 1024
-const enc = new TextEncoder()
-const dec = new TextDecoder()
+// 注意：小程序运行时没有 TextEncoder/TextDecoder（Web/Node 全局），故用 fflate 的
+// strToU8/strFromU8 做 UTF-8 字符串↔字节，避免模块加载即抛 "TextEncoder is not defined"。
 
 interface Manifest { version: 1; createdAt: number; chunked: true; fileNames: string[] }
 
 export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: number } = {}) {
   const bigThreshold = opts.bigThreshold ?? DEFAULT_BIG_THRESHOLD
-  const gz = (obj: unknown) => deps.gzip(enc.encode(JSON.stringify(obj)))
-  const ungz = (bytes: Uint8Array) => JSON.parse(dec.decode(deps.gunzip(bytes)))
+  const gz = (obj: unknown) => deps.gzip(strToU8(JSON.stringify(obj)))
+  const ungz = (bytes: Uint8Array) => JSON.parse(strFromU8(deps.gunzip(bytes)))
 
   function estimate(snap: StorageSnapshot): number {
     let n = JSON.stringify(snap.kv).length
