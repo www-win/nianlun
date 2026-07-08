@@ -59,3 +59,30 @@ describe('cloudBackup 单包', () => {
     expect(env.files.friends).toBe('[]')
   })
 })
+
+describe('cloudBackup 分块降级', () => {
+  it('超阈值时分块上传，restore 能还原', async () => {
+    const big = 'x'.repeat(50) // 配合极小阈值触发分块
+    const src = memStorage({ kv: { 'nianlun:report': { note: big } }, files: { friends: `["${big}"]`, stocks: '[1,2,3]' } })
+    const cloud = memCloud()
+    const cb = makeCloudBackup(deps(src, cloud), { bigThreshold: 10 })
+    await cb.backup()
+    // 应写入 manifest + 多个 part，而非单一 backup.json.gz
+    const paths = [...cloud._files.keys()]
+    expect(paths).toContain('manifest.json.gz')
+    expect(paths.some((p) => p.startsWith('parts/'))).toBe(true)
+    expect(paths).not.toContain('backup.json.gz')
+
+    const dst = memStorage({ kv: {}, files: {} })
+    const ok = await makeCloudBackup(deps(dst, cloud), { bigThreshold: 10 }).restore()
+    expect(ok).toBe(true)
+    expect(dst._get()).toEqual(src._get())
+  })
+
+  it('阈值内仍走单包', async () => {
+    const src = memStorage({ kv: {}, files: { friends: '[]' } })
+    const cloud = memCloud()
+    await makeCloudBackup(deps(src, cloud), { bigThreshold: 8 * 1024 * 1024 }).backup()
+    expect([...cloud._files.keys()]).toEqual(['backup.json.gz'])
+  })
+})
