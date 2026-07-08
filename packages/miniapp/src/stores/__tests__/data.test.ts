@@ -81,4 +81,42 @@ describe('data store', () => {
     expect(clearAllSpy).toHaveBeenCalledTimes(1)
     expect(rawClearSpy).toHaveBeenCalledTimes(1)
   })
+
+  it('setData 后触发 onSaved 回调', async () => {
+    const spy = vi.fn()
+    const useData = createDataStore(memStorage(), fakeRawStore())
+    const d = useData()
+    d.setOnSaved(spy)
+    await d.setData([FRIEND], REPORT)
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('updateFriend 后触发 onSaved 回调', async () => {
+    const spy = vi.fn()
+    const useData = createDataStore(memStorage(), fakeRawStore())
+    const d = useData()
+    await d.setData([FRIEND], REPORT)
+    d.setOnSaved(spy)
+    await d.updateFriend('f1', { alias: '小甲' })
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('clear 不触发 onSaved 回调', async () => {
+    const spy = vi.fn()
+    const useData = createDataStore(memStorage(), fakeRawStore())
+    const d = useData()
+    await d.setData([FRIEND], REPORT)
+    d.setOnSaved(spy)
+    await d.clear()
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('onSaved 回调抛错不影响保存', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s, fakeRawStore())
+    const d = useData()
+    d.setOnSaved(() => { throw new Error('backup failed') })
+    await expect(d.setData([FRIEND], REPORT)).resolves.toBeUndefined()
+    expect(s.loadFriends()[0].id).toBe('f1')
+  })
 })

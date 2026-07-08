@@ -13,6 +13,9 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
     const friends = ref<Friend[]>([])
     const report = ref<ReportData | null>(null)
     const hasData = computed(() => friends.value.length > 0)
+    let onSaved: (() => void) | null = null
+    function setOnSaved(fn: () => void) { onSaved = fn }
+    const fireSaved = () => { try { onSaved?.() } catch { /* 备份触发失败不影响本地保存 */ } }
 
     async function hydrate() {
       friends.value = storage.loadFriends()
@@ -23,6 +26,7 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
       report.value = newReport
       storage.saveFriends(JSON.parse(JSON.stringify(newFriends)))
       storage.saveReport(JSON.parse(JSON.stringify(newReport)))
+      fireSaved()
     }
     async function updateFriend(
       id: string,
@@ -38,11 +42,12 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
         else f.userEdited.mbti = patch.mbti
       }
       storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))
+      fireSaved()
     }
     async function clear() {
       friends.value = []; report.value = null; storage.clearAll(); rawStore.clear()
     }
-    return { friends, report, hasData, hydrate, setData, updateFriend, clear }
+    return { friends, report, hasData, hydrate, setData, updateFriend, clear, setOnSaved }
   })
 }
 
