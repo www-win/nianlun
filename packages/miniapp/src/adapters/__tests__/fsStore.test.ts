@@ -50,3 +50,25 @@ describe('makeKvFsJson（缺省退化到 KV）', () => {
     expect(makeKvFsJson(kv).read('x')).toBeUndefined()
   })
 })
+
+function memKv() {
+  const m = new Map<string, unknown>()
+  return { get: (k: string) => (m.has(k) ? m.get(k) : ''), set: (k: string, v: unknown) => void m.set(k, v), remove: (k: string) => void m.delete(k), _m: m }
+}
+
+describe('FsJsonBackend readRaw/writeRaw (kv)', () => {
+  it('writeRaw 存原始字符串，readRaw 原样取回', () => {
+    const fs = makeKvFsJson(memKv())
+    fs.writeRaw('friends', '[{"id":"a"}]')
+    expect(fs.readRaw('friends')).toBe('[{"id":"a"}]')
+  })
+  it('readRaw 缺失返回 undefined', () => {
+    const fs = makeKvFsJson(memKv())
+    expect(fs.readRaw('nope')).toBeUndefined()
+  })
+  it('writeRaw 写入后 read（解析版）也能读到对象', () => {
+    const fs = makeKvFsJson(memKv())
+    fs.writeRaw('friends', '[{"id":"a"}]')
+    expect(fs.read('friends')).toEqual([{ id: 'a' }])
+  })
+})

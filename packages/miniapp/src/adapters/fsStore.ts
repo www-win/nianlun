@@ -5,6 +5,10 @@ export interface FsJsonBackend {
   read(name: string): unknown
   write(name: string, data: unknown): void
   remove(name: string): void
+  /** 读磁盘上的原始 JSON 文本（不解析）；不存在返回 undefined。 */
+  readRaw(name: string): string | undefined
+  /** 直接把原始 JSON 文本落盘（不再序列化）。 */
+  writeRaw(name: string, raw: string): void
 }
 
 /** 真机：把每个 name 存成 `${baseDir}/${name}.json`（文件系统，无 1MB/10MB 限制）。 */
@@ -21,6 +25,13 @@ export function makeFsJson(fs: RawFsBackend, baseDir: string): FsJsonBackend {
     remove(name) {
       try { fs.unlink(path(name)) } catch { /* 不存在，忽略 */ }
     },
+    readRaw(name) {
+      try { return fs.readFile(path(name)) } catch { return undefined }
+    },
+    writeRaw(name, raw) {
+      fs.ensureDir(baseDir)
+      fs.writeFile(path(name), raw)
+    },
   }
 }
 
@@ -36,5 +47,10 @@ export function makeKvFsJson(kv: KvLike): FsJsonBackend {
     },
     write(name, data) { kv.set(key(name), data) },
     remove(name) { kv.remove(key(name)) },
+    readRaw(name) {
+      const v = kv.get(key(name))
+      return v === '' || v === undefined || v === null ? undefined : JSON.stringify(v)
+    },
+    writeRaw(name, raw) { kv.set(key(name), JSON.parse(raw)) },
   }
 }
