@@ -35,7 +35,7 @@ export function createBackupStore(deps: BackupDeps) {
         deps.storage.saveLastBackupAt(now); lastBackupAt.value = now
         status.value = 'idle'
       } catch (e) {
-        error.value = (e as Error).message; status.value = 'error'
+        error.value = e instanceof Error ? e.message : String(e); status.value = 'error'
       }
     }
 
@@ -50,7 +50,7 @@ export function createBackupStore(deps: BackupDeps) {
         status.value = 'idle'
         return ok
       } catch (e) {
-        error.value = (e as Error).message; status.value = 'error'
+        error.value = e instanceof Error ? e.message : String(e); status.value = 'error'
         return false
       }
     }

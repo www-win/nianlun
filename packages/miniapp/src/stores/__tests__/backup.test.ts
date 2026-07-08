@@ -55,4 +55,22 @@ describe('backup store', () => {
     expect(await s.restoreNow()).toBe(false)
     expect(s.status).toBe('idle')
   })
+
+  it('backupNow 时 cloudBackup.backup 抛错，status 置 error 且记录错误信息', async () => {
+    const cloud = { backup: vi.fn(async () => { throw new Error('网络错误') }), restore: vi.fn() }
+    const useStore = createBackupStore({ cloudBackup: cloud as any, storage: fakeStorage(), schedule: (fn) => fn() })
+    const s = useStore()
+    await s.backupNow()
+    expect(s.status).toBe('error')
+    expect(s.error).toBeTruthy()
+  })
+
+  it('restoreNow 时 cloudBackup.restore 抛错，返回 false 且 status 置 error', async () => {
+    const cloud = { backup: vi.fn(), restore: vi.fn(async () => { throw new Error('网络错误') }) }
+    const useStore = createBackupStore({ cloudBackup: cloud as any, storage: fakeStorage(), schedule: (fn) => fn() })
+    const s = useStore()
+    expect(await s.restoreNow()).toBe(false)
+    expect(s.status).toBe('error')
+    expect(s.error).toBeTruthy()
+  })
 })
