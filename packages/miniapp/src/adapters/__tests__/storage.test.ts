@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
-import { makeFsJson } from '../fsStore'
+import { makeFsJson, makeKvFsJson } from '../fsStore'
 import type { RawFsBackend } from '../rawStore'
 import type { Friend, ReportData, BirthInfo, StockPick, MbtiResult } from '@nianlun/core'
 
@@ -346,5 +346,58 @@ describe('purgeLegacyBigKeys', () => {
     expect(m.has('nianlun:stocks')).toBe(false)
     expect(m.has('nianlun:report')).toBe(true)      // 小元数据保留
     expect(m.has('nianlun:analyzedIds')).toBe(true)
+  })
+})
+
+describe('storage exportAll/importAll', () => {
+  function memBackendWithKeys() {
+    const m = new Map<string, unknown>()
+    return {
+      get: (k: string) => (m.has(k) ? m.get(k) : ''),
+      set: (k: string, v: unknown) => void m.set(k, v),
+      remove: (k: string) => void m.delete(k),
+      keys: () => [...m.keys()],
+      _m: m,
+    }
+  }
+
+  it('往返：export 后 import 到新 storage，数据等价', () => {
+    const b1 = memBackendWithKeys()
+    const s1 = makeStorage(b1, makeKvFsJson(b1))
+    s1.saveReport({ year: 2025, totalMessages: 3, friendCount: 1, activeDays: 2, topContacts: [], latestMessage: null, keywords: [], relationBreakdown: [] } as any)
+    s1.saveFriends([{ id: 'a', name: '甲', msgCount: 5 } as any])
+    s1.saveStockPicks([{ code: '600000' } as any])
+
+    const snap = s1.exportAll()
+
+    const b2 = memBackendWithKeys()
+    const s2 = makeStorage(b2, makeKvFsJson(b2))
+    s2.importAll(snap)
+    expect(s2.loadReport()?.year).toBe(2025)
+    expect(s2.loadFriends()[0].id).toBe('a')
+    expect(s2.loadStockPicks()[0].code).toBe('600000')
+  })
+
+  it('exportAll 忽略 legacy 键与非 nianlun 键', () => {
+    const b = memBackendWithKeys()
+    const s = makeStorage(b, makeKvFsJson(b))
+    s.saveReport({ year: 2025 } as any)
+    b.set('nianlun:raw:0', 'x')          // legacy
+    b.set('nianlun:rawIndex', { count: 1 }) // legacy
+    b.set('other:thing', 'y')             // 非 nianlun
+    const snap = s.exportAll()
+    expect(Object.keys(snap.kv)).toContain('nianlun:report')
+    expect(Object.keys(snap.kv)).not.toContain('nianlun:raw:0')
+    expect(Object.keys(snap.kv)).not.toContain('nianlun:rawIndex')
+    expect(Object.keys(snap.kv)).not.toContain('other:thing')
+  })
+
+  it('importAll 只增不删（不清除未覆盖的已有键）', () => {
+    const b = memBackendWithKeys()
+    const s = makeStorage(b, makeKvFsJson(b))
+    s.saveMyBazi({ y: 1 } as any)
+    s.importAll({ kv: { 'nianlun:report': { year: 2025 } }, files: {} })
+    expect(s.loadReport()?.year).toBe(2025)
+    expect(s.loadMyBazi()).toEqual({ y: 1 }) // 未被清掉
   })
 })

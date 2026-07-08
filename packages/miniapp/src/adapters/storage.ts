@@ -19,6 +19,18 @@ const K_ASTRO = 'nianlun:astro'
 // 旧版本把大数据存 Storage 单键用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const LEGACY_BIG_KEYS = ['nianlun:friends', 'nianlun:samples', 'nianlun:recentInsights', 'nianlun:recentSamples', 'nianlun:stocks']
 
+/** 进备份的「大数据文件」数据集清单；新增文件数据集须在此登记。 */
+export const BACKUP_FILE_DATASETS = ['friends', 'samples', 'recentInsights', 'recentSamples', 'stocks'] as const
+export interface StorageSnapshot { kv: Record<string, unknown>; files: Record<string, string> }
+
+const LEGACY_KV_PREFIXES = ['nianlun:raw:', 'nianlun:fsjson:']
+const LEGACY_KV_EXACT = new Set<string>(['nianlun:rawIndex', ...LEGACY_BIG_KEYS])
+function isBackupKvKey(k: string): boolean {
+  if (!k.startsWith('nianlun:')) return false
+  if (LEGACY_KV_EXACT.has(k)) return false
+  return !LEGACY_KV_PREFIXES.some((p) => k.startsWith(p))
+}
+
 /** 持久化的命理解读缓存（含时效元数据）。 */
 export interface StoredAstroReading {
   reading: AstroReading
@@ -164,6 +176,21 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       backend.remove(K_FRIEND_SENTIMENT); backend.remove(K_FRIEND_PROFILE); backend.remove(K_FRIEND_MBTI)
       backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')
+    },
+    exportAll(): StorageSnapshot {
+      const kv: Record<string, unknown> = {}
+      const keys = backend.keys?.() ?? []
+      for (const k of keys) if (isBackupKvKey(k)) kv[k] = backend.get(k)
+      const files: Record<string, string> = {}
+      for (const name of BACKUP_FILE_DATASETS) {
+        const raw = fs.readRaw(name)
+        if (raw !== undefined) files[name] = raw
+      }
+      return { kv, files }
+    },
+    importAll(snap: StorageSnapshot): void {
+      for (const [k, v] of Object.entries(snap.kv ?? {})) backend.set(k, v)
+      for (const [name, raw] of Object.entries(snap.files ?? {})) fs.writeRaw(name, raw)
     },
     /** 删除旧版本存 KV 单键的大数据（现已迁文件），回收配额。真机启动调用一次。 */
     purgeLegacyBigKeys(): void { for (const k of LEGACY_BIG_KEYS) backend.remove(k) },
