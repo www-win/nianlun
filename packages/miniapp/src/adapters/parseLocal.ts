@@ -11,6 +11,9 @@ export const RECENT_DAYS = 30
 
 export interface LocalFile { name: string; content: string }
 
+/** miniapp 侧样本留存参数：比 core 默认(30/80)更大，供 AI 分析与问答 agent。 */
+const SAMPLE_OPTS = { maxPerFriend: 60, maxChars: 120 }
+
 export interface ParseOutcome {
   friends: Friend[]
   report: ReportData
@@ -47,7 +50,7 @@ export function computeRecentInsights(conversations: Conversation[]): {
   for (const f of aggregate(recentConvs)) {
     recentInsights[f.id] = { keywords: f.keywords, weekHour: f.weekHour }
   }
-  return { recentInsights, recentSamples: extractFriendSamples(recentConvs) }
+  return { recentInsights, recentSamples: extractFriendSamples(recentConvs, SAMPLE_OPTS) }
 }
 
 export function parseLocal(
@@ -65,7 +68,7 @@ export function parseLocal(
   })
   const friends = aggregate(conversations)
   const report = buildReport(conversations, friends, year)
-  const samples = extractFriendSamples(conversations)
+  const samples = extractFriendSamples(conversations, SAMPLE_OPTS)
   const { recentInsights, recentSamples } = computeRecentInsights(conversations)
   return { friends, report, warnings, samples, recentInsights, recentSamples }
 }

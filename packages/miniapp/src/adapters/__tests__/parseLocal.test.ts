@@ -29,6 +29,20 @@ describe('parseLocal', () => {
     const out = parseLocal([{ name: 'x.bin', content: '%%%' }], 2025)
     expect(out.warnings.some((w) => w.includes('x.bin'))).toBe(true)
   })
+
+  it('样本每人上限 60 条，单条不超过 120 字', () => {
+    const lines: string[] = []
+    for (let i = 0; i < 80; i++) {
+      lines.push(`2025-03-01 10:${String(i % 60).padStart(2, '0')}:00 张三`)
+      lines.push('内'.repeat(200)) // 200 字，超过 120
+      lines.push('')
+    }
+    const out = parseLocal([{ name: '张三.txt', content: lines.join('\n') }], 2025)
+    const s = Object.values(out.samples)[0]
+    expect(s.length).toBeLessThanOrEqual(60)
+    expect(s.length).toBeGreaterThan(30) // 证明确实放大了（默认 30 会正好卡 30）
+    for (const line of s) expect(line.length).toBeLessThanOrEqual(120 + 3) // 「对方：」前缀约 3 字
+  })
 })
 
 describe('computeRecentInsights（最近一个月：以最新一条消息为基准往前 30 天）', () => {
