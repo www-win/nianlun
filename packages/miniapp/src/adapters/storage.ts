@@ -16,6 +16,7 @@ const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
 const K_MY_BAZI = 'nianlun:myBazi'
 const K_BIRTHS = 'nianlun:births'
 const K_ASTRO = 'nianlun:astro'
+const K_LAST_BACKUP_AT = 'nianlun:lastBackupAt'
 // 旧版本把大数据存 Storage 单键用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const LEGACY_BIG_KEYS = ['nianlun:friends', 'nianlun:samples', 'nianlun:recentInsights', 'nianlun:recentSamples', 'nianlun:stocks']
 
@@ -140,6 +141,11 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
     loadAstroReading(): Record<string, StoredAstroReading> {
       const raw = backend.get(K_ASTRO)
       return raw && typeof raw === 'object' ? (raw as Record<string, StoredAstroReading>) : {}
+    },
+    saveLastBackupAt(t: number): void { backend.set(K_LAST_BACKUP_AT, t) },
+    loadLastBackupAt(): number | null {
+      const v = backend.get(K_LAST_BACKUP_AT)
+      return typeof v === 'number' ? v : null
     },
 
     // —— 四类 AI 结果：好友级(情绪/画像) + 报告级(文案/全年情绪)，命中缓存免重复调用 ——
