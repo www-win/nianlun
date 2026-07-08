@@ -58,3 +58,7 @@ export function createBackupStore(deps: BackupDeps) {
     return { status, lastBackupAt, error, scheduleBackup, backupNow, restoreNow }
   })
 }
+
+import { cloudBackup } from '../adapters/cloudBackup'
+import { storage } from '../adapters/storage'
+export const useBackupStore = createBackupStore({ cloudBackup, storage })

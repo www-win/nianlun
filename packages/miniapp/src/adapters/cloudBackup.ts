@@ -1,3 +1,5 @@
+import { gzipSync, gunzipSync } from 'fflate'
+import { storage } from './storage'
 import type { StorageSnapshot } from './storage'
 
 export interface BackupEnvelope {
@@ -84,3 +86,55 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
 
   return { backup, restore }
 }
+
+// —— 真机 wx.cloud 接线（薄封装，真机验证；wx 惰性访问）——
+// 需先在云开发控制台创建集合 nianlun_backup（权限：仅创建者可读写），并部署 getOpenId。
+async function wxOpenId(): Promise<string> {
+  const res = await wx.cloud.callFunction({ name: 'getOpenId' })
+  return (res.result as { openid: string }).openid
+}
+// 逻辑路径 → 云存储 cloudPath（按 openid 隔离）
+async function cloudPathFor(logical: string): Promise<string> {
+  const openid = await wxOpenId()
+  return `nianlun-backup/${openid}/${logical}`
+}
+function tempFile(name: string): string { return `${wx.env.USER_DATA_PATH}/__bk_${name.replace(/\//g, '_')}` }
+
+const wxDeps: CloudBackupDeps = {
+  storage: { exportAll: () => storage.exportAll(), importAll: (s) => storage.importAll(s) },
+  gzip: (d) => gzipSync(d, { level: 4 }),
+  gunzip: (d) => gunzipSync(d),
+  now: () => Date.now(),
+  upload: async (logical, bytes) => {
+    const fm = wx.getFileSystemManager()
+    const tmp = tempFile(logical)
+    fm.writeFileSync(tmp, bytes.buffer as ArrayBuffer)          // 字节 → 临时文件
+    const cloudPath = await cloudPathFor(logical)
+    const up = await wx.cloud.uploadFile({ cloudPath, filePath: tmp })
+    fm.unlinkSync(tmp)
+    // 记录 fileID 指针到数据库（供恢复按逻辑路径找回）
+    const db = wx.cloud.database()
+    await db.collection('nianlun_backup').doc('self').set({ data: { [dbField(logical)]: up.fileID, updatedAt: Date.now() } })
+      .catch(() => db.collection('nianlun_backup').add({ data: { _id: 'self', [dbField(logical)]: up.fileID } }))
+  },
+  download: async (logical) => {
+    const db = wx.cloud.database()
+    let rec: any
+    try { rec = (await db.collection('nianlun_backup').doc('self').get()).data } catch { return null }
+    const fileID = rec?.[dbField(logical)]
+    if (!fileID) return null
+    try {
+      const res = await wx.cloud.downloadFile({ fileID })
+      const fm = wx.getFileSystemManager()
+      const buf = fm.readFileSync(res.tempFilePath) as ArrayBuffer
+      return new Uint8Array(buf)
+    } catch { return null }
+  },
+}
+/** 逻辑路径 → 数据库字段名（点/斜杠不合法，做映射）。 */
+function dbField(logical: string): string { return 'f_' + logical.replace(/[^a-zA-Z0-9]/g, '_') }
+
+// ⚠️ 真机核对项（部署时逐条验证，微信基础库版本差异）：wx.cloud.uploadFile 的 cloudPath 覆盖语义、
+// downloadFile({ fileID }) 返回 tempFilePath、writeFileSync 接受 ArrayBuffer、数据库 doc('self')
+// 固定 id 的 set/add 幂等。若 doc('self').set 在无记录时报错，用上面的 .catch(add) 兜底；确认后可简化。
+export const cloudBackup = makeCloudBackup(wxDeps)

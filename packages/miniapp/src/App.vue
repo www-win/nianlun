@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
+import { useBackupStore } from './stores/backup'
 import { purgeUnzipTemp } from './adapters/fileReader'
 import { storage } from './adapters/storage'
 import { rawStore } from './adapters/rawStore'
@@ -23,6 +24,15 @@ onLaunch(async () => {
     wx.cloud.init({ env: 'cloud1-d4gzww8dp909b47cb' })
   }
   await useDataStore().hydrate()
+
+  const data = useDataStore()
+  data.setOnSaved(() => useBackupStore().scheduleBackup())
+  if (data.friends.length === 0) {
+    try {
+      const ok = await useBackupStore().restoreNow()
+      if (ok) await data.hydrate()
+    } catch { /* 无网/云端无备份：静默，不打断启动 */ }
+  }
 })
 </script>
 

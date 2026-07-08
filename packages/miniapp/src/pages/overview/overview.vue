@@ -2,10 +2,28 @@
 import { computed } from 'vue'
 import { sumWeekHour } from '@nianlun/core'
 import { useDataStore } from '../../stores/data'
+import { useBackupStore } from '../../stores/backup'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 
 const data = useDataStore()
+const backup = useBackupStore()
+
+async function onBackup() {
+  await backup.backupNow()
+  uni.showToast({ title: backup.status === 'error' ? '备份失败' : '已备份', icon: backup.status === 'error' ? 'none' : 'success' })
+}
+function onRestore() {
+  uni.showModal({
+    title: '从云端恢复', content: '将用云端备份覆盖本机数据，确定吗？',
+    success: async (r) => {
+      if (!r.confirm) return
+      const ok = await backup.restoreNow()
+      if (ok) { await data.hydrate(); uni.showToast({ title: '已恢复', icon: 'success' }) }
+      else uni.showToast({ title: '云端暂无备份', icon: 'none' })
+    },
+  })
+}
 
 const REL_COLORS: Record<string, string> = {
   家人: '#d96a5a', 挚友: '#43a86a', 同事: '#5a7fd0', 同学: '#cf9a36', 客户: '#b066b0', 其他: '#8a8f99',
@@ -158,6 +176,17 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
           </view>
         </view>
         <text v-if="heat.peak" class="hm-peak muted">最活跃：周{{ heat.peak.label }} {{ heat.peak.hour }} 点（{{ heat.peak.count }} 条）</text>
+      </view>
+
+      <view class="card" style="margin-top:24rpx;padding:28rpx">
+        <view class="eyebrow">数据与备份</view>
+        <view class="muted" style="margin:12rpx 0">
+          {{ backup.lastBackupAt ? '上次备份：' + new Date(backup.lastBackupAt).toLocaleString() : '尚未备份' }}
+        </view>
+        <view style="display:flex;gap:16rpx">
+          <button class="btn-primary" style="flex:1" :loading="backup.status==='backing'" @click="onBackup">立即备份到云</button>
+          <button class="btn-ghost" style="flex:1" :loading="backup.status==='restoring'" @click="onRestore">从云端恢复</button>
+        </view>
       </view>
     </template>
   </view>
