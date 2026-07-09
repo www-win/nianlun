@@ -98,4 +98,13 @@ describe('aiClient 命理', () => {
     expect(out[0].recommenderId).toBe('f1')       // ctx 注入
     expect(transport.mock.calls[0][0]).toContain('JSON 数组')
   })
+
+  it('answerChatQa 把 prompt 交给 transport、回传 trim 后文本', async () => {
+    const transport = vi.fn().mockResolvedValue('  你和张三聊了火锅。  ')
+    const ctx = { statsSummary: '年份2024', samples: [], rawExcerpts: [{ friend: '张三', lines: ['2024-03-01 张三：吃火锅'] }] }
+    const out = await makeAiClient(transport).answerChatQa('聊了啥', [], ctx as any)
+    expect(out).toBe('你和张三聊了火锅。')                 // 已 trim
+    expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含原文
+    expect(transport.mock.calls[0][1]).toBe(2048)          // maxTokens
+  })
 })

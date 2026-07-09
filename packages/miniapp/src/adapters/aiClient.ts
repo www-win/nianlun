@@ -5,11 +5,13 @@ import {
   buildMbtiPrompt, parseMbti,
   buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirthInfo,
   buildStockExtractionPrompt, parseStockExtraction,
+  buildChatQaPrompt, parseChatQaAnswer,
 } from '@nianlun/core'
 import type {
   Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile, MbtiResult,
   BaziChart, DayFortune, Compatibility, AstroReading, BirthInfo,
   StockPick, ExtractCtx,
+  ChatQaTurn, ChatQaContext,
 } from '@nianlun/core'
 
 export type Transport = (prompt: string, maxTokens: number) => Promise<string>
@@ -52,6 +54,10 @@ export function makeAiClient(transport: Transport) {
     async extractStocks(friend: Friend, samples: string[], ctx: ExtractCtx): Promise<StockPick[]> {
       const text = await transport(buildStockExtractionPrompt(friend, samples), 2048)
       return parseStockExtraction(text, ctx)
+    },
+    async answerChatQa(question: string, history: ChatQaTurn[], context: ChatQaContext): Promise<string> {
+      const text = await transport(buildChatQaPrompt(question, history, context), 2048)
+      return parseChatQaAnswer(text)
     },
   }
 }
