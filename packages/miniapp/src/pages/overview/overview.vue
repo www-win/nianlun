@@ -24,6 +24,9 @@ function onRestore() {
     },
   })
 }
+function goChatQa() {
+  uni.navigateTo({ url: '/pages/chat-qa/chat-qa' })
+}
 
 const REL_COLORS: Record<string, string> = {
   家人: '#d96a5a', 挚友: '#43a86a', 同事: '#5a7fd0', 同学: '#cf9a36', 客户: '#b066b0', 其他: '#8a8f99',
@@ -91,6 +94,15 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
           <text class="year num">{{ data.report.year }}</text>
         </view>
         <AntennaBuddy :color="'var(--dipsy)'" antenna="rod" :scale="0.66" />
+      </view>
+
+      <view class="card qa-entry" @click="goChatQa">
+        <text class="qa-emoji">💬</text>
+        <view class="qa-mid">
+          <text class="qa-t">问问我的聊天记录</text>
+          <text class="qa-s">具体的事、规律、关系都能问</text>
+        </view>
+        <text class="qa-arrow">›</text>
       </view>
 
       <view class="stats">
@@ -249,4 +261,11 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 .hm-tick { flex: 1; font-size: 18rpx; color: var(--faint); text-align: center; }
 .hm-cell { flex: 1; height: 26rpx; border-radius: 4rpx; background: var(--surface-2); }
 .hm-peak { display: block; margin-top: 20rpx; font-size: 23rpx; }
+
+.qa-entry { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 28rpx; margin-bottom: 20rpx; }
+.qa-emoji { font-size: 44rpx; }
+.qa-mid { flex: 1; display: flex; flex-direction: column; }
+.qa-t { font-size: 28rpx; font-weight: 700; color: var(--fg); }
+.qa-s { margin-top: 6rpx; font-size: 23rpx; color: var(--muted); }
+.qa-arrow { font-size: 40rpx; color: var(--muted); }
 </style>
