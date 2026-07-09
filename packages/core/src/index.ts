@@ -45,3 +45,5 @@ export {
   aggregateByStock, aggregateByRecommender, withRecommenderNames, buildStockExtractionPrompt,
 } from './ai/stock'
 export type { StockPick, ExtractCtx, StockCard, RecommenderPicks } from './ai/stock'
+export { selectRelevantFriends, extractKeywords } from './ai/chatQa'
+export type { ChatQaTurn, RawExcerpt, ChatQaContext, FriendRef } from './ai/chatQa'
