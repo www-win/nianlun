@@ -26,14 +26,18 @@ describe('selectRelevantFriends', () => {
 })
 
 describe('extractKeywords', () => {
-  it('抽取 2 字以上中文/字母数字词，去停用词', () => {
+  it('中文按 bigram 抽取、排除好友名', () => {
     const ks = extractKeywords('李四是不是提过要换工作', ['李四'])
     expect(ks).toContain('提过')
-    expect(ks).toContain('要换工作')
+    expect(ks).toContain('工作')
     expect(ks).not.toContain('李四')     // 被 exclude
   })
-  it('过滤单字与停用词', () => {
+  it('过滤常见功能性词（如「什么」）', () => {
     const ks = extractKeywords('他什么时候来的')
     expect(ks).not.toContain('什么')
+  })
+  it('字母数字取整词并小写', () => {
+    const ks = extractKeywords('他发了个PDF')
+    expect(ks).toContain('pdf')
   })
 })
