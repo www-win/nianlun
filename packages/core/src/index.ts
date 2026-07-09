@@ -42,6 +42,6 @@ export { buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirt
 export type { AstroReading } from './ai/astro'
 export {
   normalizeStockName, parseStockExtraction, mergeStockPicks,
-  aggregateByStock, aggregateByRecommender, buildStockExtractionPrompt,
+  aggregateByStock, aggregateByRecommender, withRecommenderNames, buildStockExtractionPrompt,
 } from './ai/stock'
 export type { StockPick, ExtractCtx, StockCard, RecommenderPicks } from './ai/stock'

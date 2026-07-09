@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock, aggregateByRecommender, buildStockExtractionPrompt } from '../stock'
+import { normalizeStockName, parseStockExtraction, mergeStockPicks, aggregateByStock, aggregateByRecommender, withRecommenderNames, buildStockExtractionPrompt } from '../stock'
 import type { ExtractCtx } from '../stock'
 import type { Friend } from '../../model/types'
 
@@ -108,6 +108,33 @@ describe('aggregateByRecommender', () => {
     expect(zhang.recommender).toBe('张三首席')
     expect(zhang.picks).toHaveLength(3)
     expect(zhang.stockCount).toBe(2)   // A、B
+  })
+})
+
+describe('withRecommenderNames', () => {
+  it('用好友最新显示名覆盖 pick 的 recommender 快照（改名/导入通讯录后同步）', () => {
+    const picks = [
+      mk({ recommenderId: 'wxid_abc', recommender: 'wxid_abc' }),
+      mk({ recommenderId: 'wxid_abc', recommender: 'wxid_abc', stockNorm: 'B' }),
+      mk({ recommenderId: 'wxid_xyz', recommender: '老李' }),
+    ]
+    const out = withRecommenderNames(picks, new Map([['wxid_abc', '王首席']]))
+    expect(out[0].recommender).toBe('王首席')
+    expect(out[1].recommender).toBe('王首席')
+    expect(out[2].recommender).toBe('老李')       // 未命中映射，保持快照
+    expect(out[0].recommenderId).toBe('wxid_abc')  // id 不变
+  })
+  it('返回新对象，不改动原 picks', () => {
+    const picks = [mk({ recommenderId: 'x', recommender: 'old' })]
+    const out = withRecommenderNames(picks, new Map([['x', 'new']]))
+    expect(picks[0].recommender).toBe('old')
+    expect(out[0]).not.toBe(picks[0])
+  })
+  it('空名或未命中时保持原快照，命中同名不产生新对象', () => {
+    const same = mk({ recommenderId: 'x', recommender: '同名' })
+    expect(withRecommenderNames([mk({ recommenderId: 'x', recommender: 'old' })], new Map([['x', '']]))[0].recommender).toBe('old')
+    expect(withRecommenderNames([mk({ recommenderId: 'x', recommender: 'old' })], new Map())[0].recommender).toBe('old')
+    expect(withRecommenderNames([same], new Map([['x', '同名']]))[0]).toBe(same)  // 同名短路，复用原对象
   })
 })
 

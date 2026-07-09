@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { makeFileReader, purgeUnzipTemp, removeDirDeep } from '../fileReader'
+import { zipSync, strToU8 } from 'fflate'
+import { makeFileReader, purgeUnzipTemp, removeDirDeep, unzipTextEntries } from '../fileReader'
 
 describe('fileReader 适配器', () => {
   it('选中文件后逐个读出内容', async () => {
@@ -63,6 +64,27 @@ describe('fileReader 适配器', () => {
       { name: 'in.csv', content: 'CSV' },
       { name: 'chat.txt', content: 'TXT' },
     ])
+  })
+})
+
+describe('unzipTextEntries（内存解压，绕开原生 unzip 的沙箱配额）', () => {
+  it('解出文本条目、去路径只留文件名、跳过二进制', () => {
+    const zip = zipSync({
+      'batch_01/a.csv': strToU8('id,name\n1,张三'),
+      'contacts.json': strToU8('[]'),
+      'img/photo.png': new Uint8Array([1, 2, 3, 4]), // 二进制，应被过滤
+    })
+    const out = unzipTextEntries(zip)
+    const map = Object.fromEntries(out.map((e) => [e.name, e.content]))
+    expect(Object.keys(map).sort()).toEqual(['a.csv', 'contacts.json'])
+    expect(map['a.csv']).toBe('id,name\n1,张三') // UTF-8 中文正确还原
+    expect(map['contacts.json']).toBe('[]')
+  })
+
+  it('无可解析文本时抛错，且带内含清单', () => {
+    const zip = zipSync({ 'a.png': new Uint8Array([1, 2]), 'b.bin': new Uint8Array([3]) })
+    expect(() => unzipTextEntries(zip)).toThrow(/没有可解析的文本文件/)
+    expect(() => unzipTextEntries(zip)).toThrow(/a\.png/)
   })
 })
 

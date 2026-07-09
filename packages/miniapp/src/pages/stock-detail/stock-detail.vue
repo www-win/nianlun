@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { storage } from '../../adapters/storage'
-import { aggregateByStock, aggregateByRecommender } from '@nianlun/core'
+import { aggregateByStock, aggregateByRecommender, withRecommenderNames } from '@nianlun/core'
 import type { StockCard, RecommenderPicks, StockPick } from '@nianlun/core'
 
 const kind = ref<'stock' | 'person'>('stock')
@@ -20,7 +20,9 @@ function fmtDate(ts: number): string {
 }
 
 onLoad((q?: Record<string, string>) => {
-  const picks = storage.loadStockPicks()
+  // 用好友最新名覆盖 pick 里的推荐人名快照(导入通讯录/改名后同步)，与二级市场列表页一致。
+  const nameById = new Map(storage.loadFriends().map((f) => [f.id, f.alias || f.name]))
+  const picks = withRecommenderNames(storage.loadStockPicks(), nameById)
   if (q?.type === 'person') {
     kind.value = 'person'
     const id = decodeURIComponent(q.id || '')

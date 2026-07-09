@@ -13397,6 +13397,12 @@ function aggregateByRecommender(picks) {
   }
   return out;
 }
+function withRecommenderNames(picks, nameById) {
+  return picks.map((p) => {
+    const name = nameById.get(p.recommenderId);
+    return name && name !== p.recommender ? { ...p, recommender: name } : p;
+  });
+}
 function buildStockExtractionPrompt(friend, samples) {
   const displayName = friend.alias || friend.name;
   const sampleBlock = samples.length ? samples.map((s, i) => `${i + 1}. ${s}`).join("\n") : "\uFF08\u672C\u6B21\u65E0\u53EF\u7528\u804A\u5929\u6837\u672C\uFF09";
@@ -13485,6 +13491,7 @@ export {
   toValue,
   tokenize,
   version,
+  withRecommenderNames,
   wordPolarity,
   wuxingRelation
 };

@@ -2,9 +2,15 @@
 export interface ChosenFile { path: string; name: string; size: number }
 export interface WxStat { isDirectory(): boolean; size: number }
 export interface FileSystemManager {
+  // 带 encoding → 文本(string)；不带 encoding → 二进制(ArrayBuffer)。
   readFile(opts: {
-    filePath: string; encoding?: string
+    filePath: string; encoding: string
     success?: (res: { data: string }) => void
+    fail?: (err: { errMsg: string }) => void
+  }): void
+  readFile(opts: {
+    filePath: string
+    success?: (res: { data: ArrayBuffer }) => void
     fail?: (err: { errMsg: string }) => void
   }): void
   unzip(opts: {

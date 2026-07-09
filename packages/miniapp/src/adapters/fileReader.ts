@@ -1,3 +1,5 @@
+import { unzipSync, strFromU8 } from 'fflate'
+
 export interface WxFileIO {
   choose(count: number): Promise<{ path: string; name: string }[]>
   read(path: string): Promise<string>
@@ -9,6 +11,36 @@ const TEXT_RE = /\.(csv|json|jsonl|ndjson|txt|html?)$/i
 const ZIP_RE = /\.zip$/i
 // 微信只能解压 ZIP；这些压缩格式不支持，给出明确提示而非含糊的「无法识别」。
 const OTHER_ARCHIVE_RE = /\.(rar|7z|tar|gz|tgz|bz2|xz)$/i
+
+/** 取路径最后一段作为文件名（目录项以 / 结尾，返回空串）。 */
+const basename = (p: string) => p.split('/').pop() || ''
+
+/**
+ * 纯内存解压：输入 zip 字节，输出其中所有文本条目（name+content，name 去路径只留文件名）。
+ * 只解压 TEXT_RE 匹配的条目、跳过图片等二进制（省内存）；解压全程不落盘，
+ * 因此不受小程序沙箱 ~10MB 用户文件配额约束——这正是原生 unzip 大包必失败的根因。
+ * 无可解析文本时抛错，错误里带上内含清单帮用户排查。
+ */
+export function unzipTextEntries(bytes: Uint8Array): { name: string; content: string }[] {
+  const seen: string[] = []
+  const files = unzipSync(bytes, {
+    filter: (f) => {
+      const b = basename(f.name)
+      if (!b) return false            // 目录项，跳过
+      seen.push(b)
+      return TEXT_RE.test(f.name)
+    },
+  })
+  const out: { name: string; content: string }[] = []
+  for (const path of Object.keys(files)) {
+    out.push({ name: basename(path), content: strFromU8(files[path]) })
+  }
+  if (out.length === 0) {
+    const list = seen.length ? seen.slice(0, 20).join('、') : '（空）'
+    throw new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.jsonl/.txt）。内含：${list}`)
+  }
+  return out
+}
 
 /** 递归删除所用的最小文件系统接口。 */
 export interface DirFs {
@@ -72,44 +104,22 @@ const wxIO: WxFileIO = {
   }),
   unzip: (zipPath) => new Promise((resolve, reject) => {
     const fs = wx.getFileSystemManager()
-    // 解压前先清掉所有历史残留的解压副本：即便上次 cleanup 万一没删净，这次也从零开始，
-    // 保证文件系统里最多只有本次一份解压内容，绝不累积撑满。
+    // 顺手清掉历史遗留的原生解压副本（旧版本产物），释放沙箱配额；新路径全程不落盘。
     purgeUnzipTemp(fs, wx.env.USER_DATA_PATH)
-    const target = `${wx.env.USER_DATA_PATH}/nianlun_unzip_${Date.now()}`
-    // 读完/失败都要删掉解压副本，否则每次导入都留一份几十 MB，累积撑爆文件系统。
-    // 用逐层删除，不赌 rmdirSync 的 recursive（真机对非空目录不一定生效）。
-    const cleanup = () => removeDirDeep(fs, target)
-    fs.unzip({
-      zipFilePath: zipPath, targetPath: target,
-      success: () => {
+    // 把 zip 读成二进制（不传 encoding → ArrayBuffer），交给纯 JS 解压库在内存里解，
+    // 不再用原生 unzip 解压到磁盘，绕开 ~10MB 用户文件配额（大包必失败的根因）。
+    fs.readFile({
+      filePath: zipPath,
+      success: (res) => {
         try {
-          const out: { name: string; content: string }[] = []
-          const seen: string[] = []
-          const walk = (dir: string) => {
-            for (const name of fs.readdirSync(dir)) {
-              const p = `${dir}/${name}`
-              if (fs.statSync(p).isDirectory()) walk(p)
-              else {
-                seen.push(name)
-                if (TEXT_RE.test(name)) out.push({ name, content: fs.readFileSync(p, 'utf8') })
-              }
-            }
-          }
-          walk(target)
-          if (out.length === 0) {
-            const list = seen.length ? seen.slice(0, 20).join('、') : '（空）'
-            cleanup()
-            reject(new Error(`压缩包里没有可解析的文本文件（需 .csv/.json/.jsonl/.txt）。内含：${list}`))
-          } else {
-            cleanup() // 内容已读进内存，解压副本即可删除
-            resolve(out)
-          }
+          resolve(unzipTextEntries(new Uint8Array(res.data as ArrayBuffer)))
         } catch (e) {
-          cleanup()
-          reject(new Error(`读取压缩包内容失败：${(e as Error).message}`))
+          const msg = (e as Error).message
+          // unzipTextEntries 的「没有可解析文本」错误已足够清楚，原样透出；其余归为解压失败。
+          reject(new Error(msg.startsWith('压缩包') ? msg : `解压失败：${msg}`))
         }
       },
-      fail: (err) => { cleanup(); reject(new Error(`解压失败：${err.errMsg}`)) },
+      fail: (err) => reject(new Error(`无法读取压缩包：${err.errMsg}`)),
     })
   }),
 }

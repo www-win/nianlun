@@ -3,21 +3,27 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { storage } from '../../adapters/storage'
 import { useImportStore } from '../../stores/import'
+import { useDataStore } from '../../stores/data'
 import { fileReader } from '../../adapters/fileReader'
-import { aggregateByStock, aggregateByRecommender } from '@nianlun/core'
+import { aggregateByStock, aggregateByRecommender, withRecommenderNames } from '@nianlun/core'
 import type { StockPick } from '@nianlun/core'
 import { sortStockCards, sortRecommenders, stockStats } from '../../lib/stockView'
 
 const imp = useImportStore()
+const data = useDataStore()
 const picks = ref<StockPick[]>([])
 const tab = ref<'stock' | 'person'>('stock')
 
 function reload() { picks.value = storage.loadStockPicks() }
 onShow(() => reload())   // 每次进 tab 刷新（分析/别处更新后同步）
 
-const stats = computed(() => stockStats(picks.value))
-const cards = computed(() => sortStockCards(aggregateByStock(picks.value)))
-const people = computed(() => sortRecommenders(aggregateByRecommender(picks.value)))
+// pick 里的推荐人名是「抽取当时」的快照；用好友列表最新名(导入通讯录/改名后)实时覆盖，避免显示成微信id。
+const named = computed(() =>
+  withRecommenderNames(picks.value, new Map(data.friends.map((f) => [f.id, f.alias || f.name]))),
+)
+const stats = computed(() => stockStats(named.value))
+const cards = computed(() => sortStockCards(aggregateByStock(named.value)))
+const people = computed(() => sortRecommenders(aggregateByRecommender(named.value)))
 
 async function onAnalyze() {
   try {

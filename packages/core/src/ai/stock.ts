@@ -170,6 +170,16 @@ export function aggregateByRecommender(picks: StockPick[]): RecommenderPicks[] {
   return out
 }
 
+/** 用好友最新显示名刷新每条 pick 的 recommender 快照。
+ *  pick.recommender 是「抽取当时」的名字快照；好友改名或导入通讯录(contacts.json)后，
+ *  按 recommenderId 命中 nameById 即覆盖为最新名。空名/未命中/同名时保持原对象（返回新数组）。 */
+export function withRecommenderNames(picks: StockPick[], nameById: Map<string, string>): StockPick[] {
+  return picks.map((p) => {
+    const name = nameById.get(p.recommenderId)
+    return name && name !== p.recommender ? { ...p, recommender: name } : p
+  })
+}
+
 /** 单个好友 + 带日期样本 → 荐股抽取提示词，要求 AI 只输出严格 JSON 数组。 */
 export function buildStockExtractionPrompt(friend: Friend, samples: string[]): string {
   const displayName = friend.alias || friend.name
