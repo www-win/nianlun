@@ -12,10 +12,10 @@ const emptyCtx: ChatQaContext = { statsSummary: '', samples: [], rawExcerpts: []
 
 function setup(opts: {
   answer?: (...a: any[]) => Promise<string>
-  retrieve?: (...a: any[]) => { context: ChatQaContext; rawAvailable: boolean; wantedRaw: boolean }
+  retrieve?: (...a: any[]) => { context: ChatQaContext; wantedRaw: boolean; gotNamedMaterial: boolean }
 } = {}) {
   const useData = createDataStore(memStorage, memRaw)
-  const retrieval = { retrieve: opts.retrieve ?? (() => ({ context: emptyCtx, rawAvailable: true, wantedRaw: false })) }
+  const retrieval = { retrieve: opts.retrieve ?? (() => ({ context: emptyCtx, wantedRaw: false, gotNamedMaterial: false })) }
   const answer = opts.answer ?? (async () => '答案')
   return createChatQaStore({ useData, retrieval, answer })()
 }
@@ -54,10 +54,10 @@ describe('chatQa store', () => {
   it('点名但本机无原文 → 答案追加降级提示', async () => {
     const store = setup({
       answer: async () => '（基于样本）',
-      retrieve: () => ({ context: emptyCtx, rawAvailable: false, wantedRaw: true }),
+      retrieve: () => ({ context: emptyCtx, wantedRaw: true, gotNamedMaterial: false }),
     })
     await store.ask('张三说过啥')
-    expect(store.messages[1].text).toContain('原始聊天记录')
+    expect(store.messages[1].text).toContain('聊天素材')
   })
 
   it('answer 抛错 → 记 error 并追加出错助理轮', async () => {

@@ -13,7 +13,7 @@ type Deps = {
 }
 
 const HISTORY_TURNS = 6      // 每轮最多带 6 条历史进 prompt，控制 token
-const DEGRADE_HINT = '（提示：本机没有原始聊天记录，具体聊天内容需在原设备、或重新导入原文后才能查。）'
+const DEGRADE_HINT = '（提示：没找到你点名的好友的聊天素材，可能还没导入过 ta 的记录；以上仅供参考。）'
 
 // 工厂：测试注入内存 data store/retrieval/answer；运行时用真实依赖。
 // 对话仅存内存，不持久化（隐私要求）。
@@ -35,11 +35,11 @@ export function createChatQaStore(deps: Deps = {}) {
       loading.value = true
       try {
         const d = useData()
-        const { context, rawAvailable, wantedRaw } = retrieval.retrieve(q, d.friends, d.report)
+        const { context, wantedRaw, gotNamedMaterial } = retrieval.retrieve(q, d.friends, d.report)
         // 历史取本轮问题之前的最近 HISTORY_TURNS 条
         const history = messages.value.slice(0, -1).slice(-HISTORY_TURNS)
         let text = await answer(q, history, context)
-        if (wantedRaw && !rawAvailable) text += `\n\n${DEGRADE_HINT}`
+        if (wantedRaw && !gotNamedMaterial) text += `\n\n${DEGRADE_HINT}`
         messages.value = [...messages.value, { role: 'assistant', text }]
       } catch (e) {
         error.value = (e as Error)?.message ?? String(e)
