@@ -13431,6 +13431,89 @@ function buildStockExtractionPrompt(friend, samples) {
   ].join("\n");
 }
 
+// src/ai/chatQa.ts
+function selectRelevantFriends(question, friends) {
+  const ids = [];
+  for (const f of friends) {
+    const keys = [f.alias, f.name, f.role].filter((v) => !!v && v.length >= 2);
+    if (keys.some((k) => question.includes(k)) && !ids.includes(f.id)) ids.push(f.id);
+  }
+  return ids;
+}
+var STOP_BIGRAMS = /* @__PURE__ */ new Set([
+  "\u4EC0\u4E48",
+  "\u600E\u4E48",
+  "\u4E3A\u4EC0",
+  "\u662F\u4E0D",
+  "\u4E0D\u662F",
+  "\u6709\u6CA1",
+  "\u6CA1\u6709",
+  "\u6211\u4EEC",
+  "\u4ED6\u4EEC",
+  "\u8FD9\u4E2A",
+  "\u90A3\u4E2A",
+  "\u4E00\u4E0B",
+  "\u6700\u8FD1",
+  "\u4E0A\u6B21",
+  "\u73B0\u5728",
+  "\u5DF2\u7ECF",
+  "\u53EF\u4EE5",
+  "\u77E5\u9053",
+  "\u544A\u8BC9",
+  "\u5173\u4E8E",
+  "\u65F6\u5019",
+  "\u7684\u8BDD",
+  "\u5C31\u662F",
+  "\u4E5F\u5C31"
+]);
+function extractKeywords(question, exclude = []) {
+  let q = question;
+  for (const e of exclude) if (e) q = q.split(e).join(" ");
+  const out = [];
+  const push = (k) => {
+    if (k && !STOP_BIGRAMS.has(k) && !out.includes(k)) out.push(k);
+  };
+  for (const run of q.match(/[一-龥]{2,}/g) ?? []) {
+    for (let i = 0; i + 2 <= run.length; i++) push(run.slice(i, i + 2));
+  }
+  for (const w of q.match(/[A-Za-z0-9]{2,}/g) ?? []) push(w.toLowerCase());
+  return out;
+}
+function buildChatQaPrompt(question, history, context) {
+  const parts = [
+    "\u4F60\u662F\u7528\u6237\u7684\u5FAE\u4FE1\u804A\u5929\u8BB0\u5F55\u52A9\u7406\u3002\u8BF7\u53EA\u4F9D\u636E\u4E0B\u9762\u63D0\u4F9B\u7684\u300C\u804A\u5929\u6750\u6599\u300D\u56DE\u7B54\u7528\u6237\u7684\u95EE\u9898\u3002",
+    "\u89C4\u5219\uFF1A",
+    "1. \u53EA\u7528\u6750\u6599\u91CC\u7684\u4FE1\u606F\u4F5C\u7B54\uFF0C\u4E0D\u8981\u7F16\u9020\u3001\u4E0D\u8981\u81C6\u6D4B\u6750\u6599\u91CC\u6CA1\u6709\u7684\u4E8B\u5B9E\u3002",
+    "2. \u5982\u679C\u6750\u6599\u91CC\u627E\u4E0D\u5230\u7B54\u6848\uFF0C\u76F4\u63A5\u8BF4\u300C\u6211\u5728\u4F60\u7684\u804A\u5929\u8BB0\u5F55/\u6837\u672C\u91CC\u6CA1\u627E\u5230\u76F8\u5173\u5185\u5BB9\u300D\uFF0C\u4E0D\u8981\u786C\u7B54\u3002",
+    "3. \u7528\u4E2D\u6587\u3001\u53E3\u8BED\u5316\u5730\u56DE\u7B54\uFF0C\u53EF\u4EE5\u5F15\u7528\u804A\u5929\u91CC\u7684\u539F\u8BDD\u3002",
+    ""
+  ];
+  if (context.statsSummary) parts.push("\u3010\u7EDF\u8BA1\u6982\u51B5\u3011", context.statsSummary, "");
+  if (context.rawExcerpts.length) {
+    parts.push("\u3010\u76F8\u5173\u804A\u5929\u8BB0\u5F55\u3011");
+    for (const ex of context.rawExcerpts) {
+      parts.push(`\u2014 \u4E0E${ex.friend}\u7684\u804A\u5929\uFF1A`);
+      for (const line of ex.lines) parts.push(line);
+      parts.push("");
+    }
+  }
+  if (context.samples.length) {
+    parts.push("\u3010\u804A\u5929\u6837\u672C\u3011");
+    for (const s of context.samples) parts.push(s);
+    parts.push("");
+  }
+  if (history.length) {
+    parts.push("\u3010\u6700\u8FD1\u5BF9\u8BDD\u3011");
+    for (const t of history) parts.push(`${t.role === "user" ? "\u7528\u6237" : "\u52A9\u7406"}\uFF1A${t.text}`);
+    parts.push("");
+  }
+  parts.push("\u3010\u7528\u6237\u7684\u95EE\u9898\u3011", question);
+  return parts.join("\n");
+}
+function parseChatQaAnswer(text) {
+  return text.trim();
+}
+
 // src/index.ts
 var version = "0.1.0";
 export {
@@ -13443,6 +13526,7 @@ export {
   buildAstroPrompt,
   buildBaziChart,
   buildBirthExtractPrompt,
+  buildChatQaPrompt,
   buildEgoGraph,
   buildFriendAnalysisPrompt,
   buildFriendDeepSentimentPrompt,
@@ -13461,6 +13545,7 @@ export {
   detectMbtiFromText,
   effectiveMbtiCode,
   extractFriendSamples,
+  extractKeywords,
   getCompatibility,
   getDayFortune,
   isBranchClash,
@@ -13475,6 +13560,7 @@ export {
   normalizeStockName,
   parseAstroReading,
   parseBirthInfo,
+  parseChatQaAnswer,
   parseCsvBackup,
   parseFile,
   parseFriendProfile,
@@ -13485,6 +13571,7 @@ export {
   parseStockExtraction,
   parseWeliveContacts,
   scoreMessage,
+  selectRelevantFriends,
   sessionIdFromFileName,
   sumHourly,
   sumWeekHour,

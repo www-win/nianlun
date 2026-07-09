@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { selectRelevantFriends, extractKeywords } from '../chatQa'
+import { selectRelevantFriends, extractKeywords, buildChatQaPrompt, parseChatQaAnswer } from '../chatQa'
+import type { ChatQaContext, ChatQaTurn } from '../chatQa'
 
 const friends = [
   { id: 'wxid_a', name: '张三', alias: '', role: '大学室友' },
@@ -39,5 +40,42 @@ describe('extractKeywords', () => {
   it('字母数字取整词并小写', () => {
     const ks = extractKeywords('他发了个PDF')
     expect(ks).toContain('pdf')
+  })
+})
+
+const ctx: ChatQaContext = {
+  statsSummary: '年份2024；好友30位；全年消息1234条。',
+  samples: ['我：在吗', '对方：在'],
+  rawExcerpts: [{ friend: '张三', lines: ['2024-03-01 我：吃了吗', '2024-03-01 张三：吃了'] }],
+}
+
+describe('buildChatQaPrompt', () => {
+  it('含规则、材料各区块与问题', () => {
+    const p = buildChatQaPrompt('我和张三聊过啥', [], ctx)
+    expect(p).toContain('不要编造')
+    expect(p).toContain('没找到')
+    expect(p).toContain('年份2024')
+    expect(p).toContain('与张三的聊天')
+    expect(p).toContain('2024-03-01 张三：吃了')
+    expect(p).toContain('我和张三聊过啥')
+  })
+  it('拼接多轮对话历史', () => {
+    const history: ChatQaTurn[] = [
+      { role: 'user', text: '张三是谁' },
+      { role: 'assistant', text: '你的大学室友' },
+    ]
+    const p = buildChatQaPrompt('那他呢', history, ctx)
+    expect(p).toContain('用户：张三是谁')
+    expect(p).toContain('助理：你的大学室友')
+  })
+  it('空样本/空原文时不报错，仍含问题', () => {
+    const p = buildChatQaPrompt('随便问', [], { statsSummary: '', samples: [], rawExcerpts: [] })
+    expect(p).toContain('随便问')
+  })
+})
+
+describe('parseChatQaAnswer', () => {
+  it('trim 首尾空白', () => {
+    expect(parseChatQaAnswer('  答案  \n')).toBe('答案')
   })
 })

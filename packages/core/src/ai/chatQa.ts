@@ -42,3 +42,45 @@ export function extractKeywords(question: string, exclude: string[] = []): strin
   for (const w of q.match(/[A-Za-z0-9]{2,}/g) ?? []) push(w.toLowerCase())
   return out
 }
+
+/** 把「统计概况 + 原文/样本 + 近几轮对话 + 本轮问题」拼成一次性 prompt。 */
+export function buildChatQaPrompt(
+  question: string,
+  history: ChatQaTurn[],
+  context: ChatQaContext,
+): string {
+  const parts: string[] = [
+    '你是用户的微信聊天记录助理。请只依据下面提供的「聊天材料」回答用户的问题。',
+    '规则：',
+    '1. 只用材料里的信息作答，不要编造、不要臆测材料里没有的事实。',
+    '2. 如果材料里找不到答案，直接说「我在你的聊天记录/样本里没找到相关内容」，不要硬答。',
+    '3. 用中文、口语化地回答，可以引用聊天里的原话。',
+    '',
+  ]
+  if (context.statsSummary) parts.push('【统计概况】', context.statsSummary, '')
+  if (context.rawExcerpts.length) {
+    parts.push('【相关聊天记录】')
+    for (const ex of context.rawExcerpts) {
+      parts.push(`— 与${ex.friend}的聊天：`)
+      for (const line of ex.lines) parts.push(line)
+      parts.push('')
+    }
+  }
+  if (context.samples.length) {
+    parts.push('【聊天样本】')
+    for (const s of context.samples) parts.push(s)
+    parts.push('')
+  }
+  if (history.length) {
+    parts.push('【最近对话】')
+    for (const t of history) parts.push(`${t.role === 'user' ? '用户' : '助理'}：${t.text}`)
+    parts.push('')
+  }
+  parts.push('【用户的问题】', question)
+  return parts.join('\n')
+}
+
+/** 答案是自由文本，仅去首尾空白（保留函数以便日后加结构化解析）。 */
+export function parseChatQaAnswer(text: string): string {
+  return text.trim()
+}
