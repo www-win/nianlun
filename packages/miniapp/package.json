@@ -12,6 +12,7 @@
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-1000920260626810",
     "@nianlun/core": "workspace:*",
+    "fflate": "^0.8.3",
     "pinia": "^2.1.0",
     "vue": "^3.4.0"
   },

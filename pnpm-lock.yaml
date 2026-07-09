@@ -32,6 +32,9 @@ importers:
       '@nianlun/core':
         specifier: workspace:*
         version: link:../core
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       pinia:
         specifier: ^2.1.0
         version: 2.3.1(typescript@5.9.3)(vue@3.5.38(typescript@5.9.3))
@@ -2200,6 +2203,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   file-type@9.0.0:
     resolution: {integrity: sha512-Qe/5NJrgIOlwijpq3B7BEpzPFcgzggOTagZmkXQY4LA6bsXKTUstK7Wp12lEJ/mLKTpvIZxmIuRcLYWT6ov9lw==}
@@ -6228,6 +6234,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
+
+  fflate@0.8.3: {}
 
   file-type@9.0.0: {}
 
