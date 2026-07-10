@@ -23,12 +23,32 @@ function onYear(e: { detail: { value: number } }) {
 
 const pct = computed(() => Math.round(imp.progress * 100))
 
+const STEP_ORDER = ['reading', 'parsing', 'aggregating'] as const
+/** 三步指示器某一步相对当前 phase 的类：已过→done，当前→active，未到→''。 */
+function stepCls(step: (typeof STEP_ORDER)[number]) {
+  const cur = STEP_ORDER.indexOf(imp.phase as (typeof STEP_ORDER)[number])
+  if (cur < 0) return ''
+  const me = STEP_ORDER.indexOf(step)
+  if (me < cur) return 'done'
+  if (me === cur) return 'active'
+  return ''
+}
+const phaseLabel = computed(() => {
+  switch (imp.phase) {
+    case 'reading': return '正在读取文件…（解压中）'
+    case 'parsing': return `正在解析… ${pct.value}%`
+    case 'aggregating': return '正在生成报告…'
+    default: return '处理中…'
+  }
+})
+
 async function onImport() {
+  imp.beginReading()                       // 选文件/解压前先亮①读取阶段
   try {
     // chooseMessageFile 的 count 是「最多可选」上限；原先写死 10 会让多文件导出只能选一小部分（好友大量丢失）。
     // 设 500 放宽上限（真机实际可选数仍受微信客户端限制）；超量时可分多次导入，mergeFriends 会自动累加合并。
     const files = await fileReader.pickAndRead(500)
-    if (!files.length) return
+    if (!files.length) { imp.reset(); return }   // 用户取消：清掉读取进度块
     const a = assessImportSize(files)
     if (a.warn) {
       const ok = await new Promise<boolean>((resolve) => {
@@ -38,11 +58,12 @@ async function onImport() {
           success: (r) => resolve(r.confirm),
         })
       })
-      if (!ok) return
+      if (!ok) { imp.reset(); return }           // 放弃导入：清掉读取进度块
     }
     await imp.run(files, year.value)
   } catch (e) {
     // 读文件/解压阶段的异常以前被静默吞掉（表现为「选完文件没反应」），这里显式提示
+    imp.reset()                                  // 清掉卡在读取阶段的进度块
     uni.showToast({ title: (e as Error).message || '导入失败', icon: 'none' })
   }
 }
@@ -77,8 +98,17 @@ async function onImport() {
       </button>
 
       <view v-if="imp.status === 'parsing'" class="status">
-        <view class="bar"><view class="bar-in" :style="{ width: pct + '%' }"></view></view>
-        <text class="status-t muted">解析中… {{ pct }}%</text>
+        <view class="steps3">
+          <text class="s3" :class="stepCls('reading')">① 读取</text>
+          <text class="s3-sep">›</text>
+          <text class="s3" :class="stepCls('parsing')">② 解析</text>
+          <text class="s3-sep">›</text>
+          <text class="s3" :class="stepCls('aggregating')">③ 生成报告</text>
+        </view>
+        <view class="bar" :class="{ indet: imp.phase !== 'parsing' }">
+          <view class="bar-in" :style="imp.phase === 'parsing' ? { width: pct + '%' } : undefined"></view>
+        </view>
+        <text class="status-t muted">{{ phaseLabel }}</text>
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
         <text>✅ 已导入 · 好友 {{ data.friends.length }} 位</text>
@@ -163,6 +193,17 @@ async function onImport() {
 .status { margin-top: 28rpx; }
 .bar { height: 12rpx; border-radius: 999rpx; background: var(--surface-2); overflow: hidden; }
 .bar-in { height: 100%; background: var(--accent); border-radius: 999rpx; transition: width .2s; }
+.steps3 { display: flex; align-items: center; gap: 10rpx; margin-bottom: 16rpx; }
+.s3 { font-size: 22rpx; color: var(--faint); }
+.s3.active { color: var(--accent-strong); font-weight: 600; }
+.s3.done { color: var(--muted); }
+.s3-sep { color: var(--faint); font-size: 20rpx; }
+/* 不确定态：一段高亮块来回滑动。动画跑在渲染线程，逻辑线程解压/聚合阻塞时仍持续滑动。 */
+.bar.indet .bar-in { width: 40%; animation: indet 1.1s ease-in-out infinite; }
+@keyframes indet {
+  0%   { margin-left: -40%; }
+  100% { margin-left: 100%; }
+}
 .status-t { display: block; margin-top: 14rpx; font-size: 24rpx; }
 .status.ok { font-size: 27rpx; color: var(--accent-strong); font-weight: 550; }
 .status.ok .raw { color: var(--accent-strong); font-weight: 550; }
