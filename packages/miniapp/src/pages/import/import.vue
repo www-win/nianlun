@@ -198,7 +198,7 @@ async function onImport() {
 .s3.active { color: var(--accent-strong); font-weight: 600; }
 .s3.done { color: var(--muted); }
 .s3-sep { color: var(--faint); font-size: 20rpx; }
-/* 不确定态：一段高亮块来回滑动。动画跑在渲染线程，逻辑线程解压/聚合阻塞时仍持续滑动。 */
+/* 不确定态：一段高亮块单向循环扫动。动画跑在渲染线程，逻辑线程解压/聚合阻塞时仍持续滑动。 */
 .bar.indet .bar-in { width: 40%; animation: indet 1.1s ease-in-out infinite; }
 @keyframes indet {
   0%   { margin-left: -40%; }

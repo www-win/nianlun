@@ -173,6 +173,7 @@ export function createImportStore(deps: Deps = {}) {
           warnings.value = [...outcome.warnings, ...contactWarn(appliedCount(named))]
           status.value = 'done'                 // 导入完成：好友列表立即可用（分析改为好友列表手动触发）
         } else if (contactNames.length) {
+          phase.value = 'aggregating'
           // 只导入了 contacts.json：给已有好友套真名，报告不变
           if (!prevReport) {
             throw new Error('请先导入聊天记录，再导入联系人 contacts.json。')
@@ -181,6 +182,7 @@ export function createImportStore(deps: Deps = {}) {
           await data.setData(named, prevReport)
           warnings.value = contactWarn(appliedCount(named))
         } else {
+          phase.value = 'aggregating'
           warnings.value = ['未从所选文件解析到聊天记录或联系人。']
         }
         status.value = 'done'
