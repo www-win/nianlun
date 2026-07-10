@@ -34,6 +34,8 @@ type Deps = {
   extractStocks?: (f: Friend, samples: string[], ctx: ExtractCtx) => Promise<StockPick[]>
 }
 export type ImportStatus = 'idle' | 'parsing' | 'done' | 'error'
+/** 导入子阶段：读取/解压 → 解析 → 聚合建报告。用于进度条形态与三步指示器。 */
+export type ImportPhase = 'idle' | 'reading' | 'parsing' | 'aggregating'
 
 /** 单个好友手动分析的结果状态。store 不触碰 uni，toast 交页面按此枚举处理。 */
 export type AnalyzeOneStatus = 'ok' | 'empty' | 'error' | 'skipped'
@@ -52,11 +54,21 @@ export function createImportStore(deps: Deps = {}) {
   return defineStore('import', () => {
     const status = ref<ImportStatus>('idle')
     const progress = ref(0)
+    const phase = ref<ImportPhase>('idle')
     const warnings = ref<string[]>([])
     const error = ref('')
     const analyzing = ref<{ done: number; total: number } | null>(null)
     const analyzingStocks = ref<{ done: number; total: number } | null>(null)
     const stocksSavedCount = ref(0)
+
+    /** 页面在选文件/解压之前调用：让①读取阶段可见（此段无子进度，页面用动画条）。 */
+    function beginReading() {
+      status.value = 'parsing'
+      phase.value = 'reading'
+      progress.value = 0
+      warnings.value = []
+      error.value = ''
+    }
 
     /**
      * 对「消息数达标且不在已分析集合」的好友后台串行推断关系/职务并写入。
@@ -136,7 +148,11 @@ export function createImportStore(deps: Deps = {}) {
         const contactWarn = (n: number) => (contactNames.length ? [`已套用联系人名字 ${n} 个`] : [])
 
         if (chatFiles.length) {
-          const outcome = parseLocal(chatFiles, year, (p) => { progress.value = p })
+          phase.value = 'parsing'
+          const outcome = await parseLocal(chatFiles, year, (p) => {
+            phase.value = p.phase
+            if (p.phase === 'parsing') progress.value = p.total ? p.done / p.total : 0
+          })
           // 合并好友 → 套用联系人真名（无联系人则 no-op）
           const merged = mergeFriends(data.friends, outcome.friends).friends
           const named = applyContactNames(merged, contactNames)
@@ -168,9 +184,11 @@ export function createImportStore(deps: Deps = {}) {
           warnings.value = ['未从所选文件解析到聊天记录或联系人。']
         }
         status.value = 'done'
+        phase.value = 'idle'
       } catch (e) {
         error.value = (e as Error).message
         status.value = 'error'
+        phase.value = 'idle'
         analyzing.value = null
       }
     }
@@ -221,11 +239,11 @@ export function createImportStore(deps: Deps = {}) {
       }
     }
 
-    function reset() { status.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; analyzingStocks.value = null; stocksSavedCount.value = 0 }
+    function reset() { status.value = 'idle'; phase.value = 'idle'; progress.value = 0; warnings.value = []; error.value = ''; analyzing.value = null; analyzingStocks.value = null; stocksSavedCount.value = 0 }
     return {
-      status, progress, warnings, error, analyzing, analyzingStocks, stocksSavedCount,
+      status, phase, progress, warnings, error, analyzing, analyzingStocks, stocksSavedCount,
       analyzingIds,
-      run, analyzePendingRoles, analyzeOne, analyzeStocks, reset,
+      run, beginReading, analyzePendingRoles, analyzeOne, analyzeStocks, reset,
     }
   })
 }

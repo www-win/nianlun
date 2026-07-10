@@ -98,6 +98,39 @@ describe('import store', () => {
     expect(useData().report?.friendCount).toBe(1)
   })
 
+  it('beginReading 置读取阶段并清空提示', () => {
+    const s = memStorage()
+    const useImport = createImportStore({ useData: createDataStore(s), storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const imp = useImport()
+    imp.warnings = ['旧提示']; imp.error = '旧错误'
+    imp.beginReading()
+    expect(imp.status).toBe('parsing')
+    expect(imp.phase).toBe('reading')
+    expect(imp.progress).toBe(0)
+    expect(imp.warnings).toEqual([])
+    expect(imp.error).toBe('')
+  })
+
+  it('run 正常完成后 phase 归 idle、status done', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const imp = useImport()
+    await imp.run([{ name: 'c.txt', content: TXT }], 2025)
+    expect(imp.status).toBe('done')
+    expect(imp.phase).toBe('idle')
+  })
+
+  it('reset 复位 phase 与 status', () => {
+    const s = memStorage()
+    const useImport = createImportStore({ useData: createDataStore(s), storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const imp = useImport()
+    imp.beginReading()
+    imp.reset()
+    expect(imp.phase).toBe('idle')
+    expect(imp.status).toBe('idle')
+  })
+
 })
 
 describe('analyzePendingRoles（门槛 + 后台分析）', () => {
