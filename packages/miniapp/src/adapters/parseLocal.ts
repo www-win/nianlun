@@ -53,19 +53,34 @@ export function computeRecentInsights(conversations: Conversation[]): {
   return { recentInsights, recentSamples: extractFriendSamples(recentConvs, SAMPLE_OPTS) }
 }
 
-export function parseLocal(
+/** parseLocal 进度阶段：解析逐文件推进 / 聚合建报告（单次同步、无子进度）。 */
+export type ParsePhase = 'parsing' | 'aggregating'
+export interface ParseProgress { phase: ParsePhase; done: number; total: number }
+
+/** 让渲染线程刷新一拍：中间进度必须靠宏任务让渡才能被 setData 刷出来（微信双线程）。 */
+const tick = () => new Promise<void>((r) => setTimeout(r, 0))
+/** 每解析这么多文件让渡一次渲染线程，兼顾"进度可见"与"让渡开销"。 */
+const YIELD_EVERY = 20
+
+export async function parseLocal(
   files: LocalFile[],
   year: number,
-  onProgress?: (p: number) => void,
-): ParseOutcome {
+  onProgress?: (p: ParseProgress) => void,
+): Promise<ParseOutcome> {
   let conversations: Conversation[] = []
   const warnings: string[] = []
-  files.forEach((f, i) => {
+  const total = files.length
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i]
     const r = parseFile(f.name, f.content)
     conversations = mergeConversations(conversations, r.conversations)
     r.warnings.forEach((w) => warnings.push(`${f.name}: ${w.reason}`))
-    onProgress?.((i + 1) / files.length)
-  })
+    onProgress?.({ phase: 'parsing', done: i + 1, total })
+    if ((i + 1) % YIELD_EVERY === 0) await tick()   // 让渲染线程刷出中间百分比
+  }
+  // 聚合前先报阶段并让一拍："生成报告"文案与动画条得以先渲染，再跑同步聚合
+  onProgress?.({ phase: 'aggregating', done: 0, total: 1 })
+  await tick()
   const friends = aggregate(conversations)
   const report = buildReport(conversations, friends, year)
   const samples = extractFriendSamples(conversations, SAMPLE_OPTS)
