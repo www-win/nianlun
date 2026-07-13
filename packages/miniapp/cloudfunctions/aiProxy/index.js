@@ -28,7 +28,7 @@ function postJson(urlStr, headers, bodyObj) {
 }
 
 exports.main = async (event) => {
-  const { prompt, maxTokens = 1024 } = event || {}
+  const { prompt, maxTokens = 1024, model } = event || {}
   if (!prompt) return { error: '缺少 prompt' }
   const base = (process.env.GACCODE_BASE_URL || '').replace(/\/+$/, '')
   try {
@@ -40,7 +40,7 @@ exports.main = async (event) => {
         'content-type': 'application/json',
       },
       {
-        model: process.env.GACCODE_MODEL || 'claude-opus-4-8',
+        model: model || process.env.GACCODE_MODEL || 'claude-opus-4-8',
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
       },

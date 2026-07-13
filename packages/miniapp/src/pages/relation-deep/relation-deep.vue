@@ -29,14 +29,6 @@ async function generate() {
   const f = friend.value
   if (!f || loading.value) return
   const s = samples.loadSamplesFor(f.id)
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '深度关系分析',
-      content: `将发送约 ${s.length} 条聊天片段到 AI 服务做心理分析，是否继续？`,
-      success: (r) => resolve(r.confirm),
-    })
-  })
-  if (!ok) return
   loading.value = true
   try {
     const r = await aiClient.analyzeRelationDeep(f, s)

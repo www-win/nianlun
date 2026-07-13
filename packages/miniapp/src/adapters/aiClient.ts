@@ -15,7 +15,8 @@ import type {
   ChatQaTurn, ChatQaContext, RelationDeep,
 } from '@nianlun/core'
 
-export type Transport = (prompt: string, maxTokens: number) => Promise<string>
+// model 可选：不传则由后端用默认模型；深度关系分析等重调用可指定更快模型避免云函数超时。
+export type Transport = (prompt: string, maxTokens: number, model?: string) => Promise<string>
 
 export function makeAiClient(transport: Transport) {
   return {
@@ -39,7 +40,8 @@ export function makeAiClient(transport: Transport) {
       return parseMbti(text)
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
-      const text = await transport(buildRelationDeepPrompt(friend, samples), 3072)
+      // 10 块输出量大，用更快的 sonnet-5 生成，避免 opus 慢导致云函数执行超时(-504003)。
+      const text = await transport(buildRelationDeepPrompt(friend, samples), 3072, 'claude-sonnet-5')
       return parseRelationDeep(text)
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
@@ -68,9 +70,9 @@ export function makeAiClient(transport: Transport) {
 }
 
 // —— 后端 A：云函数 —— //
-const cloudTransport: Transport = async (prompt, maxTokens) => {
+const cloudTransport: Transport = async (prompt, maxTokens, model) => {
   // 惰性访问 wx，避免模块顶层触发
-  const res = await wx.cloud.callFunction({ name: 'aiProxy', data: { prompt, maxTokens } })
+  const res = await wx.cloud.callFunction({ name: 'aiProxy', data: { prompt, maxTokens, model } })
   const r = res.result as { text?: string; error?: string }
   if (r.error) throw new Error(r.error)
   return r.text ?? ''
@@ -79,12 +81,12 @@ const cloudTransport: Transport = async (prompt, maxTokens) => {
 // —— 后端 B：公司服务器 HTTPS 反代 —— //
 // __AI_PROXY_URL__ 必须由构建期 vite define 注入（非运行时），后端 B 才生效。
 const PROXY_URL = (globalThis as any).__AI_PROXY_URL__ ?? ''
-const proxyTransport: Transport = (prompt, maxTokens) => new Promise((resolve, reject) => {
+const proxyTransport: Transport = (prompt, maxTokens, model) => new Promise((resolve, reject) => {
   // 惰性访问 wx，避免模块顶层触发
   wx.request({
     url: PROXY_URL, method: 'POST',
     header: { 'content-type': 'application/json' },
-    data: { prompt, maxTokens },
+    data: { prompt, maxTokens, model },
     success: (res) => {
       if (res.statusCode !== 200) return reject(new Error(`AI 服务错误 HTTP ${res.statusCode}`))
       const d = res.data as { text?: string; error?: string }

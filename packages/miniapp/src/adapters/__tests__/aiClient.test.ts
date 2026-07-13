@@ -69,6 +69,13 @@ describe('aiClient', () => {
     expect(out.attachment?.me?.style).toBe('焦虑型')
     expect(out.suggestions?.[0]?.advice).toBe('设暂停')
     expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含好友名
+    expect(transport.mock.calls[0][2]).toBe('claude-sonnet-5')  // 深度分析走更快模型，避免云函数超时(-504003)
+  })
+
+  it('其它分析不指定模型（model 参数为 undefined，走云函数默认）', async () => {
+    const transport = vi.fn().mockResolvedValue('{"tone":"热络"}')
+    await makeAiClient(transport).analyzeFriendSentiment(FRIEND, ['我：哈哈'])
+    expect(transport.mock.calls[0][2]).toBeUndefined()
   })
 })
 
