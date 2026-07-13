@@ -172,6 +172,18 @@ export function moodRiverBands(
   if (maxCount === 0) maxCount = 1
   const halfW = (count: number) => minHalf + (count / maxCount) * (maxHalf - minHalf)
 
+  const threshold = Math.max(3, maxCount * 0.2)
+  const pickPeak = (arr: (typeof monthly.me)): { warmest: number | null; coldest: number | null } => {
+    let warmest: number | null = null, coldest: number | null = null
+    let hi = -Infinity, lo = Infinity
+    arr.forEach((mm, m) => {
+      if (!mm || mm.count < threshold) return
+      if (mm.avg > hi) { hi = mm.avg; warmest = m }   // 严格 > → 并列取更早月
+      if (mm.avg < lo) { lo = mm.avg; coldest = m }
+    })
+    return { warmest, coldest }
+  }
+
   const buildSide = (arr: (typeof monthly.me)): RiverSide => {
     const segments: RiverSegment[] = []
     let cur: RiverPt[] = []
@@ -180,7 +192,8 @@ export function moodRiverBands(
       cur.push({ x: x(m), centerY: centerY(mm.avg), halfW: halfW(mm.count), m })
     })
     if (cur.length) segments.push({ points: cur })
-    return { segments, warmest: null, coldest: null }
+    const { warmest, coldest } = pickPeak(arr)
+    return { segments, warmest, coldest }
   }
 
   const me = buildSide(monthly.me)

@@ -207,4 +207,38 @@ describe('moodRiverBands', () => {
     expect(r.them.segments).toEqual([])
     expect(r.me.segments).toHaveLength(1)
   })
+
+  it('峰谷：可信月里取 avg 最高/最低月（0-based 索引）', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[1] = [0.9, 10]; arr[3] = [0.2, 10]; arr[7] = [0.5, 10]  // 皆可信(count=10)
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.me.warmest).toBe(1)
+    expect(r.me.coldest).toBe(3)
+  })
+
+  it('峰谷：噪声月(count 低于阈值)不参与评选', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[2] = [0.99, 1]   // avg 最高但 count=1，maxCount=20 → 阈值 max(3,4)=4，被排除
+    arr[5] = [0.7, 20]   // 可信
+    arr[9] = [0.3, 20]   // 可信
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.me.warmest).toBe(5)   // 不是噪声的 2
+    expect(r.me.coldest).toBe(9)
+  })
+
+  it('峰谷：无可信月 → null', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[0] = [0.8, 1]; arr[1] = [0.2, 2]   // maxCount=2 → 阈值 max(3,0.4)=3，全不达标
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.me.warmest).toBeNull()
+    expect(r.me.coldest).toBeNull()
+  })
+
+  it('峰谷：avg 并列取更早月份', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[4] = [0.6, 10]; arr[8] = [0.6, 10]
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.me.warmest).toBe(4)
+    expect(r.me.coldest).toBe(4)
+  })
 })
