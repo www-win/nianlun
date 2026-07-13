@@ -90,6 +90,99 @@ function drawSecurity() {
 
 onShow(() => { loadCache(); nextTick(drawSecurity) })
 onReady(() => { setTimeout(drawSecurity, 80) })
+
+// ── 长海报导出：动态高度，逐块「彩色标题 + 折行正文」 ──
+const CW = 640
+const CH = ref(900)   // 动态，measure 后回填
+
+function wrapLines(ctx: any, text: string, maxW: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const ch of text) {
+    if (ch === '\n') { lines.push(line); line = ''; continue }
+    const test = line + ch
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = ch }
+    else line = test
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+// 把 deep 摊平成 [{title, body}] 段落序列（有值才进）。
+function posterSegments(): { title: string; body: string }[] {
+  const d = deep.value
+  if (!d) return []
+  const segs: { title: string; body: string }[] = []
+  const push = (title: string, body?: string) => { if (body && body.trim()) segs.push({ title, body }) }
+  push('整体评估', d.overall)
+  if (d.attachment?.me) push('依恋 · 我', `${d.attachment.me.style ?? ''} ${d.attachment.me.desc ?? ''}`)
+  if (d.attachment?.other) push('依恋 · 对方', `${d.attachment.other.style ?? ''} ${d.attachment.other.desc ?? ''}`)
+  push('沟通主动性', d.interaction?.initiative)
+  push('情感表达', d.interaction?.expression)
+  push('冲突处理', d.interaction?.conflict)
+  push('我的需求', d.needs?.me)
+  push('对方的需求', d.needs?.other)
+  push('共同记忆', d.uniqueness?.sharedMemory)
+  push('互动仪式', d.uniqueness?.ritual)
+  push('安全感/信任', d.security?.summary)
+  push('权力/主导权', d.power?.summary)
+  for (const t of d.triggers?.me ?? []) push('我的雷区', `${t.trigger ?? ''} → ${t.reaction ?? ''}`)
+  for (const t of d.triggers?.other ?? []) push('对方雷区', `${t.trigger ?? ''} → ${t.reaction ?? ''}`)
+  const lang = d.language
+  if (lang) push('沟通语言', [lang.appellation, lang.catchphrases, lang.emoji, lang.latency].filter(Boolean).join('｜'))
+  for (const s of d.suggestions ?? []) push(`建议 · ${s.topic ?? ''}`, [s.problem && `问题：${s.problem}`, s.advice && `建议：${s.advice}`].filter(Boolean).join('\n'))
+  return segs
+}
+
+function drawPoster() {
+  const segs = posterSegments()
+  if (!segs.length) { uni.showToast({ title: '先生成分析再保存', icon: 'none' }); return }
+  const ctx = uni.createCanvasContext('poster')
+  const marginX = 48, maxW = CW - marginX * 2
+  const titleH = 40, lineH = 40, gapAfterTitle = 8, gapAfterBlock = 28
+  // 第一遍：measure 各块折行、累加高度（measureText 需先设字号）。
+  ctx.setFontSize(26)
+  const laid = segs.map((s) => {
+    ctx.setFontSize(26)
+    return { title: s.title, lines: wrapLines(ctx, s.body, maxW) }
+  })
+  let y = 150   // 头部留白
+  for (const b of laid) y += titleH + gapAfterTitle + b.lines.length * lineH + gapAfterBlock
+  y += 80       // 底部留白
+  CH.value = y
+  // 等 canvas 尺寸生效再画（uni 需 nextTick）。
+  nextTick(() => {
+    const c = uni.createCanvasContext('poster')
+    c.setFillStyle('#fffdf6'); c.fillRect(0, 0, CW, CH.value)
+    c.setStrokeStyle('#f3ead3'); c.setLineWidth(2); c.strokeRect(16, 16, CW - 32, CH.value - 32)
+    c.setTextAlign('left')
+    c.setFillStyle('#2ea34a'); c.setFontSize(26); c.fillText('深度关系分析', marginX, 70)
+    c.setFillStyle('#2f2b26'); c.setFontSize(44); c.fillText(displayName.value, marginX, 122)
+    let yy = 150
+    for (const b of laid) {
+      c.setFillStyle('#4a72b8'); c.setFontSize(28); c.fillText(b.title, marginX, yy + 28)
+      yy += titleH + gapAfterTitle
+      c.setFillStyle('#4a443c'); c.setFontSize(26)
+      for (const ln of b.lines) { c.fillText(ln, marginX, yy + 26); yy += lineH }
+      yy += gapAfterBlock
+    }
+    c.setFillStyle('#9a917f'); c.setFontSize(22)
+    c.fillText('本地生成 · 数据从未离开你的手机', marginX, CH.value - 40)
+    c.draw(false, () => {
+      uni.canvasToTempFilePath({
+        canvasId: 'poster',
+        success: (res: { tempFilePath: string }) => {
+          uni.saveImageToPhotosAlbum({
+            filePath: res.tempFilePath,
+            success: () => uni.showToast({ title: '已保存到相册' }),
+            fail: () => uni.showToast({ title: '保存失败，请授权相册', icon: 'none' }),
+          })
+        },
+        fail: () => uni.showToast({ title: '生成图片失败，请重试', icon: 'none' }),
+      })
+    })
+  })
+}
 </script>
 
 <template>
@@ -107,6 +200,7 @@ onReady(() => { setTimeout(drawSecurity, 80) })
           {{ loading ? '分析中…' : (deep ? '↻ 重新生成' : '✦ 生成深度关系分析') }}
         </text>
         <text v-if="stale" class="stale" @click="generate">数据已更新，点「重新生成」刷新</text>
+        <text v-if="deep" class="act" @click="drawPoster">📥 保存长海报</text>
       </view>
 
       <view v-if="!deep" class="ph">点上方按钮，让 AI 从依恋、互动、需求、安全感等 10 个维度剖析你们的关系。</view>
@@ -201,6 +295,8 @@ onReady(() => { setTimeout(drawSecurity, 80) })
         </view>
       </template>
     </template>
+
+    <canvas canvas-id="poster" class="offscreen" :style="{ width: CW + 'px', height: CH + 'px' }" />
   </view>
 </template>
 
@@ -232,4 +328,5 @@ onReady(() => { setTimeout(drawSecurity, 80) })
 .tag { flex: none; padding: 2rpx 12rpx; border-radius: 6rpx; font-size: 22rpx; height: 34rpx; line-height: 30rpx; }
 .tag-p { background: #fdecec; color: #d05a5a; }
 .tag-a { background: #eafaef; color: #2ea34a; }
+.offscreen { position: fixed; left: -9999px; top: 0; }
 </style>
