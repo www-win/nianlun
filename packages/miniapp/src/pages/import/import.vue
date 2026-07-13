@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import SunBaby from '../../components/SunBaby.vue'
 import GrassHills from '../../components/GrassHills.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
@@ -105,9 +106,9 @@ async function onImport() {
           <text class="s3-sep">›</text>
           <text class="s3" :class="stepCls('aggregating')">③ 生成报告</text>
         </view>
-        <view class="bar" :class="{ indet: imp.phase !== 'parsing' }">
-          <view class="bar-in" :style="imp.phase === 'parsing' ? { width: pct + '%' } : undefined"></view>
-        </view>
+        <ProgressBar
+          :percent="imp.phase === 'parsing' ? pct : undefined"
+          :indeterminate="imp.phase !== 'parsing'" />
         <text class="status-t muted">{{ phaseLabel }}</text>
       </view>
       <view v-else-if="imp.status === 'done'" class="status ok">
@@ -191,19 +192,11 @@ async function onImport() {
 .btn-primary.big { width: 100%; height: 100rpx; font-size: 32rpx; }
 
 .status { margin-top: 28rpx; }
-.bar { height: 12rpx; border-radius: 999rpx; background: var(--surface-2); overflow: hidden; }
-.bar-in { height: 100%; background: var(--accent); border-radius: 999rpx; transition: width .2s; }
 .steps3 { display: flex; align-items: center; gap: 10rpx; margin-bottom: 16rpx; }
 .s3 { font-size: 22rpx; color: var(--faint); }
 .s3.active { color: var(--accent-strong); font-weight: 600; }
 .s3.done { color: var(--muted); }
 .s3-sep { color: var(--faint); font-size: 20rpx; }
-/* 不确定态：一段高亮块单向循环扫动。动画跑在渲染线程，逻辑线程解压/聚合阻塞时仍持续滑动。 */
-.bar.indet .bar-in { width: 40%; animation: indet 1.1s ease-in-out infinite; }
-@keyframes indet {
-  0%   { margin-left: -40%; }
-  100% { margin-left: 100%; }
-}
 .status-t { display: block; margin-top: 14rpx; font-size: 24rpx; }
 .status.ok { font-size: 27rpx; color: var(--accent-strong); font-weight: 550; }
 .status.ok .raw { color: var(--accent-strong); font-weight: 550; }
