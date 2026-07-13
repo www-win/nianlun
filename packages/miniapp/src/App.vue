@@ -31,6 +31,9 @@ onLaunch(async () => {
   setTimeout(() => {
     const data = useDataStore()
     data.setOnSaved(() => useBackupStore().scheduleBackup())
+    // AI 分析结果落盘（情绪/画像/MBTI/深度关系/命理/年度文案/全年情绪/荐股）也排一次防抖备份；
+    // 一连串分析会被 scheduleBackup 合并成一次上传。
+    storage.setOnChanged(() => useBackupStore().scheduleBackup())
     if (data.friends.length === 0) {
       useBackupStore().restoreNow()
         .then((ok) => { if (ok) return data.hydrate() })

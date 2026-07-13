@@ -55,6 +55,10 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   // 指纹 = 生成时喂给 AI 的输入的轻量摘要；输入不变则缓存新鲜。
   const friendFp = (f: Friend): string => `${f.msgCount}:${f.lastContact}`
   const reportFp = (r: ReportData): string => `${r.totalMessages}:${r.friendCount}:${r.activeDays}`
+  // AI 结果落盘后触发的钩子（供 App 接到「排一次防抖云备份」）。绕过 data store 的 onSaved，
+  // 因为这些结果走 storage.set 直存、不经 data store。触发失败不影响本地保存。
+  let onChanged: (() => void) | null = null
+  const fireChanged = () => { try { onChanged?.() } catch { /* 备份触发失败不影响本地保存 */ } }
   // 好友级：键存 { [id]: { data, fp } }，按当前 friend 现算 fp 比对新鲜度。
   function loadFriendMap(key: string): Record<string, { data: unknown; fp: string }> {
     const raw = backend.get(key)
@@ -64,6 +68,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
     const all = loadFriendMap(key)
     all[id] = { data, fp: friendFp(friend) }
     backend.set(key, all)
+    fireChanged()   // 情绪/画像/MBTI/深度关系 AI 结果落盘 → 排一次备份
   }
   function loadFriendEntry<T>(key: string, id: string, friend: Friend): { data: T; stale: boolean } | null {
     const entry = loadFriendMap(key)[id]
@@ -73,6 +78,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   // 报告级：单键存 { text, fp }。
   function saveReportEntry(key: string, report: ReportData, text: string): void {
     backend.set(key, { text, fp: reportFp(report) })
+    fireChanged()   // 年度文案/全年情绪 AI 结果落盘 → 排一次备份
   }
   function loadReportEntry(key: string, report: ReportData): { data: string; stale: boolean } | null {
     const raw = backend.get(key)
@@ -83,6 +89,8 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   }
 
   return {
+    // 注册 AI 结果落盘后的回调（App 里接到 backupStore.scheduleBackup，防抖合并）。
+    setOnChanged(fn: () => void): void { onChanged = fn },
     // —— 大数据：文件后端 ——
     saveFriends(friends: Friend[]): void { fs.write('friends', friends) },
     loadFriends(): Friend[] {
@@ -110,7 +118,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       const raw = fs.read('recentSamples')
       return raw && typeof raw === 'object' ? (raw as Record<string, string[]>) : {}
     },
-    saveStockPicks(picks: StockPick[]): void { fs.write('stocks', picks) },
+    saveStockPicks(picks: StockPick[]): void { fs.write('stocks', picks); fireChanged() },
     loadStockPicks(): StockPick[] {
       const raw = fs.read('stocks')
       return Array.isArray(raw) ? (raw as StockPick[]) : []
@@ -138,7 +146,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       const raw = backend.get(K_BIRTHS)
       return raw && typeof raw === 'object' ? (raw as Record<string, BirthInfo>) : {}
     },
-    saveAstroReading(map: Record<string, StoredAstroReading>): void { backend.set(K_ASTRO, map) },
+    saveAstroReading(map: Record<string, StoredAstroReading>): void { backend.set(K_ASTRO, map); fireChanged() },
     loadAstroReading(): Record<string, StoredAstroReading> {
       const raw = backend.get(K_ASTRO)
       return raw && typeof raw === 'object' ? (raw as Record<string, StoredAstroReading>) : {}

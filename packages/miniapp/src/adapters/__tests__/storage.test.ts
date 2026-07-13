@@ -436,3 +436,27 @@ describe('storage exportAll/importAll', () => {
     expect(s.loadMyBazi()).toEqual({ y: 1 }) // 未被清掉
   })
 })
+
+describe('AI 结果落盘触发 onChanged（供自动云备份）', () => {
+  it('各类 AI 保存各触发一次；非 AI 保存不触发', () => {
+    const s = makeStorage(memBackend())
+    let calls = 0
+    s.setOnChanged(() => { calls++ })
+
+    s.saveFriendSentiment('f1', FRIEND, { tone: '热络' })              // saveFriendEntry
+    s.saveFriendProfile('f1', FRIEND, { identity: '产品' })            // saveFriendEntry
+    s.saveFriendMbti('f1', FRIEND, { code: 'INTJ' } as unknown as MbtiResult) // saveFriendEntry
+    s.saveRelationDeep('f1', FRIEND, { overall: 'x' } as RelationDeep) // saveFriendEntry
+    s.saveReportCopy(REPORT, '文案')                                    // saveReportEntry
+    s.saveYearMood(REPORT, '情绪')                                      // saveReportEntry
+    s.saveAstroReading({})                                              // 单独
+    s.saveStockPicks([])                                                // 单独
+    expect(calls).toBe(8)   // 8 类 AI 结果各触发一次
+
+    const before = calls
+    s.saveFriends([FRIEND])   // 非 AI（其备份由 data store 的 onSaved 负责），不触发
+    s.saveReport(REPORT)
+    s.saveMyBazi({ y: 1 } as unknown as BirthInfo)  // 用户生辰输入，非 AI 结果
+    expect(calls).toBe(before)
+  })
+})
