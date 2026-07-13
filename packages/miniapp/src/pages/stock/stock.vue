@@ -8,6 +8,7 @@ import { fileReader } from '../../adapters/fileReader'
 import { aggregateByStock, aggregateByRecommender, withRecommenderNames } from '@nianlun/core'
 import type { StockPick } from '@nianlun/core'
 import { sortStockCards, sortRecommenders, stockStats } from '../../lib/stockView'
+import ProgressBar from '../../components/ProgressBar.vue'
 
 const imp = useImportStore()
 const data = useDataStore()
@@ -57,6 +58,11 @@ function openPerson(id: string) {
       <button class="btn-primary" :disabled="!!imp.analyzingStocks" @click="onAnalyze">
         {{ imp.analyzingStocks ? `分析中… ${imp.analyzingStocks.done}/${imp.analyzingStocks.total}` : '分析荐股（选聊天文件）' }}
       </button>
+      <ProgressBar
+        v-if="imp.analyzingStocks"
+        :percent="imp.analyzingStocks.total
+          ? Math.round(imp.analyzingStocks.done / imp.analyzingStocks.total * 100) : 0"
+        :label="`分析荐股 ${imp.analyzingStocks.done}/${imp.analyzingStocks.total}`" />
       <text class="hint faint">只分析所选文件里的好友</text>
       <view v-if="stats.pickCount" class="stats">
         已抽 {{ stats.pickCount }} 条 · {{ stats.stockCount }} 支票 · {{ stats.personCount }} 人
