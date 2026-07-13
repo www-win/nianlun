@@ -161,7 +161,7 @@ const view = computed(() => resolveProgress(props))
 
 - [ ] **Step 2: 类型检查通过**
 
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 构建/`vue-tsc` 无错误（组件被打包收录，无类型报错）。
 
 - [ ] **Step 3: 提交**
@@ -228,7 +228,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 
 Run: `pnpm --filter @nianlun/miniapp exec vitest run src/stores/__tests__/import.test.ts src/stores/__tests__/data.test.ts`
 Expected: PASS（store 未改，应仍全绿）
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 无类型/编译错误
 
 - [ ] **Step 5: 提交**
@@ -272,7 +272,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 
 - [ ] **Step 3: 构建验证**
 
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -316,7 +316,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 
 - [ ] **Step 3: 构建验证**
 
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -364,7 +364,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 
 - [ ] **Step 3: 构建验证**
 
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -409,7 +409,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 
 - [ ] **Step 3: 构建验证**
 
-Run: `pnpm --filter @nianlun/miniapp build`
+Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`
 Expected: 无错误
 
 - [ ] **Step 4: 提交**
@@ -426,5 +426,5 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## 收尾验证（全部任务后）
 
 - [ ] Run: `pnpm --filter @nianlun/miniapp test`（全部单测绿，含新增 progressBar.test）
-- [ ] Run: `pnpm --filter @nianlun/miniapp build`（vue-tsc 无错误）
+- [ ] Run: `pnpm --filter @nianlun/miniapp build:mp-weixin`（uni 编译无错误）
 - [ ] 可选真机/开发者工具冒烟：import 解析、stock 分析、chat-qa 提问、overview 备份 各出现对应进度条。
