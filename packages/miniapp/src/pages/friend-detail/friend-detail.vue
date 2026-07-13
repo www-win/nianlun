@@ -4,6 +4,7 @@ import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
 import type { Relation, FriendProfile, BirthInfo, MbtiResult } from '@nianlun/core'
 import { effectiveMbtiCode, mbtiTitle, MBTI_CODES } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 import { useDataStore } from '../../stores/data'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
@@ -479,6 +480,9 @@ async function generateAstro() {
           <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : (profile ? '↻ 重新生成' : '✦ 好友画像') }}</text>
           <text class="act act-ai" @click="openRelationDeep">✦ 深度关系分析</text>
         </view>
+        <view v-if="loadingSent || loadingProfile" class="ai-progress">
+          <ProgressBar indeterminate :label="loadingSent ? 'AI 情绪分析中…' : 'AI 生成画像中…'" />
+        </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
         <view v-if="sentiment" class="senti">
           <text v-if="sentimentStale" class="astro-stale" @click="analyzeSentiment">数据已更新，点「重新分析」刷新</text>
@@ -546,6 +550,9 @@ async function generateAstro() {
             @click="analyzeMbti"
           >{{ loadingMbti ? '分析中…' : (mbtiAi ? '↻ 重新分析' : '✦ AI 分析 MBTI') }}</text>
         </view>
+        <view v-if="loadingMbti" class="ai-progress">
+          <ProgressBar indeterminate label="AI 分析 MBTI 中…" />
+        </view>
       </view>
 
       <!-- 命理运势 -->
@@ -555,6 +562,9 @@ async function generateAstro() {
           <text class="act act-ai" @click="generateAstro">
             {{ loadingAstro ? '推算中…' : (astro ? '刷新' : '生成') }}
           </text>
+        </view>
+        <view v-if="loadingAstro" class="ai-progress">
+          <ProgressBar indeterminate label="AI 推算命理运势中…" />
         </view>
 
         <!-- 态1：我的命盘未设置 -->
@@ -573,6 +583,9 @@ async function generateAstro() {
           <view class="form-acts">
             <text class="act act-ai" @click="extractBirthFromChat">{{ extracting ? '抽取中…' : 'AI 从聊天抽取' }}</text>
             <text class="act" @click="saveBirth">保存生辰</text>
+          </view>
+          <view v-if="extracting" class="ai-progress">
+            <ProgressBar indeterminate label="AI 从聊天抽取生辰中…" />
           </view>
         </view>
 
@@ -674,6 +687,7 @@ async function generateAstro() {
 .word { color: var(--accent-strong); font-weight: 600; line-height: 1.2; }
 
 .edit-row { display: flex; align-items: center; gap: 16rpx; }
+.ai-progress { margin-top: 20rpx; }
 .act { padding: 12rpx 22rpx; border-radius: 12rpx; font-size: 24rpx; font-weight: 550; color: var(--muted); background: var(--surface-2); }
 .act-ai { color: var(--accent-strong); background: var(--accent-wash); }
 .role-input { margin-top: 18rpx; height: 64rpx; padding: 0 20rpx; font-size: 25rpx; color: var(--fg); background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx; }

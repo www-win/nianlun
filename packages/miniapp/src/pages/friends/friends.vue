@@ -96,6 +96,10 @@ async function onAnalyze(id: string) {
         :percent="imp.analyzing.total
           ? Math.round(imp.analyzing.done / imp.analyzing.total * 100) : 0"
         :label="`分析关系/职务 ${imp.analyzing.done}/${imp.analyzing.total}`" />
+      <ProgressBar
+        v-else-if="imp.analyzingIds.size"
+        indeterminate
+        label="AI 分析中…" />
 
       <view v-for="f in rows" :key="f.id" class="card frow">
         <view class="top" @click="openDetail(f.id)">
