@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { useChatQaStore } from '../../stores/chatQa'
+import ProgressBar from '../../components/ProgressBar.vue'
 
 const store = useChatQaStore()
 const draft = ref('')
@@ -39,7 +40,10 @@ function useExample(q: string) { draft.value = q }
       </view>
 
       <view v-if="store.loading" class="bubble-row ai">
-        <text class="bubble typing">思考中…</text>
+        <view class="bubble typing">
+          <text>思考中…</text>
+          <ProgressBar indeterminate />
+        </view>
       </view>
     </scroll-view>
 
@@ -69,6 +73,7 @@ function useExample(q: string) { draft.value = q }
 .me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 6rpx; }
 .ai .bubble { background: var(--surface); color: var(--fg); border: 1rpx solid var(--border); border-bottom-left-radius: 6rpx; }
 .typing { color: var(--muted); }
+.typing :deep(.pbar-wrap) { margin-top: 12rpx; width: 120rpx; }
 .composer { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1rpx solid var(--border); }
 .input { flex: 1; height: 72rpx; padding: 0 24rpx; font-size: 27rpx; color: var(--fg); background: var(--bg); border: 1rpx solid var(--border-2); border-radius: 999rpx; }
 .send { padding: 0 32rpx; height: 72rpx; display: flex; align-items: center; border-radius: 999rpx; background: var(--accent); color: #fff; font-size: 27rpx; font-weight: 600; }
