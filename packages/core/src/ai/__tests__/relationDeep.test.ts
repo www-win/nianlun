@@ -27,6 +27,13 @@ describe('buildRelationDeepPrompt', () => {
     expect(p).toContain('（本次无可用聊天样本）')
   })
 
+  it('prompt 含临床中立框架（降低敏感内容触发上游安全机制、避免挂起）', () => {
+    const p = buildRelationDeepPrompt(FRIEND, [], 3)  // 最敏感的一段（含情绪触发点）也应带上前言
+    expect(p).toContain('临床')
+    expect(p).toContain('不做道德评判')
+    expect(p).toContain('不回避、不中断')
+  })
+
   it('3 段拆分互不重叠且并起来正好是全部 10 块', () => {
     const KEYS = ['overall', 'attachment', 'interaction', 'needs', 'uniqueness', 'security', 'power', 'triggers', 'language', 'suggestions']
     const groups: Record<1 | 2 | 3, string[]> = {
