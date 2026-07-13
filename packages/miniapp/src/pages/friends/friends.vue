@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useDataStore } from '../../stores/data'
 import { useImportStore } from '../../stores/import'
+import { useBackupStore } from '../../stores/backup'
 import type { Relation } from '@nianlun/core'
 import { effectiveMbtiCode } from '@nianlun/core'
 import { storage } from '../../adapters/storage'
@@ -10,6 +11,7 @@ import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
 
 const data = useDataStore()
+const backup = useBackupStore()
 const mbtiMap = ref<Record<string, string>>({})
 function refreshMbti() {
   const m: Record<string, string> = {}
@@ -69,7 +71,10 @@ async function onAnalyze(id: string) {
 
 <template>
   <view class="page">
-    <view v-if="!data.friends.length" class="empty">
+    <view v-if="!data.friends.length && backup.status === 'restoring'" class="page-loading">
+      <ProgressBar indeterminate label="正在从云端恢复数据…" />
+    </view>
+    <view v-else-if="!data.friends.length" class="empty">
       <view class="e-icon">👥</view>
       <view class="e-text">还没有好友数据，先到「导入」页导入</view>
     </view>
@@ -137,6 +142,7 @@ async function onAnalyze(id: string) {
 
 <style scoped>
 .page { padding: 32rpx 28rpx 64rpx; }
+.page-loading { margin-top: 200rpx; }
 
 .toolbar { position: sticky; top: 0; z-index: 5; padding-bottom: 8rpx; background: var(--bg); }
 .search {

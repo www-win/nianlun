@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useDataStore } from '../../stores/data'
+import { useBackupStore } from '../../stores/backup'
 import { aiClient } from '../../adapters/aiClient'
 import { samples } from '../../adapters/samples'
 import { storage } from '../../adapters/storage'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import SunBaby from '../../components/SunBaby.vue'
 import GrassHills from '../../components/GrassHills.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 
 const data = useDataStore()
+const backup = useBackupStore()
 const report = computed(() => data.report)
 
 const copy = ref('')
@@ -167,7 +170,10 @@ onMounted(() => {
 
 <template>
   <view class="page">
-    <view v-if="!report" class="empty">
+    <view v-if="!report && backup.status === 'restoring'" class="page-loading">
+      <ProgressBar indeterminate label="正在从云端恢复数据…" />
+    </view>
+    <view v-else-if="!report" class="empty">
       <view class="e-icon">📄</view>
       <view class="e-text">还没有数据，先到「导入」页导入聊天记录</view>
     </view>
@@ -235,6 +241,7 @@ onMounted(() => {
 
 <style scoped>
 .page { padding: 40rpx 36rpx 64rpx; }
+.page-loading { margin-top: 200rpx; }
 
 .poster {
   display: flex; flex-direction: column;

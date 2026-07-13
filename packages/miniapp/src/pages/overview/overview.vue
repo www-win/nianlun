@@ -83,7 +83,10 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 
 <template>
   <view class="page">
-    <view v-if="!data.report" class="empty">
+    <view v-if="!data.report && backup.status === 'restoring'" class="page-loading">
+      <ProgressBar indeterminate label="正在从云端恢复数据…" />
+    </view>
+    <view v-else-if="!data.report" class="empty">
       <view class="e-icon">🪵</view>
       <view class="e-text">还没有数据，先到「导入」页导入聊天记录</view>
     </view>
@@ -212,6 +215,7 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
 
 <style scoped>
 .page { padding: 40rpx 36rpx 64rpx; }
+.page-loading { margin-top: 200rpx; }
 
 .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28rpx; }
 .head-l { display: flex; flex-direction: column; }
