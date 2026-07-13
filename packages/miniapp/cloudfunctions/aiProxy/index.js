@@ -19,9 +19,11 @@ function postJson(urlStr, headers, bodyObj, timeoutMs) {
         timeout: timeoutMs,
       },
       (res) => {
-        let data = ''
-        res.on('data', (c) => { data += c })
-        res.on('end', () => resolve({ status: res.statusCode, body: data }))
+        // 收集原始 Buffer，末尾整体按 UTF-8 解码一次——不能 `data += chunk`：
+        // 多字节中文字若被拆在两个网络块边界上，逐块转字符串会解码坏成「�」乱码。
+        const chunks = []
+        res.on('data', (c) => { chunks.push(c) })
+        res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }))
       },
     )
     req.on('timeout', () => { req.destroy(new Error(`AI 请求 ${timeoutMs}ms 内无响应`)) })

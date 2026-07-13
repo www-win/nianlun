@@ -82,6 +82,18 @@ describe('aiClient', () => {
     expect(transport.mock.calls[2][0]).not.toContain('"overall"')  // part 1 的不在 part 3
   })
 
+  it('analyzeRelationDeep 某一段失败时跳过、保留其它段（部分结果而非整体失败）', async () => {
+    const transport = vi.fn()
+      .mockResolvedValueOnce('{"overall":"追逐-回避"}')                    // part 1 成功
+      .mockRejectedValueOnce(new Error('AI 请求 50000ms 内无响应'))         // part 2 挂起失败
+      .mockResolvedValueOnce('{"suggestions":[{"advice":"设暂停"}]}')       // part 3 成功
+    const out = await makeAiClient(transport).analyzeRelationDeep(FRIEND, ['我：在吗'])
+    expect(transport).toHaveBeenCalledTimes(3)          // 三段都尝试了
+    expect(out.overall).toBe('追逐-回避')                // part 1 保留
+    expect(out.suggestions?.[0]?.advice).toBe('设暂停')  // part 3 保留
+    expect(out.interaction).toBeUndefined()             // 失败的 part 2 缺失，但不影响其它
+  })
+
   it('analyzeRelationDeep 样本限量到 20 条（避免话痨好友 prompt 过大致 60s 超时）', async () => {
     const transport = vi.fn().mockResolvedValue('{"overall":"x"}')
     const many = Array.from({ length: 25 }, (_, i) => `样本S${i}X`)

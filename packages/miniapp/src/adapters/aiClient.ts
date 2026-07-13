@@ -47,8 +47,13 @@ export function makeAiClient(transport: Transport) {
       const capped = samples.slice(0, 20)
       const out: RelationDeep = {}
       for (const p of [1, 2, 3] as const) {
-        const seg = await transport(buildRelationDeepPrompt(friend, capped, p), 1536).then(parseRelationDeep)
-        Object.assign(out, seg)
+        try {
+          const seg = await transport(buildRelationDeepPrompt(friend, capped, p), 1536).then(parseRelationDeep)
+          Object.assign(out, seg)
+        } catch {
+          // 某段挂起/失败（如敏感内容触发上游安全机制）：跳过，保留其它段——
+          // 宁可给出 7/10 块的部分分析，也不整个失败。
+        }
       }
       return out
     },
