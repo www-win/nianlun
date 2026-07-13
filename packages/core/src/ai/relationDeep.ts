@@ -19,16 +19,56 @@ export interface RelationDeep {
 }
 
 /**
- * 深度关系分析提示词：依据聚合统计 + 有界样本，要求 AI 输出严格 JSON 的 10 块心理分析。
- * 理论内核：成人依恋理论（焦虑/回避/安全型）、追逐-回避(Demand-Withdraw)冲突模型、
- * 非暴力沟通(NVC)用于优化建议。逐月消息数写入 prompt，安全感/触发点须引原句佐证。
+ * 10 块的 JSON 格式片段（顺序即 RelationDeep 字段顺序，均无尾逗号）。
+ * 按 part 选子集后用 ',\n' 拼接，保证任意子集的逗号都正确。
  */
-export function buildRelationDeepPrompt(friend: Friend, samples: string[]): string {
+const REL_BLOCKS: string[] = [
+  '  "overall": "<整体评估：一段定调，点出关系张力与核心互动模式，120~200 字>"',
+  [
+    '  "attachment": {',
+    '    "me": {"style": "<我方依恋类型>", "desc": "<解读，引原句，60~120 字>"},',
+    '    "other": {"style": "<对方依恋类型>", "desc": "<解读，引原句，60~120 字>"}',
+    '  }',
+  ].join('\n'),
+  [
+    '  "interaction": {',
+    '    "initiative": "<沟通主动性：谁发起、谁推动，60~120 字>",',
+    '    "expression": "<情感表达差异：直接/克制、正面/负面各如何，60~120 字>",',
+    '    "conflict": "<冲突处理：套用追逐-回避等模型，60~120 字>"',
+    '  }',
+  ].join('\n'),
+  '  "needs": {"me": "<我方核心情感需求，40~80 字>", "other": "<对方核心情感需求，40~80 字>"}',
+  '  "uniqueness": {"sharedMemory": "<只属于你们的共同记忆/话题>", "ritual": "<你们独特的互动仪式/角色扮演>"}',
+  [
+    '  "security": {',
+    '    "summary": "<安全感/信任如何随时间消长，结合逐月消息数，80~140 字>",',
+    '    "turningPoints": [<关键转折，每项>{"month": <1-12>, "event": "<发生了什么，引原句>", "direction": "上升" 或 "下降"}]',
+    '  }',
+  ].join('\n'),
+  '  "power": {"summary": "<权力/主导权总述，谁更投入、谁掌控节奏>", "whoLeads": "<谁主导：我/对方/均衡>", "dependency": "<依赖与被依赖关系>"}',
+  [
+    '  "triggers": {',
+    '    "me": [<我方情绪雷区，每项>{"trigger": "<什么话题/行为会触发>", "reaction": "<典型反应，引原句>"}],',
+    '    "other": [<对方情绪雷区，每项>{"trigger": "<...>", "reaction": "<...>"}]',
+    '  }',
+  ].join('\n'),
+  '  "language": {"appellation": "<称呼习惯>", "catchphrases": "<口头禅/高频语>", "emoji": "<表情包习惯>", "latency": "<回复时延与节奏>"}',
+  '  "suggestions": [<优化建议，每项成对>{"topic": "<主题，如 沟通模式/情感表达>", "problem": "<问题诊断>", "advice": "<可执行建议，可用 NVC 四步>"}]',
+]
+
+/**
+ * 深度关系分析提示词。part 省略=全部 10 块；part=1 出前 5 块（整体/依恋/互动/需求/独特性），
+ * part=2 出后 5 块（安全感/权力/触发点/语言/建议）。客户端拆两次并行调用以规避云函数 60s
+ * 超时（单次全量生成 ~50-60s 会超时）。理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、
+ * 非暴力沟通(NVC)；安全感/触发点须引原句佐证。
+ */
+export function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2): string {
   const displayName = friend.alias || friend.name
   const sampleBlock = samples.length
     ? samples.map((s, i) => `${i + 1}. ${s}`).join('\n')
     : '（本次无可用聊天样本）'
   const monthly = (friend.monthly ?? []).map((c, i) => `${i + 1}月:${c}`).join(' ')
+  const blocks = part === 1 ? REL_BLOCKS.slice(0, 5) : part === 2 ? REL_BLOCKS.slice(5) : REL_BLOCKS
 
   return [
     '你是一位受过训练、擅长成人依恋与亲密关系分析的心理咨询师。请依据下面这位微信好友',
@@ -38,33 +78,11 @@ export function buildRelationDeepPrompt(friend: Friend, samples: string[]): stri
     '',
     '只输出一个严格的 JSON 对象，不要任何解释、不要代码围栏外的文字。格式：',
     '{',
-    '  "overall": "<整体评估：一段定调，点出关系张力与核心互动模式，120~200 字>",',
-    '  "attachment": {',
-    '    "me": {"style": "<我方依恋类型>", "desc": "<解读，引原句，60~120 字>"},',
-    '    "other": {"style": "<对方依恋类型>", "desc": "<解读，引原句，60~120 字>"}',
-    '  },',
-    '  "interaction": {',
-    '    "initiative": "<沟通主动性：谁发起、谁推动，60~120 字>",',
-    '    "expression": "<情感表达差异：直接/克制、正面/负面各如何，60~120 字>",',
-    '    "conflict": "<冲突处理：套用追逐-回避等模型，60~120 字>"',
-    '  },',
-    '  "needs": {"me": "<我方核心情感需求，40~80 字>", "other": "<对方核心情感需求，40~80 字>"},',
-    '  "uniqueness": {"sharedMemory": "<只属于你们的共同记忆/话题>", "ritual": "<你们独特的互动仪式/角色扮演>"},',
-    '  "security": {',
-    '    "summary": "<安全感/信任如何随时间消长，结合逐月消息数，80~140 字>",',
-    '    "turningPoints": [<关键转折，每项>{"month": <1-12>, "event": "<发生了什么，引原句>", "direction": "上升" 或 "下降"}]',
-    '  },',
-    '  "power": {"summary": "<权力/主导权总述，谁更投入、谁掌控节奏>", "whoLeads": "<谁主导：我/对方/均衡>", "dependency": "<依赖与被依赖关系>"},',
-    '  "triggers": {',
-    '    "me": [<我方情绪雷区，每项>{"trigger": "<什么话题/行为会触发>", "reaction": "<典型反应，引原句>"}],',
-    '    "other": [<对方情绪雷区，每项>{"trigger": "<...>", "reaction": "<...>"}]',
-    '  },',
-    '  "language": {"appellation": "<称呼习惯>", "catchphrases": "<口头禅/高频语>", "emoji": "<表情包习惯>", "latency": "<回复时延与节奏>"},',
-    '  "suggestions": [<优化建议，每项成对>{"topic": "<主题，如 沟通模式/情感表达>", "problem": "<问题诊断>", "advice": "<可执行建议，可用 NVC 四步>"}]',
+    blocks.join(',\n'),
     '}',
     '',
     '要求：任一字段若样本中无可靠线索，值填「暂无足够线索」，禁止臆测（尤其感情、家庭、财富）。',
-    'turningPoints / triggers / suggestions 若无内容给空数组 []。',
+    '数组类字段（turningPoints / triggers / suggestions）若无内容给空数组 []。',
     '',
     '聚合统计：',
     `- 好友：${displayName}`,

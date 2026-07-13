@@ -239,11 +239,12 @@ interface RelationDeep {
     suggestions?: Suggestion[];
 }
 /**
- * 深度关系分析提示词：依据聚合统计 + 有界样本，要求 AI 输出严格 JSON 的 10 块心理分析。
- * 理论内核：成人依恋理论（焦虑/回避/安全型）、追逐-回避(Demand-Withdraw)冲突模型、
- * 非暴力沟通(NVC)用于优化建议。逐月消息数写入 prompt，安全感/触发点须引原句佐证。
+ * 深度关系分析提示词。part 省略=全部 10 块；part=1 出前 5 块（整体/依恋/互动/需求/独特性），
+ * part=2 出后 5 块（安全感/权力/触发点/语言/建议）。客户端拆两次并行调用以规避云函数 60s
+ * 超时（单次全量生成 ~50-60s 会超时）。理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、
+ * 非暴力沟通(NVC)；安全感/触发点须引原句佐证。
  */
-declare function buildRelationDeepPrompt(friend: Friend, samples: string[]): string;
+declare function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2): string;
 /**
  * 容错解析深度关系分析 JSON：剥围栏、定位首尾花括号、逐块取值；
  * 空块/空数组一律省略；坏 JSON / 非字符串入参返回 {}，永不抛异常。

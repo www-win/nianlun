@@ -40,9 +40,12 @@ export function makeAiClient(transport: Transport) {
       return parseMbti(text)
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
-      // 10 块输出量大，用更快的 sonnet-5 生成，避免 opus 慢导致云函数执行超时(-504003)。
-      const text = await transport(buildRelationDeepPrompt(friend, samples), 3072, 'claude-sonnet-5')
-      return parseRelationDeep(text)
+      // 全量 10 块单次生成 ~50-60s 会撞云函数 60s 硬顶超时(-504003)。拆前/后 5 块两次
+      // 并行调用（各 ~半量、~25-30s），sonnet-5 保质量，客户端浅合并（两半字段不相交）。
+      const part = (p: 1 | 2) =>
+        transport(buildRelationDeepPrompt(friend, samples, p), 2048, 'claude-sonnet-5').then(parseRelationDeep)
+      const [a, b] = await Promise.all([part(1), part(2)])
+      return { ...a, ...b }
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
       return transport(buildYearSentimentPrompt(report, sampleLines), 1024)

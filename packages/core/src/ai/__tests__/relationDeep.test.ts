@@ -26,6 +26,18 @@ describe('buildRelationDeepPrompt', () => {
     expect(p).toContain('原句')
     expect(p).toContain('（本次无可用聊天样本）')
   })
+
+  it('part=1 只出前 5 块（整体/依恋/互动/需求/独特性），不含后 5 块', () => {
+    const p = buildRelationDeepPrompt(FRIEND, [], 1)
+    for (const k of ['overall', 'attachment', 'interaction', 'needs', 'uniqueness']) expect(p).toContain(`"${k}"`)
+    for (const k of ['security', 'power', 'triggers', 'language', 'suggestions']) expect(p).not.toContain(`"${k}"`)
+  })
+
+  it('part=2 只出后 5 块（安全感/权力/触发点/语言/建议），不含前 5 块', () => {
+    const p = buildRelationDeepPrompt(FRIEND, [], 2)
+    for (const k of ['security', 'power', 'triggers', 'language', 'suggestions']) expect(p).toContain(`"${k}"`)
+    for (const k of ['overall', 'attachment', 'interaction', 'needs', 'uniqueness']) expect(p).not.toContain(`"${k}"`)
+  })
 })
 
 describe('parseRelationDeep', () => {

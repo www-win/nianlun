@@ -60,16 +60,24 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][0]).toContain('2025')
   })
 
-  it('analyzeRelationDeep 把 prompt 交给 transport 并解析 10 块 JSON', async () => {
-    const transport = vi.fn().mockResolvedValue(
-      '{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}},"suggestions":[{"topic":"沟通","advice":"设暂停"}]}',
-    )
+  it('analyzeRelationDeep 拆前/后 5 块两次并行 sonnet 调用并合并结果', async () => {
+    const transport = vi.fn()
+      .mockResolvedValueOnce('{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}}}')       // part 1
+      .mockResolvedValueOnce('{"power":{"whoLeads":"我"},"suggestions":[{"topic":"沟通","advice":"设暂停"}]}') // part 2
     const out = await makeAiClient(transport).analyzeRelationDeep(FRIEND, ['我：在吗', '对方：在'])
-    expect(out.overall).toBe('追逐-回避')
-    expect(out.attachment?.me?.style).toBe('焦虑型')
-    expect(out.suggestions?.[0]?.advice).toBe('设暂停')
+    expect(transport).toHaveBeenCalledTimes(2)
+    expect(out.overall).toBe('追逐-回避')            // 来自 part 1
+    expect(out.attachment?.me?.style).toBe('焦虑型')  // part 1
+    expect(out.power?.whoLeads).toBe('我')           // 来自 part 2
+    expect(out.suggestions?.[0]?.advice).toBe('设暂停') // part 2，合并后仍在
+    // 两次都用 sonnet-5，且各只请求自己那半的块
+    expect(transport.mock.calls[0][2]).toBe('claude-sonnet-5')
+    expect(transport.mock.calls[1][2]).toBe('claude-sonnet-5')
     expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含好友名
-    expect(transport.mock.calls[0][2]).toBe('claude-sonnet-5')  // 深度分析走更快模型，避免云函数超时(-504003)
+    expect(transport.mock.calls[0][0]).toContain('"overall"')
+    expect(transport.mock.calls[0][0]).not.toContain('"suggestions"')
+    expect(transport.mock.calls[1][0]).toContain('"suggestions"')
+    expect(transport.mock.calls[1][0]).not.toContain('"overall"')
   })
 
   it('其它分析不指定模型（model 参数为 undefined，走云函数默认）', async () => {
