@@ -10,6 +10,7 @@ import { useBackupStore } from '../../stores/backup'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodRiverBands } from '../../lib/insights'
+import type { RiverSide } from '../../lib/insights'
 import { storage } from '../../adapters/storage'
 import type { StoredAstroReading } from '../../adapters/storage'
 import { birthFingerprint, assembleAstro, astroExpired } from '../../lib/astroView'
@@ -28,6 +29,20 @@ const meDonut = computed(() => (emotion.value ? donutSegments(emotion.value.me) 
 const themDonut = computed(() => (emotion.value ? donutSegments(emotion.value.them) : []))
 const hasMood = computed(() => !!emotion.value && moodRiverBands(
   emotion.value.monthly, { width: 300, height: 150, pad: 20 }).hasData)
+
+const moodCaption = computed(() => {
+  const emo = emotion.value
+  if (!emo) return ''
+  const r = moodRiverBands(emo.monthly, { width: 300, height: 150, pad: 20 })
+  const cap = (label: string, s: RiverSide): string => {
+    if (s.warmest === null && s.coldest === null) return ''
+    const parts: string[] = []
+    if (s.warmest !== null) parts.push(`最暖 ${s.warmest + 1}月`)
+    if (s.coldest !== null) parts.push(`最冷 ${s.coldest + 1}月`)
+    return `${label} ${parts.join(' · ')}`
+  }
+  return [cap('你', r.me), cap('TA', r.them)].filter(Boolean).join('　|　')
+})
 
 const pct = (n: number, total: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
 
@@ -511,8 +526,10 @@ async function generateAstro() {
           <view class="mood-legend">
             <text class="lg"><text class="dot" style="background:#e8a04b"></text>我</text>
             <text class="lg"><text class="dot" style="background:#5a8fd0"></text>TA</text>
+            <text class="lg faint">宽度=消息量</text>
           </view>
           <canvas canvas-id="moodLine" class="mood-canvas" :style="{ height: moodPx + 'px' }"></canvas>
+          <text v-if="moodCaption" class="mood-cap faint">{{ moodCaption }}</text>
           <text class="senti-note faint">本地词典估算，仅供参考</text>
         </template>
         <text v-else class="faint mood-empty">样本不足，暂无法生成情绪走势</text>
@@ -768,6 +785,7 @@ async function generateAstro() {
 .lg { display: flex; align-items: center; font-size: 22rpx; color: var(--muted); }
 .dot { display: inline-block; width: 16rpx; height: 16rpx; border-radius: 999rpx; margin-right: 8rpx; }
 .mood-canvas { width: 100%; margin-top: 12rpx; }  /* 高度由内联 px 绑定；宽度 100% 的真实 px 由 selectorQuery 量取 */
+.mood-cap { display: block; margin-top: 12rpx; font-size: 22rpx; text-align: center; }
 .mood-empty { display: block; margin-top: 24rpx; font-size: 24rpx; text-align: center; }
 
 .astro-tip { margin-top: 20rpx; padding: 24rpx; background: var(--accent-wash); border-radius: 16rpx; }
