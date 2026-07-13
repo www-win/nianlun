@@ -142,3 +142,49 @@ export function moodDualLinePoints(
   const them = toPts(monthly.them)
   return { me, them, hasData: me.length > 0 || them.length > 0 }
 }
+
+export interface RiverPt { x: number; centerY: number; halfW: number; m: number }
+export interface RiverSegment { points: RiverPt[] }
+export interface RiverSide { segments: RiverSegment[]; warmest: number | null; coldest: number | null }
+export interface MoodRiver { me: RiverSide; them: RiverSide; hasData: boolean; midY: number }
+
+/**
+ * 逐月情绪(avg 0..1) + 消息量(count) → 「情绪河流」双向面积几何。
+ * 中心线 y=情绪高低（上开心/下难过），河带半宽 halfW=当月消息量（归一化）。
+ * null 月断流：只在相邻连续月成段。warmest/coldest 见 pickPeak（Task 2）。
+ */
+export function moodRiverBands(
+  monthly: FriendEmotion['monthly'],
+  opts: { width: number; height: number; pad: number },
+): MoodRiver {
+  const { width, height, pad } = opts
+  const plotH = height - 2 * pad
+  const minHalf = 2
+  const maxHalf = plotH * 0.16
+  const centerY = (avg: number) => height - pad - avg * plotH
+  const x = (m: number) => pad + (m / 11) * (width - 2 * pad)
+
+  // 两侧共用的最大 count（全 0 / 无月 → 1，避免除零）
+  let maxCount = 0
+  for (const arr of [monthly.me, monthly.them]) {
+    for (const mm of arr) if (mm && mm.count > maxCount) maxCount = mm.count
+  }
+  if (maxCount === 0) maxCount = 1
+  const halfW = (count: number) => minHalf + (count / maxCount) * (maxHalf - minHalf)
+
+  const buildSide = (arr: (typeof monthly.me)): RiverSide => {
+    const segments: RiverSegment[] = []
+    let cur: RiverPt[] = []
+    arr.forEach((mm, m) => {
+      if (!mm) { if (cur.length) { segments.push({ points: cur }); cur = [] }; return }
+      cur.push({ x: x(m), centerY: centerY(mm.avg), halfW: halfW(mm.count), m })
+    })
+    if (cur.length) segments.push({ points: cur })
+    return { segments, warmest: null, coldest: null }
+  }
+
+  const me = buildSide(monthly.me)
+  const them = buildSide(monthly.them)
+  const hasData = me.segments.length > 0 || them.segments.length > 0
+  return { me, them, hasData, midY: centerY(0.5) }
+}

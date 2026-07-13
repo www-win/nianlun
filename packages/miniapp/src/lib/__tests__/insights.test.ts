@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints } from '../insights'
+import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints, moodRiverBands } from '../insights'
 import type { Friend, EmotionDist, FriendEmotion } from '@nianlun/core'
 
 const mkFriend = (monthly: number[]): Friend => ({ monthly } as unknown as Friend)
@@ -136,5 +136,75 @@ describe('moodDualLinePoints', () => {
     const arr = Array(12).fill(null); arr[6] = 0.5
     const r = moodDualLinePoints(mk(arr), opts)
     expect(r.me[0].y).toBeCloseTo(opts.height / 2)
+  })
+})
+
+describe('moodRiverBands', () => {
+  // 每项 [avg, count] 或 null
+  const side = (vals: ([number, number] | null)[]) =>
+    vals.map((v) => (v === null ? null : { avg: v[0], count: v[1] }))
+  const mk = (
+    me: ([number, number] | null)[],
+    them: ([number, number] | null)[] = Array(12).fill(null),
+  ): FriendEmotion['monthly'] => ({ me: side(me), them: side(them) })
+  const opts = { width: 300, height: 150, pad: 20 }
+  const maxHalf = (opts.height - 2 * opts.pad) * 0.16
+
+  it('全空 → hasData false、两侧无段、midY 居中', () => {
+    const r = moodRiverBands(mk(Array(12).fill(null)), opts)
+    expect(r.hasData).toBe(false)
+    expect(r.me.segments).toHaveLength(0)
+    expect(r.them.segments).toHaveLength(0)
+    expect(r.midY).toBeCloseTo(opts.height / 2)
+  })
+
+  it('连续月 → 单段；null 断流 → 切成两段', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[0] = [1, 5]; arr[1] = [0.8, 5]        // 连续两月
+    arr[5] = [0.2, 5]                          // 断开后的孤立月由下条覆盖
+    arr[8] = [0.5, 5]; arr[9] = [0.6, 5]       // 又一段连续两月
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.hasData).toBe(true)
+    // 段：[0,1] / [5] / [8,9] → 3 段
+    expect(r.me.segments.map((s) => s.points.map((p) => p.m)))
+      .toEqual([[0, 1], [5], [8, 9]])
+  })
+
+  it('孤立单月 → 段内仅 1 点', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[6] = [0.5, 3]
+    const r = moodRiverBands(mk(arr), opts)
+    expect(r.me.segments).toHaveLength(1)
+    expect(r.me.segments[0].points).toHaveLength(1)
+  })
+
+  it('centerY：avg=1 顶部(y 最小)、avg=0 底部(y 最大)、avg=0.5 居中；x 随月递增', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[0] = [1, 1]; arr[1] = [0, 1]
+    const r = moodRiverBands(mk(arr), opts)
+    const [p0, p1] = r.me.segments[0].points
+    expect(p0.centerY).toBeLessThan(p1.centerY)
+    expect(p0.x).toBeLessThan(p1.x)
+    const mid = moodRiverBands(mk([[0.5, 1], ...Array(11).fill(null)] as any), opts)
+    expect(mid.me.segments[0].points[0].centerY).toBeCloseTo(opts.height / 2)
+  })
+
+  it('带宽归一化：最大 count 月 halfW≈maxHalf，最小非零 count 月≥minHalf，且都在 [2, maxHalf]', () => {
+    const arr: ([number, number] | null)[] = Array(12).fill(null)
+    arr[0] = [0.5, 1]; arr[1] = [0.5, 100]     // 相邻，同段，count 1 vs 100
+    const r = moodRiverBands(mk(arr), opts)
+    const [small, big] = r.me.segments[0].points
+    expect(big.halfW).toBeCloseTo(maxHalf)
+    expect(small.halfW).toBeGreaterThanOrEqual(2)
+    for (const p of [small, big]) {
+      expect(p.halfW).toBeGreaterThanOrEqual(2)
+      expect(p.halfW).toBeLessThanOrEqual(maxHalf + 1e-9)
+    }
+  })
+
+  it('单侧空 → 空侧 segments 为 []，另一侧正常', () => {
+    const r = moodRiverBands(mk([[0.5, 3], ...Array(11).fill(null)] as any), opts)
+    expect(r.them.segments).toEqual([])
+    expect(r.me.segments).toHaveLength(1)
   })
 })
