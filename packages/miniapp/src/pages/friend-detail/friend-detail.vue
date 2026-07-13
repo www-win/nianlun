@@ -9,7 +9,7 @@ import { useDataStore } from '../../stores/data'
 import { useBackupStore } from '../../stores/backup'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
-import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints } from '../../lib/insights'
+import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodRiverBands } from '../../lib/insights'
 import { storage } from '../../adapters/storage'
 import type { StoredAstroReading } from '../../adapters/storage'
 import { birthFingerprint, assembleAstro, astroExpired } from '../../lib/astroView'
@@ -26,7 +26,7 @@ const friend = computed(() => data.friends.find((f) => f.id === id.value) || nul
 const emotion = computed(() => friend.value?.emotion ?? null)
 const meDonut = computed(() => (emotion.value ? donutSegments(emotion.value.me) : []))
 const themDonut = computed(() => (emotion.value ? donutSegments(emotion.value.them) : []))
-const hasMood = computed(() => !!emotion.value && moodDualLinePoints(
+const hasMood = computed(() => !!emotion.value && moodRiverBands(
   emotion.value.monthly, { width: 300, height: 150, pad: 20 }).hasData)
 
 const pct = (n: number, total: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
@@ -57,29 +57,71 @@ function drawDonut(canvasId: string, segs: ReturnType<typeof donutSegments>) {
 function drawMood() {
   const emo = emotion.value
   if (!emo) return
-  // 折线宽度随设备/布局变化 → 用 selectorQuery 量真实渲染尺寸，绘制坐标系与画布严格一致。
   uni.createSelectorQuery().select('.mood-canvas').boundingClientRect((res) => {
     const rect = res as UniApp.NodeInfo
     const W = rect && rect.width ? rect.width : moodPx
     const H = rect && rect.height ? rect.height : moodPx
     const pad = 20
-    const dl = moodDualLinePoints(emo.monthly, { width: W, height: H, pad })
+    const river = moodRiverBands(emo.monthly, { width: W, height: H, pad })
     const ctx = uni.createCanvasContext('moodLine')
-    // 0.5 中线
-    const midY = H - pad - 0.5 * (H - 2 * pad)
+
+    // 背景三区：上暖(开心)下冷(难过)极淡 wash，中间留中性带
+    const band = (H - 2 * pad) * 0.1
+    ctx.setFillStyle('rgba(232,160,75,0.05)')
+    ctx.fillRect(pad, pad, W - 2 * pad, river.midY - band - pad)
+    ctx.setFillStyle('rgba(90,143,208,0.05)')
+    ctx.fillRect(pad, river.midY + band, W - 2 * pad, H - pad - (river.midY + band))
+    // 中性基线
     ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb'); ctx.setLineWidth(1)
-    ctx.moveTo(pad, midY); ctx.lineTo(W - pad, midY); ctx.stroke()
-    // 只连相邻月（m 差 1），断开处不连线
-    const drawLine = (pts: typeof dl.me, color: string) => {
-      ctx.setStrokeStyle(color); ctx.setLineWidth(2)
-      for (let i = 1; i < pts.length; i++) {
-        if (pts[i].m - pts[i - 1].m !== 1) continue
-        ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke()
-      }
-      for (const p of pts) { ctx.beginPath(); ctx.setFillStyle(color); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill() }
+    ctx.moveTo(pad, river.midY); ctx.lineTo(W - pad, river.midY); ctx.stroke()
+
+    // 左侧情绪三档 + 底部月份刻度
+    ctx.setFillStyle('#9aa0aa'); ctx.setFontSize(10)
+    ctx.setTextAlign('left'); ctx.setTextBaseline('middle')
+    ctx.fillText('开心', 2, pad + 4)
+    ctx.fillText('中性', 2, river.midY)
+    ctx.fillText('难过', 2, H - pad - 2)
+    ctx.setTextAlign('center'); ctx.setTextBaseline('top')
+    for (let m = 0; m < 12; m += 2) {
+      const mx = pad + (m / 11) * (W - 2 * pad)
+      ctx.fillText(String(m + 1), mx, H - 12)
     }
-    drawLine(dl.me, '#e8a04b')     // 我=暖
-    drawLine(dl.them, '#5a8fd0')   // TA=冷
+
+    // 平滑边：从 pts[0] 起，经中点作二次贝塞尔，最后直连尾点
+    const smooth = (pts: { x: number; y: number }[]) => {
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2
+        const my = (pts[i].y + pts[i + 1].y) / 2
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my)
+      }
+      if (pts.length > 1) { const l = pts[pts.length - 1]; ctx.lineTo(l.x, l.y) }
+    }
+
+    const drawSide = (side: typeof river.me, fill: string, stroke: string) => {
+      for (const seg of side.segments) {
+        const pts = seg.points
+        if (pts.length === 1) {   // 孤立月 → 水滴
+          const p = pts[0]
+          ctx.beginPath(); ctx.setFillStyle(fill)
+          ctx.arc(p.x, p.centerY, Math.max(p.halfW, 2), 0, Math.PI * 2); ctx.fill()
+          continue
+        }
+        const top = pts.map((p) => ({ x: p.x, y: p.centerY - p.halfW }))
+        const bot = pts.map((p) => ({ x: p.x, y: p.centerY + p.halfW })).reverse()
+        ctx.beginPath()
+        ctx.moveTo(top[0].x, top[0].y); smooth(top)
+        ctx.lineTo(bot[0].x, bot[0].y); smooth(bot)
+        ctx.closePath(); ctx.setFillStyle(fill); ctx.fill()
+        // 中心线
+        ctx.beginPath(); ctx.setStrokeStyle(stroke); ctx.setLineWidth(1.5)
+        ctx.moveTo(pts[0].x, pts[0].centerY)
+        smooth(pts.map((p) => ({ x: p.x, y: p.centerY })))
+        ctx.stroke()
+      }
+    }
+
+    drawSide(river.them, 'rgba(90,143,208,0.45)', '#5a8fd0')  // TA 冷
+    drawSide(river.me, 'rgba(232,160,75,0.5)', '#e8a04b')     // 我 暖（叠在上）
     ctx.draw()
   }).exec()
 }
