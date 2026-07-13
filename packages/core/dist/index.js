@@ -12454,6 +12454,17 @@ function mergeKeywords(friends, topN) {
 }
 
 // src/stats/report.ts
+function friendReportFields(friends) {
+  const topContacts = [...friends].sort((a, b) => b.msgCount - a.msgCount).slice(0, 3).map((f) => ({ friendId: f.id, msgCount: f.msgCount }));
+  const byRel = /* @__PURE__ */ new Map();
+  friends.forEach((f) => byRel.set(f.rel, (byRel.get(f.rel) ?? 0) + f.msgCount));
+  const relTotal = [...byRel.values()].reduce((a, b) => a + b, 0) || 1;
+  const relationBreakdown = [...byRel.entries()].map(([rel, n]) => ({
+    rel,
+    percent: Math.round(n / relTotal * 100)
+  }));
+  return { topContacts, relationBreakdown };
+}
 function buildReport(conversations, friends, year) {
   const days = /* @__PURE__ */ new Set();
   let total = 0;
@@ -12467,23 +12478,14 @@ function buildReport(conversations, friends, year) {
       }
     });
   });
-  const topContacts = [...friends].sort((a, b) => b.msgCount - a.msgCount).slice(0, 3).map((f) => ({ friendId: f.id, msgCount: f.msgCount }));
-  const byRel = /* @__PURE__ */ new Map();
-  friends.forEach((f) => byRel.set(f.rel, (byRel.get(f.rel) ?? 0) + f.msgCount));
-  const relTotal = [...byRel.values()].reduce((a, b) => a + b, 0) || 1;
-  const relationBreakdown = [...byRel.entries()].map(([rel, n]) => ({
-    rel,
-    percent: Math.round(n / relTotal * 100)
-  }));
   return {
     year,
     totalMessages: total,
     friendCount: friends.length,
     activeDays: days.size,
-    topContacts,
     latestMessage: latest,
     keywords: mergeKeywords(friends, 50),
-    relationBreakdown
+    ...friendReportFields(friends)
   };
 }
 
@@ -12722,19 +12724,7 @@ function pickInvestment(v) {
   if (style) out.style = style;
   return Object.keys(out).length ? out : void 0;
 }
-function parseFriendProfile(text) {
-  if (typeof text !== "string") return {};
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) return {};
-  let obj;
-  try {
-    obj = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return {};
-  }
-  if (typeof obj !== "object" || obj === null) return {};
-  const r = obj;
+function fromObject(r) {
   const out = {};
   const identity = pickText(r.identity);
   if (identity) out.identity = identity;
@@ -12747,6 +12737,50 @@ function parseFriendProfile(text) {
   const investment = pickInvestment(r.investment);
   if (investment) out.investment = investment;
   return out;
+}
+function grabField(text, key) {
+  const m = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(text);
+  if (!m) return void 0;
+  const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, "\n").replace(/\\t/g, "	");
+  return pickText(raw);
+}
+function salvageProfile(text) {
+  const out = {};
+  const identity = grabField(text, "identity");
+  if (identity) out.identity = identity;
+  const family = grabField(text, "family");
+  if (family) out.family = family;
+  const romance = grabField(text, "romance");
+  if (romance) out.romance = romance;
+  const lifestyle = grabField(text, "lifestyle");
+  if (lifestyle) out.lifestyle = lifestyle;
+  const inv = {};
+  const summary = grabField(text, "summary");
+  if (summary) inv.summary = summary;
+  const risk = grabField(text, "risk");
+  if (risk) inv.risk = risk;
+  const categories = grabField(text, "categories");
+  if (categories) inv.categories = categories;
+  const wealth = grabField(text, "wealth");
+  if (wealth) inv.wealth = wealth;
+  const style = grabField(text, "style");
+  if (style) inv.style = style;
+  if (Object.keys(inv).length) out.investment = inv;
+  return out;
+}
+function parseFriendProfile(text) {
+  if (typeof text !== "string") return {};
+  const start = text.indexOf("{");
+  if (start === -1) return {};
+  const end = text.lastIndexOf("}");
+  if (end > start) {
+    try {
+      const obj = JSON.parse(text.slice(start, end + 1));
+      if (typeof obj === "object" && obj !== null) return fromObject(obj);
+    } catch {
+    }
+  }
+  return salvageProfile(text);
 }
 
 // src/ai/mbti.ts
@@ -12861,9 +12895,8 @@ function parseMbti(text) {
   }
   if (typeof obj !== "object" || obj === null) return null;
   const r = obj;
-  const rawCode = typeof r.code === "string" ? r.code.trim().toUpperCase() : "";
-  if (!MBTI_CODES.includes(rawCode)) return null;
-  const code = rawCode;
+  const code = typeof r.code === "string" ? detectMbtiFromText(r.code) : null;
+  if (!code) return null;
   const title = typeof r.title === "string" && r.title.trim() ? r.title.trim() : mbtiTitle(code);
   const summary = typeof r.summary === "string" && r.summary.trim() ? r.summary.trim() : "";
   return { code, title, summary, dimensions: normalizeDimensions(r.dimensions, code) };
@@ -13546,6 +13579,7 @@ export {
   effectiveMbtiCode,
   extractFriendSamples,
   extractKeywords,
+  friendReportFields,
   getCompatibility,
   getDayFortune,
   isBranchClash,

@@ -109,6 +109,11 @@ declare function parseCsvBackup(content: string): Friend[];
 
 declare function aggregate(conversations: Conversation[]): Friend[];
 
+/**
+ * 纯从好友列表派生的报告字段（排名榜 + 关系分布）。不依赖原始会话，
+ * 因此多批次导入后可用「全量好友」重算，让概览与好友列表口径一致。
+ */
+declare function friendReportFields(friends: Friend[]): Pick<ReportData, 'topContacts' | 'relationBreakdown'>;
 declare function buildReport(conversations: Conversation[], friends: Friend[], year: number): ReportData;
 
 declare function sumHourly(friends: Friend[]): number[];
@@ -195,8 +200,9 @@ interface FriendProfile {
  */
 declare function buildFriendProfilePrompt(friend: Friend, samples: string[]): string;
 /**
- * 容错解析好友画像 JSON：剥围栏、定位首尾花括号、逐字段取非空字符串；
- * investment 内部全空则省略整块。无法解析返回 {}，永不抛异常。
+ * 容错解析好友画像 JSON：剥围栏、定位首尾花括号、逐字段取非空字符串；investment 内部全空则省略整块。
+ * JSON 完整则直接解析；被截断/不闭合时退回逐字段正则抢救（画像字段多、易顶破 maxTokens）。
+ * 完全无内容返回 {}，永不抛异常。
  */
 declare function parseFriendProfile(text: string): FriendProfile;
 
@@ -462,4 +468,4 @@ declare function parseChatQaAnswer(text: string): string;
 
 declare const version = "0.1.0";
 
-export { type AstroReading, type BaziChart, type BirthInfo, type ChatQaContext, type ChatQaTurn, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendRef, type FriendSuggestion, type InvestmentProfile, MBTI_CODES, MBTI_TITLES, type MbtiAxis, type MbtiCode, type MbtiDimension, type MbtiResult, type MbtiSource, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RawExcerpt, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildChatQaPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildMbtiPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, detectMbtiFromText, effectiveMbtiCode, extractFriendSamples, extractKeywords, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mbtiTitle, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseChatQaAnswer, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseMbti, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, selectRelevantFriends, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, withRecommenderNames, wordPolarity, wuxingRelation };
+export { type AstroReading, type BaziChart, type BirthInfo, type ChatQaContext, type ChatQaTurn, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendRef, type FriendSuggestion, type InvestmentProfile, MBTI_CODES, MBTI_TITLES, type MbtiAxis, type MbtiCode, type MbtiDimension, type MbtiResult, type MbtiSource, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RawExcerpt, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildChatQaPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildMbtiPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, detectMbtiFromText, effectiveMbtiCode, extractFriendSamples, extractKeywords, friendReportFields, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mbtiTitle, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseChatQaAnswer, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseMbti, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, selectRelevantFriends, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, withRecommenderNames, wordPolarity, wuxingRelation };

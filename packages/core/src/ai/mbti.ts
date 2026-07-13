@@ -113,9 +113,10 @@ export function parseMbti(text: string): MbtiResult | null {
   try { obj = JSON.parse(text.slice(start, end + 1)) } catch { return null }
   if (typeof obj !== 'object' || obj === null) return null
   const r = obj as Record<string, unknown>
-  const rawCode = typeof r.code === 'string' ? r.code.trim().toUpperCase() : ''
-  if (!MBTI_CODES.includes(rawCode as MbtiCode)) return null
-  const code = rawCode as MbtiCode
+  // code 兜底：模型常返回带装饰的码（INTJ-A / INTJ型 / INTJ（建筑师）），
+  // 用 detectMbtiFromText 从中抽出合法码，而非要求严格等值，避免变体整条作废。
+  const code = typeof r.code === 'string' ? detectMbtiFromText(r.code) : null
+  if (!code) return null
   const title = typeof r.title === 'string' && r.title.trim() ? r.title.trim() : mbtiTitle(code)
   const summary = typeof r.summary === 'string' && r.summary.trim() ? r.summary.trim() : ''
   return { code, title, summary, dimensions: normalizeDimensions(r.dimensions, code) }

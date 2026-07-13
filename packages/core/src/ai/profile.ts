@@ -79,19 +79,8 @@ function pickInvestment(v: unknown): InvestmentProfile | undefined {
   return Object.keys(out).length ? out : undefined
 }
 
-/**
- * 容错解析好友画像 JSON：剥围栏、定位首尾花括号、逐字段取非空字符串；
- * investment 内部全空则省略整块。无法解析返回 {}，永不抛异常。
- */
-export function parseFriendProfile(text: string): FriendProfile {
-  if (typeof text !== 'string') return {}
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start === -1 || end === -1 || end < start) return {}
-  let obj: unknown
-  try { obj = JSON.parse(text.slice(start, end + 1)) } catch { return {} }
-  if (typeof obj !== 'object' || obj === null) return {}
-  const r = obj as Record<string, unknown>
+/** 从对象逐字段取值构造画像；investment 内部全空则省略整块。 */
+function fromObject(r: Record<string, unknown>): FriendProfile {
   const out: FriendProfile = {}
   const identity = pickText(r.identity); if (identity) out.identity = identity
   const family = pickText(r.family); if (family) out.family = family
@@ -99,4 +88,51 @@ export function parseFriendProfile(text: string): FriendProfile {
   const lifestyle = pickText(r.lifestyle); if (lifestyle) out.lifestyle = lifestyle
   const investment = pickInvestment(r.investment); if (investment) out.investment = investment
   return out
+}
+
+/** 从任意（可能被截断/不闭合的）文本里正则抓取 "key": "value"，取首个完整闭合的值。 */
+function grabField(text: string, key: string): string | undefined {
+  const m = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(text)
+  if (!m) return undefined
+  const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+  return pickText(raw)
+}
+
+/**
+ * JSON 被 maxTokens 截断（尾部 } 缺失、无法 parse）时的兜底：逐字段正则抓取已写出的部分，
+ * 至少救回前面完整的字段，而非整条丢弃。半截未闭合的字段自然抓不到，忽略即可。
+ */
+function salvageProfile(text: string): FriendProfile {
+  const out: FriendProfile = {}
+  const identity = grabField(text, 'identity'); if (identity) out.identity = identity
+  const family = grabField(text, 'family'); if (family) out.family = family
+  const romance = grabField(text, 'romance'); if (romance) out.romance = romance
+  const lifestyle = grabField(text, 'lifestyle'); if (lifestyle) out.lifestyle = lifestyle
+  const inv: InvestmentProfile = {}
+  const summary = grabField(text, 'summary'); if (summary) inv.summary = summary
+  const risk = grabField(text, 'risk'); if (risk) inv.risk = risk
+  const categories = grabField(text, 'categories'); if (categories) inv.categories = categories
+  const wealth = grabField(text, 'wealth'); if (wealth) inv.wealth = wealth
+  const style = grabField(text, 'style'); if (style) inv.style = style
+  if (Object.keys(inv).length) out.investment = inv
+  return out
+}
+
+/**
+ * 容错解析好友画像 JSON：剥围栏、定位首尾花括号、逐字段取非空字符串；investment 内部全空则省略整块。
+ * JSON 完整则直接解析；被截断/不闭合时退回逐字段正则抢救（画像字段多、易顶破 maxTokens）。
+ * 完全无内容返回 {}，永不抛异常。
+ */
+export function parseFriendProfile(text: string): FriendProfile {
+  if (typeof text !== 'string') return {}
+  const start = text.indexOf('{')
+  if (start === -1) return {}
+  const end = text.lastIndexOf('}')
+  if (end > start) {
+    try {
+      const obj = JSON.parse(text.slice(start, end + 1))
+      if (typeof obj === 'object' && obj !== null) return fromObject(obj as Record<string, unknown>)
+    } catch { /* 落到 salvage：截断的 JSON 无法 parse，改用正则抢救 */ }
+  }
+  return salvageProfile(text)
 }
