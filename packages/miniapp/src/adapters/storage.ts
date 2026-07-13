@@ -1,4 +1,4 @@
-import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick, Sentiment, FriendProfile, MbtiResult } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, BaziChart, AstroReading, StockPick, Sentiment, FriendProfile, MbtiResult, RelationDeep } from '@nianlun/core'
 import type { RecentInsight } from './parseLocal'
 import { makeFsJson, makeKvFsJson, type FsJsonBackend } from './fsStore'
 import { wxRawFs } from './rawStore'
@@ -10,6 +10,7 @@ const K_FRIEND_PROFILE = 'nianlun:friendProfile'
 const K_FRIEND_MBTI = 'nianlun:friendMbti'
 const K_REPORT_COPY = 'nianlun:reportCopy'
 const K_YEAR_MOOD = 'nianlun:yearMood'
+const K_FRIEND_RELATION_DEEP = 'nianlun:friendRelationDeep'
 // 旧版本把原文分块存 Storage 用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const K_RAW_INDEX_LEGACY = 'nianlun:rawIndex'
 const K_RAW_PREFIX_LEGACY = 'nianlun:raw:'
@@ -167,6 +168,12 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
     loadFriendMbti(id: string, friend: Friend): { data: MbtiResult; stale: boolean } | null {
       return loadFriendEntry<MbtiResult>(K_FRIEND_MBTI, id, friend)
     },
+    saveRelationDeep(id: string, friend: Friend, data: RelationDeep): void {
+      saveFriendEntry(K_FRIEND_RELATION_DEEP, id, friend, data)
+    },
+    loadRelationDeep(id: string, friend: Friend): { data: RelationDeep; stale: boolean } | null {
+      return loadFriendEntry<RelationDeep>(K_FRIEND_RELATION_DEEP, id, friend)
+    },
     saveReportCopy(report: ReportData, text: string): void { saveReportEntry(K_REPORT_COPY, report, text) },
     loadReportCopy(report: ReportData): { data: string; stale: boolean } | null {
       return loadReportEntry(K_REPORT_COPY, report)
@@ -180,6 +187,7 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       backend.remove(K_REPORT); backend.remove(K_ANALYZED)
       backend.remove(K_MY_BAZI); backend.remove(K_BIRTHS); backend.remove(K_ASTRO)
       backend.remove(K_FRIEND_SENTIMENT); backend.remove(K_FRIEND_PROFILE); backend.remove(K_FRIEND_MBTI)
+      backend.remove(K_FRIEND_RELATION_DEEP)
       backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
       backend.remove(K_LAST_BACKUP_AT)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')

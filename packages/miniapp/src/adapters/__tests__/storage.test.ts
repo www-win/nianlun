@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeStorage } from '../storage'
 import { makeFsJson, makeKvFsJson } from '../fsStore'
 import type { RawFsBackend } from '../rawStore'
-import type { Friend, ReportData, BirthInfo, StockPick, MbtiResult } from '@nianlun/core'
+import type { Friend, ReportData, BirthInfo, StockPick, MbtiResult, RelationDeep } from '@nianlun/core'
 
 function memBackend() {
   const m = new Map<string, unknown>()
@@ -272,6 +272,41 @@ describe('四类 AI 结果持久化', () => {
 
     s.clearAll()
     expect(s.loadFriendMbti('f1', FRIEND_FP)).toBeNull()
+  })
+})
+
+describe('storage relationDeep', () => {
+  it('save/load 往返，指纹一致时 stale=false', () => {
+    const backend = memBackend()
+    const s = makeStorage(backend)
+    const friend = { id: 'f1', msgCount: 100, lastContact: 5 } as unknown as Friend
+    const data: RelationDeep = { overall: '很好', suggestions: [{ topic: '沟通', advice: '多聊' }] }
+    s.saveRelationDeep('f1', friend, data)
+    const got = s.loadRelationDeep('f1', friend)
+    expect(got?.data.overall).toBe('很好')
+    expect(got?.stale).toBe(false)
+  })
+
+  it('好友统计变化（msgCount 变）→ stale=true', () => {
+    const backend = memBackend()
+    const s = makeStorage(backend)
+    const f1 = { id: 'f1', msgCount: 100, lastContact: 5 } as unknown as Friend
+    s.saveRelationDeep('f1', f1, { overall: 'x' })
+    const f2 = { id: 'f1', msgCount: 200, lastContact: 9 } as unknown as Friend
+    expect(s.loadRelationDeep('f1', f2)?.stale).toBe(true)
+  })
+
+  it('未存过返回 null', () => {
+    const s = makeStorage(memBackend())
+    expect(s.loadRelationDeep('nope', { id: 'nope', msgCount: 1, lastContact: 1 } as unknown as Friend)).toBeNull()
+  })
+
+  it('clearAll 清除深度关系分析缓存', () => {
+    const s = makeStorage(memBackend())
+    const friend = { id: 'f1', msgCount: 100, lastContact: 5 } as unknown as Friend
+    s.saveRelationDeep('f1', friend, { overall: 'x' })
+    s.clearAll()
+    expect(s.loadRelationDeep('f1', friend)).toBeNull()
   })
 })
 
