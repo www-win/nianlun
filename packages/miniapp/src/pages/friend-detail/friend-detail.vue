@@ -6,6 +6,7 @@ import { effectiveMbtiCode, mbtiTitle, MBTI_CODES } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
 import { useDataStore } from '../../stores/data'
+import { useBackupStore } from '../../stores/backup'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend, donutSegments, moodDualLinePoints } from '../../lib/insights'
@@ -310,6 +311,8 @@ function saveBirth() {
   const all = storage.loadBirths(); all[f.id] = b; storage.saveBirths(all)
   friendBirth.value = b
   showBirthForm.value = false
+  // 触发云备份：好友生辰同样只存本地会随微信清空/换机丢失，须同步到云端
+  useBackupStore().scheduleBackup()
   uni.showToast({ title: '已保存生辰', icon: 'success' })
 }
 
@@ -686,7 +689,7 @@ async function generateAstro() {
 .cloud { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16rpx 24rpx; margin-top: 24rpx; }
 .word { color: var(--accent-strong); font-weight: 600; line-height: 1.2; }
 
-.edit-row { display: flex; align-items: center; gap: 16rpx; }
+.edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16rpx; }
 .ai-progress { margin-top: 20rpx; }
 .act { padding: 12rpx 22rpx; border-radius: 12rpx; font-size: 24rpx; font-weight: 550; color: var(--muted); background: var(--surface-2); }
 .act-ai { color: var(--accent-strong); background: var(--accent-wash); }
