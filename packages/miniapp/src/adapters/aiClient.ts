@@ -6,12 +6,13 @@ import {
   buildAstroPrompt, parseAstroReading, buildBirthExtractPrompt, parseBirthInfo,
   buildStockExtractionPrompt, parseStockExtraction,
   buildChatQaPrompt, parseChatQaAnswer,
+  buildRelationDeepPrompt, parseRelationDeep,
 } from '@nianlun/core'
 import type {
   Friend, ReportData, FriendSuggestion, Sentiment, FriendProfile, MbtiResult,
   BaziChart, DayFortune, Compatibility, AstroReading, BirthInfo,
   StockPick, ExtractCtx,
-  ChatQaTurn, ChatQaContext,
+  ChatQaTurn, ChatQaContext, RelationDeep,
 } from '@nianlun/core'
 
 export type Transport = (prompt: string, maxTokens: number) => Promise<string>
@@ -36,6 +37,10 @@ export function makeAiClient(transport: Transport) {
     async analyzeFriendMbti(friend: Friend, samples: string[]): Promise<MbtiResult | null> {
       const text = await transport(buildMbtiPrompt(friend, samples), 768)
       return parseMbti(text)
+    },
+    async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
+      const text = await transport(buildRelationDeepPrompt(friend, samples), 3072)
+      return parseRelationDeep(text)
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
       return transport(buildYearSentimentPrompt(report, sampleLines), 1024)

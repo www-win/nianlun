@@ -59,6 +59,17 @@ describe('aiClient', () => {
     expect(out).toContain('热络')
     expect(transport.mock.calls[0][0]).toContain('2025')
   })
+
+  it('analyzeRelationDeep 把 prompt 交给 transport 并解析 10 块 JSON', async () => {
+    const transport = vi.fn().mockResolvedValue(
+      '{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}},"suggestions":[{"topic":"沟通","advice":"设暂停"}]}',
+    )
+    const out = await makeAiClient(transport).analyzeRelationDeep(FRIEND, ['我：在吗', '对方：在'])
+    expect(out.overall).toBe('追逐-回避')
+    expect(out.attachment?.me?.style).toBe('焦虑型')
+    expect(out.suggestions?.[0]?.advice).toBe('设暂停')
+    expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含好友名
+  })
 })
 
 const astroFriend = { id: 'f1', name: '小美', alias: '', rel: '客户', role: '' } as any
