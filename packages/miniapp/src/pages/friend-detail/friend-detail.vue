@@ -90,18 +90,6 @@ function drawMood() {
     ctx.beginPath(); ctx.setStrokeStyle('#e5e7eb'); ctx.setLineWidth(1)
     ctx.moveTo(pad, river.midY); ctx.lineTo(W - pad, river.midY); ctx.stroke()
 
-    // 左侧情绪三档 + 底部月份刻度
-    ctx.setFillStyle('#9aa0aa'); ctx.setFontSize(10)
-    ctx.setTextAlign('left'); ctx.setTextBaseline('middle')
-    ctx.fillText('开心', 2, pad + 4)
-    ctx.fillText('中性', 2, river.midY)
-    ctx.fillText('难过', 2, H - pad - 2)
-    ctx.setTextAlign('center'); ctx.setTextBaseline('top')
-    for (let m = 0; m < 12; m += 2) {
-      const mx = pad + (m / 11) * (W - 2 * pad)
-      ctx.fillText(String(m + 1), mx, H - 12)
-    }
-
     // 平滑边：从 pts[0] 起，经中点作二次贝塞尔，最后直连尾点
     const smooth = (pts: { x: number; y: number }[]) => {
       for (let i = 1; i < pts.length - 1; i++) {
@@ -137,6 +125,19 @@ function drawMood() {
 
     drawSide(river.them, 'rgba(90,143,208,0.45)', '#5a8fd0')  // TA 冷
     drawSide(river.me, 'rgba(232,160,75,0.5)', '#e8a04b')     // 我 暖（叠在上）
+
+    // 左侧情绪三档 + 底部月份刻度（画在河带之上，避免被半透明色带遮盖）
+    ctx.setFillStyle('#9aa0aa'); ctx.setFontSize(10)
+    ctx.setTextAlign('left'); ctx.setTextBaseline('middle')
+    ctx.fillText('开心', 2, pad + 4)
+    ctx.fillText('中性', 2, river.midY)
+    ctx.fillText('难过', 2, H - pad - 2)
+    ctx.setTextAlign('center'); ctx.setTextBaseline('top')
+    for (let m = 0; m < 12; m += 2) {
+      const mx = pad + (m / 11) * (W - 2 * pad)
+      ctx.fillText(String(m + 1), mx, H - 12)
+    }
+
     ctx.draw()
   }).exec()
 }
