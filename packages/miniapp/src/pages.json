@@ -8,7 +8,8 @@
     { "path": "pages/stock/stock", "style": { "navigationBarTitleText": "二级市场" } },
     { "path": "pages/stock-detail/stock-detail", "style": { "navigationBarTitleText": "荐股详情" } },
     { "path": "pages/report/report", "style": { "navigationBarTitleText": "年度报告" } },
-    { "path": "pages/chat-qa/chat-qa", "style": { "navigationBarTitleText": "问聊天记录" } }
+    { "path": "pages/chat-qa/chat-qa", "style": { "navigationBarTitleText": "问聊天记录" } },
+    { "path": "pages/relation-deep/relation-deep", "style": { "navigationBarTitleText": "深度关系分析" } }
   ],
   "tabBar": {
     "color": "#9aa39e",

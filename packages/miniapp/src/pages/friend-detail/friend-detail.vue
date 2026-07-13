@@ -221,6 +221,12 @@ function onMbtiPick(e: { detail: { value: number | string } }) {
   else data.updateFriend(f.id, { mbti: MBTI_CODES[i] })
 }
 
+function openRelationDeep() {
+  const f = friend.value
+  if (!f) return
+  uni.navigateTo({ url: `/pages/relation-deep/relation-deep?id=${encodeURIComponent(f.id)}` })
+}
+
 // 进页/返回时装载已持久化的情绪/画像缓存，命中直显、过期打标（不自动重算）。
 function loadAiCache() {
   const f = friend.value
@@ -471,6 +477,7 @@ async function generateAstro() {
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
           <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : (sentiment ? '↻ 重新分析' : '✦ 情绪分析') }}</text>
           <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : (profile ? '↻ 重新生成' : '✦ 好友画像') }}</text>
+          <text class="act act-ai" @click="openRelationDeep">✦ 深度关系分析</text>
         </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
         <view v-if="sentiment" class="senti">
