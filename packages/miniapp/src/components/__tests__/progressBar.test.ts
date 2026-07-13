@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveProgress } from '../progressBar'
+import { resolveProgress } from '../progressBarLogic'
 
 describe('resolveProgress', () => {
   it('传 percent → determinate，width 为该值', () => {

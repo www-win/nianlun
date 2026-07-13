@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { resolveProgress } from './progressBar'
+import { resolveProgress } from './progressBarLogic'
 
 const props = defineProps<{ percent?: number; indeterminate?: boolean; label?: string }>()
 const view = computed(() => resolveProgress(props))
