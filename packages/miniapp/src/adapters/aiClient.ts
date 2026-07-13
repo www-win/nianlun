@@ -40,14 +40,14 @@ export function makeAiClient(transport: Transport) {
       return parseMbti(text)
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
-      // 话痨好友样本可达 ~60 条(prompt ~6000 字)，输入大 + 生成更长会撞云函数 60s 硬顶(-504003)。
-      // ① 样本限量到 20 条把 prompt 压回可控规模；② 拆前/后 5 块两次并行、各半量输出；
-      // ③ 不指定 model → 走云函数默认模型（与其它分析一致、确定被代理支持）。三管齐下保 <60s。
+      // 单次全量 10 块生成会撞云函数 60s 硬顶(-504003)，部分好友生成 ~50s+ 尤其吃紧。
+      // 拆 3 段并行（各 3~4 块、~25-30s、余量足），样本限量到 20 条控 prompt，
+      // 不指定 model 走云函数默认（与其它分析一致）。客户端浅合并（三段字段不相交）。
       const capped = samples.slice(0, 20)
-      const part = (p: 1 | 2) =>
-        transport(buildRelationDeepPrompt(friend, capped, p), 2048).then(parseRelationDeep)
-      const [a, b] = await Promise.all([part(1), part(2)])
-      return { ...a, ...b }
+      const part = (p: 1 | 2 | 3) =>
+        transport(buildRelationDeepPrompt(friend, capped, p), 1536).then(parseRelationDeep)
+      const [a, b, c] = await Promise.all([part(1), part(2), part(3)])
+      return { ...a, ...b, ...c }
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
       return transport(buildYearSentimentPrompt(report, sampleLines), 1024)

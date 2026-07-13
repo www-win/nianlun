@@ -12701,11 +12701,12 @@ var REL_BLOCKS = [
   '  "language": {"appellation": "<\u79F0\u547C\u4E60\u60EF>", "catchphrases": "<\u53E3\u5934\u7985/\u9AD8\u9891\u8BED>", "emoji": "<\u8868\u60C5\u5305\u4E60\u60EF>", "latency": "<\u56DE\u590D\u65F6\u5EF6\u4E0E\u8282\u594F>"}',
   '  "suggestions": [<\u4F18\u5316\u5EFA\u8BAE\uFF0C\u6BCF\u9879\u6210\u5BF9>{"topic": "<\u4E3B\u9898\uFF0C\u5982 \u6C9F\u901A\u6A21\u5F0F/\u60C5\u611F\u8868\u8FBE>", "problem": "<\u95EE\u9898\u8BCA\u65AD>", "advice": "<\u53EF\u6267\u884C\u5EFA\u8BAE\uFF0C\u53EF\u7528 NVC \u56DB\u6B65>"}]'
 ];
+var PART_SLICE = { 1: [0, 2], 2: [2, 6], 3: [6, 10] };
 function buildRelationDeepPrompt(friend, samples, part) {
   const displayName = friend.alias || friend.name;
   const sampleBlock = samples.length ? samples.map((s, i) => `${i + 1}. ${s}`).join("\n") : "\uFF08\u672C\u6B21\u65E0\u53EF\u7528\u804A\u5929\u6837\u672C\uFF09";
   const monthly = (friend.monthly ?? []).map((c, i) => `${i + 1}\u6708:${c}`).join(" ");
-  const blocks = part === 1 ? REL_BLOCKS.slice(0, 5) : part === 2 ? REL_BLOCKS.slice(5) : REL_BLOCKS;
+  const blocks = part ? REL_BLOCKS.slice(PART_SLICE[part][0], PART_SLICE[part][1]) : REL_BLOCKS;
   return [
     "\u4F60\u662F\u4E00\u4F4D\u53D7\u8FC7\u8BAD\u7EC3\u3001\u64C5\u957F\u6210\u4EBA\u4F9D\u604B\u4E0E\u4EB2\u5BC6\u5173\u7CFB\u5206\u6790\u7684\u5FC3\u7406\u54A8\u8BE2\u5E08\u3002\u8BF7\u4F9D\u636E\u4E0B\u9762\u8FD9\u4F4D\u5FAE\u4FE1\u597D\u53CB",
     "\u4E0E\u7528\u6237\u7684\u5F80\u6765\u7EDF\u8BA1\u548C\u90E8\u5206\u804A\u5929\u6837\u672C\uFF0C\u4EA7\u51FA\u4E00\u4EFD\u6DF1\u5165\u3001\u514B\u5236\u3001\u6709\u4F9D\u636E\u7684\u300C\u6DF1\u5EA6\u5173\u7CFB\u5206\u6790\u300D\u3002",

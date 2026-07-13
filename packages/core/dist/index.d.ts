@@ -239,12 +239,11 @@ interface RelationDeep {
     suggestions?: Suggestion[];
 }
 /**
- * 深度关系分析提示词。part 省略=全部 10 块；part=1 出前 5 块（整体/依恋/互动/需求/独特性），
- * part=2 出后 5 块（安全感/权力/触发点/语言/建议）。客户端拆两次并行调用以规避云函数 60s
- * 超时（单次全量生成 ~50-60s 会超时）。理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、
- * 非暴力沟通(NVC)；安全感/触发点须引原句佐证。
+ * 深度关系分析提示词。part 省略=全部 10 块；否则按 PART_SLICE 出该段的块。
+ * 客户端拆三次并行调用以规避云函数 60s 超时（单段更小、生成更快、余量足）。
+ * 理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、非暴力沟通(NVC)；安全感/触发点须引原句佐证。
  */
-declare function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2): string;
+declare function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2 | 3): string;
 /**
  * 容错解析深度关系分析 JSON：剥围栏、定位首尾花括号、逐块取值；
  * 空块/空数组一律省略；坏 JSON / 非字符串入参返回 {}，永不抛异常。

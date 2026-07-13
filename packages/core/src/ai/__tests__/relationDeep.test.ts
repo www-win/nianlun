@@ -27,16 +27,20 @@ describe('buildRelationDeepPrompt', () => {
     expect(p).toContain('（本次无可用聊天样本）')
   })
 
-  it('part=1 只出前 5 块（整体/依恋/互动/需求/独特性），不含后 5 块', () => {
-    const p = buildRelationDeepPrompt(FRIEND, [], 1)
-    for (const k of ['overall', 'attachment', 'interaction', 'needs', 'uniqueness']) expect(p).toContain(`"${k}"`)
-    for (const k of ['security', 'power', 'triggers', 'language', 'suggestions']) expect(p).not.toContain(`"${k}"`)
-  })
-
-  it('part=2 只出后 5 块（安全感/权力/触发点/语言/建议），不含前 5 块', () => {
-    const p = buildRelationDeepPrompt(FRIEND, [], 2)
-    for (const k of ['security', 'power', 'triggers', 'language', 'suggestions']) expect(p).toContain(`"${k}"`)
-    for (const k of ['overall', 'attachment', 'interaction', 'needs', 'uniqueness']) expect(p).not.toContain(`"${k}"`)
+  it('3 段拆分互不重叠且并起来正好是全部 10 块', () => {
+    const KEYS = ['overall', 'attachment', 'interaction', 'needs', 'uniqueness', 'security', 'power', 'triggers', 'language', 'suggestions']
+    const groups: Record<1 | 2 | 3, string[]> = {
+      1: ['overall', 'attachment'],
+      2: ['interaction', 'needs', 'uniqueness', 'security'],
+      3: ['power', 'triggers', 'language', 'suggestions'],
+    }
+    for (const part of [1, 2, 3] as const) {
+      const p = buildRelationDeepPrompt(FRIEND, [], part)
+      for (const k of groups[part]) expect(p).toContain(`"${k}"`)                 // 本段的块在
+      for (const k of KEYS.filter((x) => !groups[part].includes(x))) expect(p).not.toContain(`"${k}"`) // 别段的块不在
+    }
+    // 三段块数并起来 = 10
+    expect(groups[1].length + groups[2].length + groups[3].length).toBe(10)
   })
 })
 

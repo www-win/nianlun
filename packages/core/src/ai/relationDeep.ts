@@ -56,19 +56,21 @@ const REL_BLOCKS: string[] = [
   '  "suggestions": [<优化建议，每项成对>{"topic": "<主题，如 沟通模式/情感表达>", "problem": "<问题诊断>", "advice": "<可执行建议，可用 NVC 四步>"}]',
 ]
 
+/** 3 段拆分的块区间（REL_BLOCKS 下标 [起,止)）：1=整体/依恋；2=互动/需求/独特性/安全感；3=权力/触发点/语言/建议。 */
+const PART_SLICE: Record<1 | 2 | 3, [number, number]> = { 1: [0, 2], 2: [2, 6], 3: [6, 10] }
+
 /**
- * 深度关系分析提示词。part 省略=全部 10 块；part=1 出前 5 块（整体/依恋/互动/需求/独特性），
- * part=2 出后 5 块（安全感/权力/触发点/语言/建议）。客户端拆两次并行调用以规避云函数 60s
- * 超时（单次全量生成 ~50-60s 会超时）。理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、
- * 非暴力沟通(NVC)；安全感/触发点须引原句佐证。
+ * 深度关系分析提示词。part 省略=全部 10 块；否则按 PART_SLICE 出该段的块。
+ * 客户端拆三次并行调用以规避云函数 60s 超时（单段更小、生成更快、余量足）。
+ * 理论内核：成人依恋理论、追逐-回避(Demand-Withdraw)、非暴力沟通(NVC)；安全感/触发点须引原句佐证。
  */
-export function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2): string {
+export function buildRelationDeepPrompt(friend: Friend, samples: string[], part?: 1 | 2 | 3): string {
   const displayName = friend.alias || friend.name
   const sampleBlock = samples.length
     ? samples.map((s, i) => `${i + 1}. ${s}`).join('\n')
     : '（本次无可用聊天样本）'
   const monthly = (friend.monthly ?? []).map((c, i) => `${i + 1}月:${c}`).join(' ')
-  const blocks = part === 1 ? REL_BLOCKS.slice(0, 5) : part === 2 ? REL_BLOCKS.slice(5) : REL_BLOCKS
+  const blocks = part ? REL_BLOCKS.slice(PART_SLICE[part][0], PART_SLICE[part][1]) : REL_BLOCKS
 
   return [
     '你是一位受过训练、擅长成人依恋与亲密关系分析的心理咨询师。请依据下面这位微信好友',

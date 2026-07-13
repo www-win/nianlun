@@ -60,24 +60,26 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][0]).toContain('2025')
   })
 
-  it('analyzeRelationDeep 拆前/后 5 块两次并行 sonnet 调用并合并结果', async () => {
+  it('analyzeRelationDeep 拆 3 段并行调用并合并结果', async () => {
     const transport = vi.fn()
-      .mockResolvedValueOnce('{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}}}')       // part 1
-      .mockResolvedValueOnce('{"power":{"whoLeads":"我"},"suggestions":[{"topic":"沟通","advice":"设暂停"}]}') // part 2
+      .mockResolvedValueOnce('{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}}}')          // part 1
+      .mockResolvedValueOnce('{"interaction":{"conflict":"追逐-回避循环"},"security":{"summary":"前高后低"}}') // part 2
+      .mockResolvedValueOnce('{"power":{"whoLeads":"我"},"suggestions":[{"topic":"沟通","advice":"设暂停"}]}') // part 3
     const out = await makeAiClient(transport).analyzeRelationDeep(FRIEND, ['我：在吗', '对方：在'])
-    expect(transport).toHaveBeenCalledTimes(2)
-    expect(out.overall).toBe('追逐-回避')            // 来自 part 1
-    expect(out.attachment?.me?.style).toBe('焦虑型')  // part 1
-    expect(out.power?.whoLeads).toBe('我')           // 来自 part 2
-    expect(out.suggestions?.[0]?.advice).toBe('设暂停') // part 2，合并后仍在
-    // 不指定模型（走云函数默认），且各只请求自己那半的块
-    expect(transport.mock.calls[0][2]).toBeUndefined()
-    expect(transport.mock.calls[1][2]).toBeUndefined()
-    expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含好友名
-    expect(transport.mock.calls[0][0]).toContain('"overall"')
-    expect(transport.mock.calls[0][0]).not.toContain('"suggestions"')
-    expect(transport.mock.calls[1][0]).toContain('"suggestions"')
-    expect(transport.mock.calls[1][0]).not.toContain('"overall"')
+    expect(transport).toHaveBeenCalledTimes(3)
+    expect(out.overall).toBe('追逐-回避')             // part 1
+    expect(out.attachment?.me?.style).toBe('焦虑型')   // part 1
+    expect(out.interaction?.conflict).toBe('追逐-回避循环') // part 2
+    expect(out.security?.summary).toBe('前高后低')      // part 2
+    expect(out.power?.whoLeads).toBe('我')            // part 3
+    expect(out.suggestions?.[0]?.advice).toBe('设暂停')  // part 3，合并后仍在
+    // 三段都不指定模型（走云函数默认），且各只请求自己那段的块
+    for (const call of transport.mock.calls) expect(call[2]).toBeUndefined()
+    expect(transport.mock.calls[0][0]).toContain('张三')      // prompt 含好友名
+    expect(transport.mock.calls[0][0]).toContain('"overall"')      // part 1 有
+    expect(transport.mock.calls[0][0]).not.toContain('"suggestions"') // part 3 的不在 part 1
+    expect(transport.mock.calls[2][0]).toContain('"suggestions"')  // part 3 有
+    expect(transport.mock.calls[2][0]).not.toContain('"overall"')  // part 1 的不在 part 3
   })
 
   it('analyzeRelationDeep 样本限量到 20 条（避免话痨好友 prompt 过大致 60s 超时）', async () => {
