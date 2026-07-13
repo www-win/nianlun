@@ -80,6 +80,15 @@ describe('aiClient', () => {
     expect(transport.mock.calls[1][0]).not.toContain('"overall"')
   })
 
+  it('analyzeRelationDeep 样本限量到 20 条（避免话痨好友 prompt 过大致 60s 超时）', async () => {
+    const transport = vi.fn().mockResolvedValue('{"overall":"x"}')
+    const many = Array.from({ length: 25 }, (_, i) => `样本S${i}X`)
+    await makeAiClient(transport).analyzeRelationDeep(FRIEND, many)
+    const prompt = transport.mock.calls[0][0] as string
+    expect(prompt).toContain('样本S19X')      // 第 20 条，保留
+    expect(prompt).not.toContain('样本S20X')  // 第 21 条，超出上限被丢弃
+  })
+
   it('其它分析不指定模型（model 参数为 undefined，走云函数默认）', async () => {
     const transport = vi.fn().mockResolvedValue('{"tone":"热络"}')
     await makeAiClient(transport).analyzeFriendSentiment(FRIEND, ['我：哈哈'])
