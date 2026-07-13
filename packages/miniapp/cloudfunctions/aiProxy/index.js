@@ -51,7 +51,8 @@ exports.main = async (event) => {
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
       },
-      50000, // 50s：留 10s 给云函数收尾，早于 60s 硬顶清晰失败
+      58000, // 58s：贴近云函数 60s 硬顶，把预算让满——有些好友分析生成本就要 ~50s，
+             // 早前 50s 会把这些"本可在 60s 内跑完"的慢生成误杀在终点线前
     )
     const cost = Date.now() - t0
     console.log(`[aiProxy] AI 返回 status=${resp.status} 耗时=${cost}ms model=${usedModel}`)
