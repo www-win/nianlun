@@ -98,6 +98,24 @@ describe('import store', () => {
     expect(useData().report?.friendCount).toBe(1)
   })
 
+  it('多批次导入后概览「聊得最多」以全量好友为准，与好友列表榜首一致', async () => {
+    const s = memStorage()
+    const useData = createDataStore(s)
+    const useImport = createImportStore({ useData, storage: s, suggest: async () => ({}), loadSamples: () => [] })
+    const imp = useImport()
+    // 第一批：大聊（多条消息）
+    const big = Array.from({ length: 6 }, (_, i) => `2025-03-01 09:0${i}:00 大聊\n嗨${i}`).join('\n\n')
+    await imp.run([{ name: 'big.txt', content: big }], 2025)
+    // 第二批：小聊（少量消息）—— 修复前 report.topContacts 只反映这批，会误报小聊为榜首
+    await imp.run([{ name: 'small.txt', content: '2025-03-02 09:00:00 小聊\n在吗' }], 2025)
+
+    const friends = useData().friends
+    const topByList = [...friends].sort((a, b) => b.msgCount - a.msgCount)[0]
+    const report = useData().report!
+    expect(report.topContacts[0].friendId).toBe(topByList.id)  // 概览榜首 == 好友列表榜首
+    expect(report.topContacts[0].friendId).toBe('大聊')
+  })
+
   it('beginReading 置读取阶段并清空提示', () => {
     const s = memStorage()
     const useImport = createImportStore({ useData: createDataStore(s), storage: s, suggest: async () => ({}), loadSamples: () => [] })

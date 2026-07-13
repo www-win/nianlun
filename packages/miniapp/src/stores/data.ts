@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Friend, ReportData, Relation, MbtiCode } from '@nianlun/core'
+import { friendReportFields } from '@nianlun/core'
 import { storage as defaultStorage, makeStorage } from '../adapters/storage'
 import { rawStore as defaultRawStore, makeRawStore } from '../adapters/rawStore'
 
@@ -18,8 +19,12 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
     const fireSaved = () => { try { onSaved?.() } catch { /* 备份触发失败不影响本地保存 */ } }
 
     async function hydrate() {
-      friends.value = storage.loadFriends()
-      report.value = storage.loadReport()
+      const fs = storage.loadFriends()
+      const r = storage.loadReport()
+      friends.value = fs
+      // 报告的好友派生字段以「已存全量好友」为准重算，自愈旧版本遗留的过期 top 榜/关系分布
+      // （旧逻辑曾只按最后一批导入生成，会与好友列表对不上）。
+      report.value = r ? { ...r, ...friendReportFields(fs) } : r
     }
     async function setData(newFriends: Friend[], newReport: ReportData) {
       friends.value = newFriends

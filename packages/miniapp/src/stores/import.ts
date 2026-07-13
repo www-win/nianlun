@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
   mergeFriends, applyContactNames, parseWeliveContacts, isWeliveContacts,
-  parseFile, mergeConversations, mergeStockPicks,
+  parseFile, mergeConversations, mergeStockPicks, friendReportFields,
 } from '@nianlun/core'
 import type { Friend, FriendSuggestion, Conversation, StockPick, ExtractCtx } from '@nianlun/core'
 import { parseLocal, type LocalFile } from '../adapters/parseLocal'
@@ -156,13 +156,15 @@ export function createImportStore(deps: Deps = {}) {
           // 合并好友 → 套用联系人真名（无联系人则 no-op）
           const merged = mergeFriends(data.friends, outcome.friends).friends
           const named = applyContactNames(merged, contactNames)
-          // 报告计数从套名后的全部好友重算，保证概览/报告与好友列表一致、空导入不清零。
+          // 报告的好友派生字段（计数、聊得最多、关系分布）全部从套名后的「全量好友」重算，
+          // 保证概览/报告与好友列表口径一致（否则 topContacts 只反映本批次，会与列表榜首对不上）。
           const report = {
             ...outcome.report,
             year,
             friendCount: named.length,
             totalMessages: named.reduce((sum, f) => sum + (f.msgCount || 0), 0),
             activeDays: Math.max(prevReport?.activeDays ?? 0, outcome.report.activeDays),
+            ...friendReportFields(named),
           }
           await data.setData(named, report)
           const prevSamples = storage.loadSamples()

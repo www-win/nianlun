@@ -45,6 +45,18 @@ describe('data store', () => {
     expect(d.friends[0].id).toBe('f1')
   })
 
+  it('hydrate 用已存全量好友重算报告 top 榜（自愈旧数据的过期快照）', async () => {
+    const s = memStorage()
+    const big = { ...FRIEND, id: '大', name: '大', msgCount: 99 } as Friend
+    const small = { ...FRIEND, id: '小', name: '小', msgCount: 1 } as Friend
+    s.saveFriends([big, small])
+    // 存一份「过期」报告：topContacts 榜首是小（旧逻辑只记了某一批）
+    s.saveReport({ ...REPORT, topContacts: [{ friendId: '小', msgCount: 1 }], relationBreakdown: [] } as unknown as ReportData)
+    const d = createDataStore(s)()
+    await d.hydrate()
+    expect(d.report?.topContacts[0].friendId).toBe('大')  // 以好友列表为准
+  })
+
   it('updateFriend 记录 userEdited 并落盘', async () => {
     const s = memStorage()
     const d = createDataStore(s)()
