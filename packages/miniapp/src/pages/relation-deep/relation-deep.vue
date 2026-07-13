@@ -40,7 +40,7 @@ async function generate() {
   loading.value = true
   try {
     const r = await aiClient.analyzeRelationDeep(f, s)
-    if (r.overall || r.attachment || r.suggestions) {
+    if (Object.keys(r).length > 0) {
       deep.value = r
       storage.saveRelationDeep(f.id, f, r)   // 仅有效结果落盘
       stale.value = false
@@ -250,8 +250,8 @@ function drawPoster() {
           <text v-if="deep.security.summary" class="s-b">{{ deep.security.summary }}</text>
           <canvas v-if="hasSecurityChart" canvas-id="secLine" class="sec-canvas" />
           <view v-for="(tp, i) in deep.security.turningPoints" :key="i" class="tp">
-            <text class="tp-m">{{ tp.month }}月 · {{ tp.direction }}</text>
-            <text class="tp-e">{{ tp.event }}</text>
+            <text v-if="tp.month || tp.direction" class="tp-m">{{ tp.month }}月 · {{ tp.direction }}</text>
+            <text v-if="tp.event" class="tp-e">{{ tp.event }}</text>
           </view>
         </view>
 
@@ -288,7 +288,7 @@ function drawPoster() {
         <view v-if="deep.suggestions" class="card">
           <text class="c-t">优化建议</text>
           <view v-for="(sg, i) in deep.suggestions" :key="i" class="sug">
-            <text class="sug-topic">{{ sg.topic }}</text>
+            <text v-if="sg.topic" class="sug-topic">{{ sg.topic }}</text>
             <view v-if="sg.problem" class="sug-p"><text class="tag tag-p">问题</text><text class="s-b">{{ sg.problem }}</text></view>
             <view v-if="sg.advice" class="sug-a"><text class="tag tag-a">建议</text><text class="s-b">{{ sg.advice }}</text></view>
           </view>
