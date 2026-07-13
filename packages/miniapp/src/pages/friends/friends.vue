@@ -7,6 +7,7 @@ import type { Relation } from '@nianlun/core'
 import { effectiveMbtiCode } from '@nianlun/core'
 import { storage } from '../../adapters/storage'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 
 const data = useDataStore()
 const mbtiMap = ref<Record<string, string>>({})
@@ -89,6 +90,12 @@ async function onAnalyze(id: string) {
         <text class="count faint">共 {{ rows.length }} 位好友</text>
         <AntennaBuddy :color="'var(--laa)'" antenna="curl" :scale="0.5" />
       </view>
+
+      <ProgressBar
+        v-if="imp.analyzing"
+        :percent="imp.analyzing.total
+          ? Math.round(imp.analyzing.done / imp.analyzing.total * 100) : 0"
+        :label="`分析关系/职务 ${imp.analyzing.done}/${imp.analyzing.total}`" />
 
       <view v-for="f in rows" :key="f.id" class="card frow">
         <view class="top" @click="openDetail(f.id)">
