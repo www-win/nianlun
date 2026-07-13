@@ -5,6 +5,7 @@ import { useDataStore } from '../../stores/data'
 import { useBackupStore } from '../../stores/backup'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
+import ProgressBar from '../../components/ProgressBar.vue'
 
 const data = useDataStore()
 const backup = useBackupStore()
@@ -201,6 +202,10 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
         <button class="btn-primary" style="flex:1" :loading="backup.status==='backing'" @click="onBackup">立即备份到云</button>
         <button class="btn-ghost" style="flex:1" :loading="backup.status==='restoring'" @click="onRestore">从云端恢复</button>
       </view>
+      <ProgressBar
+        v-if="backup.status === 'backing' || backup.status === 'restoring'"
+        indeterminate
+        :label="backup.status === 'backing' ? '正在备份到云…' : '正在从云端恢复…'" />
     </view>
   </view>
 </template>
