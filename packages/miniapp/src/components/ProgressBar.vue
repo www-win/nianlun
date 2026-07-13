@@ -9,7 +9,7 @@ const view = computed(() => resolveProgress(props))
 <template>
   <view class="pbar-wrap">
     <view class="bar" :class="{ indet: view.mode === 'indeterminate' }">
-      <view class="bar-in" :style="view.mode === 'determinate' ? { width: view.width + '%' } : undefined"></view>
+      <view class="bar-in" :style="view.mode === 'indeterminate' ? undefined : { width: view.width + '%' }"></view>
     </view>
     <text v-if="view.showLabel" class="pbar-label">{{ props.label }}</text>
   </view>
