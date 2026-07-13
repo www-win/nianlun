@@ -40,14 +40,17 @@ export function makeAiClient(transport: Transport) {
       return parseMbti(text)
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
-      // 单次全量 10 块生成会撞云函数 60s 硬顶(-504003)，部分好友生成 ~50s+ 尤其吃紧。
-      // 拆 3 段并行（各 3~4 块、~25-30s、余量足），样本限量到 20 条控 prompt，
-      // 不指定 model 走云函数默认（与其它分析一致）。客户端浅合并（三段字段不相交）。
+      // 单次全量 10 块生成会撞云函数 60s 硬顶(-504003)，故拆 3 段（各 3~4 块）。
+      // 关键：三段**串行**逐个发——并行会同时打多个请求，超出 GACCODE 代理并发上限的
+      // 会被上游挂住不回→50s 超时（单请求的「好友画像」从不中招即为佐证）。样本限量 20 条、
+      // 不指定 model 走云函数默认。客户端浅合并（三段字段不相交）。
       const capped = samples.slice(0, 20)
-      const part = (p: 1 | 2 | 3) =>
-        transport(buildRelationDeepPrompt(friend, capped, p), 1536).then(parseRelationDeep)
-      const [a, b, c] = await Promise.all([part(1), part(2), part(3)])
-      return { ...a, ...b, ...c }
+      const out: RelationDeep = {}
+      for (const p of [1, 2, 3] as const) {
+        const seg = await transport(buildRelationDeepPrompt(friend, capped, p), 1536).then(parseRelationDeep)
+        Object.assign(out, seg)
+      }
+      return out
     },
     async analyzeYearSentiment(report: ReportData, sampleLines: string[]): Promise<string> {
       return transport(buildYearSentimentPrompt(report, sampleLines), 1024)

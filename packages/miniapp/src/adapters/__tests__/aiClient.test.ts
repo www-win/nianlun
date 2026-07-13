@@ -60,7 +60,7 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][0]).toContain('2025')
   })
 
-  it('analyzeRelationDeep 拆 3 段并行调用并合并结果', async () => {
+  it('analyzeRelationDeep 拆 3 段串行调用并合并结果', async () => {
     const transport = vi.fn()
       .mockResolvedValueOnce('{"overall":"追逐-回避","attachment":{"me":{"style":"焦虑型"}}}')          // part 1
       .mockResolvedValueOnce('{"interaction":{"conflict":"追逐-回避循环"},"security":{"summary":"前高后低"}}') // part 2
