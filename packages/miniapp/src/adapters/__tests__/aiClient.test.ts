@@ -70,9 +70,9 @@ describe('aiClient', () => {
     expect(out.attachment?.me?.style).toBe('焦虑型')  // part 1
     expect(out.power?.whoLeads).toBe('我')           // 来自 part 2
     expect(out.suggestions?.[0]?.advice).toBe('设暂停') // part 2，合并后仍在
-    // 两次都用 sonnet-5，且各只请求自己那半的块
-    expect(transport.mock.calls[0][2]).toBe('claude-sonnet-5')
-    expect(transport.mock.calls[1][2]).toBe('claude-sonnet-5')
+    // 不指定模型（走云函数默认），且各只请求自己那半的块
+    expect(transport.mock.calls[0][2]).toBeUndefined()
+    expect(transport.mock.calls[1][2]).toBeUndefined()
     expect(transport.mock.calls[0][0]).toContain('张三')   // prompt 含好友名
     expect(transport.mock.calls[0][0]).toContain('"overall"')
     expect(transport.mock.calls[0][0]).not.toContain('"suggestions"')

@@ -40,10 +40,11 @@ export function makeAiClient(transport: Transport) {
       return parseMbti(text)
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
-      // 全量 10 块单次生成 ~50-60s 会撞云函数 60s 硬顶超时(-504003)。拆前/后 5 块两次
-      // 并行调用（各 ~半量、~25-30s），sonnet-5 保质量，客户端浅合并（两半字段不相交）。
+      // 全量 10 块单次生成撞云函数 60s 硬顶超时(-504003)，故拆前/后 5 块两次并行调用
+      // （各 ~半量），客户端浅合并（两半字段不相交）。不指定 model → 用云函数默认模型
+      // （与其它分析一致、确定被代理支持；曾试 sonnet-5 但代理不认→挂起超时）。
       const part = (p: 1 | 2) =>
-        transport(buildRelationDeepPrompt(friend, samples, p), 2048, 'claude-sonnet-5').then(parseRelationDeep)
+        transport(buildRelationDeepPrompt(friend, samples, p), 2048).then(parseRelationDeep)
       const [a, b] = await Promise.all([part(1), part(2)])
       return { ...a, ...b }
     },
