@@ -17,6 +17,10 @@ export type { EgoNode, EgoGraph } from './stats/egoGraph'
 export { buildReportCopyPrompt, buildFriendAnalysisPrompt } from './ai/prompts'
 export { buildFriendSentimentPrompt, buildYearSentimentPrompt, parseSentiment, buildFriendDeepSentimentPrompt } from './ai/sentiment'
 export type { Sentiment, DeepSentiment, MoodTimelinePoint } from './ai/sentiment'
+export { buildRelationDeepPrompt, parseRelationDeep } from './ai/relationDeep'
+export type {
+  RelationDeep, AttachmentSide, Trigger, SecurityTurningPoint, Suggestion,
+} from './ai/relationDeep'
 export { buildFriendProfilePrompt, parseFriendProfile } from './ai/profile'
 export type { FriendProfile, InvestmentProfile } from './ai/profile'
 export {

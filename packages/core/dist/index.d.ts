@@ -180,6 +180,76 @@ interface DeepSentiment {
  */
 declare function buildFriendDeepSentimentPrompt(friend: Friend, samples: string[]): string;
 
+interface AttachmentSide {
+    style?: string;
+    desc?: string;
+}
+interface Trigger {
+    trigger?: string;
+    reaction?: string;
+}
+interface SecurityTurningPoint {
+    month?: number;
+    event?: string;
+    direction?: '上升' | '下降';
+}
+interface Suggestion {
+    topic?: string;
+    problem?: string;
+    advice?: string;
+}
+interface RelationDeep {
+    overall?: string;
+    attachment?: {
+        me?: AttachmentSide;
+        other?: AttachmentSide;
+    };
+    interaction?: {
+        initiative?: string;
+        expression?: string;
+        conflict?: string;
+    };
+    needs?: {
+        me?: string;
+        other?: string;
+    };
+    uniqueness?: {
+        sharedMemory?: string;
+        ritual?: string;
+    };
+    security?: {
+        summary?: string;
+        turningPoints?: SecurityTurningPoint[];
+    };
+    power?: {
+        summary?: string;
+        whoLeads?: string;
+        dependency?: string;
+    };
+    triggers?: {
+        me?: Trigger[];
+        other?: Trigger[];
+    };
+    language?: {
+        appellation?: string;
+        catchphrases?: string;
+        emoji?: string;
+        latency?: string;
+    };
+    suggestions?: Suggestion[];
+}
+/**
+ * 深度关系分析提示词：依据聚合统计 + 有界样本，要求 AI 输出严格 JSON 的 10 块心理分析。
+ * 理论内核：成人依恋理论（焦虑/回避/安全型）、追逐-回避(Demand-Withdraw)冲突模型、
+ * 非暴力沟通(NVC)用于优化建议。逐月消息数写入 prompt，安全感/触发点须引原句佐证。
+ */
+declare function buildRelationDeepPrompt(friend: Friend, samples: string[]): string;
+/**
+ * 容错解析深度关系分析 JSON：剥围栏、定位首尾花括号、逐块取值；
+ * 空块/空数组一律省略；坏 JSON / 非字符串入参返回 {}，永不抛异常。
+ */
+declare function parseRelationDeep(text: string): RelationDeep;
+
 interface InvestmentProfile {
     summary?: string;
     risk?: string;
@@ -468,4 +538,4 @@ declare function parseChatQaAnswer(text: string): string;
 
 declare const version = "0.1.0";
 
-export { type AstroReading, type BaziChart, type BirthInfo, type ChatQaContext, type ChatQaTurn, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendRef, type FriendSuggestion, type InvestmentProfile, MBTI_CODES, MBTI_TITLES, type MbtiAxis, type MbtiCode, type MbtiDimension, type MbtiResult, type MbtiSource, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RawExcerpt, type RecommenderPicks, type Relation, type ReportData, type Sentiment, type StockCard, type StockPick, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildChatQaPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildMbtiPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, detectMbtiFromText, effectiveMbtiCode, extractFriendSamples, extractKeywords, friendReportFields, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mbtiTitle, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseChatQaAnswer, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseMbti, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, selectRelevantFriends, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, withRecommenderNames, wordPolarity, wuxingRelation };
+export { type AstroReading, type AttachmentSide, type BaziChart, type BirthInfo, type ChatQaContext, type ChatQaTurn, type Compatibility, type ContactName, type Conversation, type DayFortune, type DeepSentiment, type EgoGraph, type EgoNode, type EmotionDist, type ExtractCtx, type ExtractSamplesOptions, type Friend, type FriendEmotion, type FriendProfile, type FriendRef, type FriendSuggestion, type InvestmentProfile, MBTI_CODES, MBTI_TITLES, type MbtiAxis, type MbtiCode, type MbtiDimension, type MbtiResult, type MbtiSource, type Message, type MonthMood, type MoodTimelinePoint, type ParseResult, type ParseWarning, type Parser, type RawExcerpt, type RecommenderPicks, type Relation, type RelationDeep, type ReportData, type SecurityTurningPoint, type Sentiment, type StockCard, type StockPick, type Suggestion, type Trigger, aggregate, aggregateByRecommender, aggregateByStock, applyContactNames, buildAstroPrompt, buildBaziChart, buildBirthExtractPrompt, buildChatQaPrompt, buildEgoGraph, buildFriendAnalysisPrompt, buildFriendDeepSentimentPrompt, buildFriendProfilePrompt, buildFriendSentimentPrompt, buildFriendSuggestionPrompt, buildMbtiPrompt, buildRelationDeepPrompt, buildReport, buildReportCopyPrompt, buildStockExtractionPrompt, buildYearSentimentPrompt, classify, countWords, createFriend, dayBranchClashes, detectMbtiFromText, effectiveMbtiCode, extractFriendSamples, extractKeywords, friendReportFields, getCompatibility, getDayFortune, isBranchClash, isBranchHarmony, isServiceSession, isWeliveContacts, mbtiTitle, mergeConversations, mergeFriends, mergeKeywords, mergeStockPicks, normalizeStockName, parseAstroReading, parseBirthInfo, parseChatQaAnswer, parseCsvBackup, parseFile, parseFriendProfile, parseFriendSuggestion, parseJsonBackup, parseMbti, parseRelationDeep, parseSentiment, parseStockExtraction, parseWeliveContacts, scoreMessage, selectRelevantFriends, sessionIdFromFileName, sumHourly, sumWeekHour, toValue, tokenize, version, withRecommenderNames, wordPolarity, wuxingRelation };

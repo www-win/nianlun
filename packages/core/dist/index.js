@@ -2623,9 +2623,9 @@ var require_lunar = __commonJS({
         var _LEAP_12 = [37, 56, 113, 132, 151, 189, 208, 227, 246, 284, 303, 341, 360, 379, 417, 436, 458, 477, 496, 515, 534, 572, 591, 629, 648, 667, 697, 716, 792, 811, 830, 868, 906, 925, 944, 963, 982, 1001, 1020, 1039, 1058, 1088, 1153, 1202, 1221, 1240, 1297, 1335, 1392, 1411, 1422, 1430, 1517, 1525, 1536, 1574, 3358, 3472, 3806, 3988, 4751, 4941, 5066, 5123, 5275, 5343, 5438, 5457, 5495, 5533, 5552, 5715, 5810, 5829, 5905, 5924, 6421, 6535, 6793, 6812, 6888, 6907, 7002, 7184, 7260, 7279, 7374, 7556, 7746, 7757, 7776, 7833, 7852, 7871, 7966, 8015, 8110, 8129, 8148, 8224, 8243, 8338, 8406, 8425, 8482, 8501, 8520, 8558, 8596, 8607, 8615, 8645, 8740, 8778, 8835, 8865, 8930, 8960, 8979, 8998, 9017, 9055, 9074, 9093, 9112, 9150, 9188, 9237, 9275, 9332, 9351, 9370, 9408, 9427, 9446, 9457, 9465, 9495, 9560, 9590, 9628, 9647, 9685, 9715, 9742, 9780, 9810, 9818, 9829, 9848, 9867, 9905, 9924, 9943, 9962, 1e4];
         var _CACHE_YEAR = null;
         var _YMC = [11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        var _inLeap = function(arr, n) {
-          for (var i = 0, j = arr.length; i < j; i++) {
-            if (arr[i] === n) {
+        var _inLeap = function(arr2, n) {
+          for (var i = 0, j = arr2.length; i < j; i++) {
+            if (arr2[i] === n) {
               return true;
             }
           }
@@ -8198,9 +8198,9 @@ var require_lunar = __commonJS({
             }
             return -1;
           },
-          find: function(s, arr) {
-            for (var i = 0, j = arr.length; i < j; i++) {
-              var v = arr[i];
+          find: function(s, arr2) {
+            for (var i = 0, j = arr2.length; i < j; i++) {
+              var v = arr2[i];
               if (v.length < 1) {
                 continue;
               }
@@ -11531,9 +11531,9 @@ var require_lunar = __commonJS({
           var v = _arrays[c];
           var o = _objs[c];
           for (var k in v) {
-            var arr = v[k];
-            for (var i = 0, j = arr.length; i < j; i++) {
-              o[k][i] = arr[i].replace(/{(.[^}]*)}/g, function($0, $1) {
+            var arr2 = v[k];
+            for (var i = 0, j = arr2.length; i < j; i++) {
+              o[k][i] = arr2[i].replace(/{(.[^}]*)}/g, function($0, $1) {
                 return _getMessage($1);
               });
             }
@@ -11576,13 +11576,13 @@ var require_lunar = __commonJS({
               var x = key.replace(/{(.[^}]*)}/g, function($0, $1) {
                 return _getMessage($1);
               });
-              var arr = dict[key];
-              for (var i = 0, j = arr.length; i < j; i++) {
-                arr[i] = arr[i].replace(/{(.[^}]*)}/g, function($0, $1) {
+              var arr2 = dict[key];
+              for (var i = 0, j = arr2.length; i < j; i++) {
+                arr2[i] = arr2[i].replace(/{(.[^}]*)}/g, function($0, $1) {
                   return _getMessage($1);
                 });
               }
-              o[k][x] = arr;
+              o[k][x] = arr2;
             }
           }
         };
@@ -11637,9 +11637,9 @@ var require_lunar = __commonJS({
           var o = _objs[c];
           for (var k in v) {
             v[k].length = 0;
-            var arr = o[k];
-            for (var i = 0, j = arr.length; i < j; i++) {
-              v[k].push(arr[i]);
+            var arr2 = o[k];
+            for (var i = 0, j = arr2.length; i < j; i++) {
+              v[k].push(arr2[i]);
             }
           }
         };
@@ -11892,10 +11892,10 @@ var TYPE_MAP = {
   1e4: "system",
   10002: "system"
 };
-function pick(obj, keys) {
-  if (!obj || typeof obj !== "object") return void 0;
+function pick(obj2, keys) {
+  if (!obj2 || typeof obj2 !== "object") return void 0;
   for (const k of keys) {
-    const v = obj[k];
+    const v = obj2[k];
     if (v !== void 0 && v !== null) return v;
   }
   return void 0;
@@ -11910,14 +11910,14 @@ function mapType(raw) {
 }
 function mapWeflowMessages(raw) {
   const warnings = [];
-  const obj = raw;
-  const rawMsgs = pick(obj, F.messages);
+  const obj2 = raw;
+  const rawMsgs = pick(obj2, F.messages);
   if (!Array.isArray(rawMsgs)) {
     return { conversations: [], warnings: [{ reason: "\u672A\u627E\u5230\u6D88\u606F\u6570\u7EC4" }] };
   }
-  const talker = String(pick(obj, F.talker) ?? "") || "unknown";
-  const peerName = String(pick(obj, F.peerName) ?? "") || "\u672A\u77E5\u8054\u7CFB\u4EBA";
-  const isGroup = Boolean(pick(obj, F.isGroup)) || talker.endsWith("@chatroom");
+  const talker = String(pick(obj2, F.talker) ?? "") || "unknown";
+  const peerName = String(pick(obj2, F.peerName) ?? "") || "\u672A\u77E5\u8054\u7CFB\u4EBA";
+  const isGroup = Boolean(pick(obj2, F.isGroup)) || talker.endsWith("@chatroom");
   const messages = [];
   rawMsgs.forEach((rm, i) => {
     const r = rm;
@@ -12074,14 +12074,14 @@ function applyRecord(rec) {
   return f;
 }
 function parseJsonBackup(content) {
-  let arr;
+  let arr2;
   try {
-    arr = JSON.parse(content);
+    arr2 = JSON.parse(content);
   } catch {
     return [];
   }
-  if (!Array.isArray(arr)) return [];
-  return arr.map((r) => applyRecord(r));
+  if (!Array.isArray(arr2)) return [];
+  return arr2.map((r) => applyRecord(r));
 }
 function parseCsvBackup(content) {
   const lines = content.split(/\r?\n/).filter((l) => l.trim() !== "");
@@ -12621,14 +12621,14 @@ function parseSentiment(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return {};
-  let obj;
+  let obj2;
   try {
-    obj = JSON.parse(text.slice(start, end + 1));
+    obj2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return {};
   }
-  if (typeof obj !== "object" || obj === null) return {};
-  const r = obj;
+  if (typeof obj2 !== "object" || obj2 === null) return {};
+  const r = obj2;
   const out = {};
   if (typeof r.tone === "string" && r.tone.trim() !== "") out.tone = r.tone.trim();
   if (typeof r.summary === "string" && r.summary.trim() !== "") out.summary = r.summary.trim();
@@ -12665,6 +12665,213 @@ function buildFriendDeepSentimentPrompt(friend, samples) {
     "\u90E8\u5206\u804A\u5929\u6837\u672C\uFF08\u300C\u6211\u300D\u4E3A\u7528\u6237\u672C\u4EBA\uFF0C\u300C\u5BF9\u65B9\u300D\u4E3A\u8BE5\u597D\u53CB\uFF09\uFF1A",
     sampleBlock
   ].join("\n");
+}
+
+// src/ai/relationDeep.ts
+function buildRelationDeepPrompt(friend, samples) {
+  const displayName = friend.alias || friend.name;
+  const sampleBlock = samples.length ? samples.map((s, i) => `${i + 1}. ${s}`).join("\n") : "\uFF08\u672C\u6B21\u65E0\u53EF\u7528\u804A\u5929\u6837\u672C\uFF09";
+  const monthly = (friend.monthly ?? []).map((c, i) => `${i + 1}\u6708:${c}`).join(" ");
+  return [
+    "\u4F60\u662F\u4E00\u4F4D\u53D7\u8FC7\u8BAD\u7EC3\u3001\u64C5\u957F\u6210\u4EBA\u4F9D\u604B\u4E0E\u4EB2\u5BC6\u5173\u7CFB\u5206\u6790\u7684\u5FC3\u7406\u54A8\u8BE2\u5E08\u3002\u8BF7\u4F9D\u636E\u4E0B\u9762\u8FD9\u4F4D\u5FAE\u4FE1\u597D\u53CB",
+    "\u4E0E\u7528\u6237\u7684\u5F80\u6765\u7EDF\u8BA1\u548C\u90E8\u5206\u804A\u5929\u6837\u672C\uFF0C\u4EA7\u51FA\u4E00\u4EFD\u6DF1\u5165\u3001\u514B\u5236\u3001\u6709\u4F9D\u636E\u7684\u300C\u6DF1\u5EA6\u5173\u7CFB\u5206\u6790\u300D\u3002",
+    "\u7406\u8BBA\u6846\u67B6\uFF1A\u6210\u4EBA\u4F9D\u604B\u7406\u8BBA\uFF08\u7126\u8651\u578B/\u56DE\u907F\u578B/\u5B89\u5168\u578B/\u6DF7\u4E71\u578B\uFF09\u3001\u8FFD\u9010-\u56DE\u907F\uFF08Demand-Withdraw\uFF09",
+    "\u51B2\u7A81\u6A21\u578B\u3001\u975E\u66B4\u529B\u6C9F\u901A\uFF08NVC\uFF09\u3002\u5206\u6790\u8981\u5177\u4F53\u3001\u5F15\u7528\u804A\u5929\u91CC\u7684\u539F\u53E5\u4F5C\u4F50\u8BC1\uFF0C\u4E0D\u7A7A\u6CDB\u3001\u4E0D\u5957\u8BDD\u3002",
+    "",
+    "\u53EA\u8F93\u51FA\u4E00\u4E2A\u4E25\u683C\u7684 JSON \u5BF9\u8C61\uFF0C\u4E0D\u8981\u4EFB\u4F55\u89E3\u91CA\u3001\u4E0D\u8981\u4EE3\u7801\u56F4\u680F\u5916\u7684\u6587\u5B57\u3002\u683C\u5F0F\uFF1A",
+    "{",
+    '  "overall": "<\u6574\u4F53\u8BC4\u4F30\uFF1A\u4E00\u6BB5\u5B9A\u8C03\uFF0C\u70B9\u51FA\u5173\u7CFB\u5F20\u529B\u4E0E\u6838\u5FC3\u4E92\u52A8\u6A21\u5F0F\uFF0C120~200 \u5B57>",',
+    '  "attachment": {',
+    '    "me": {"style": "<\u6211\u65B9\u4F9D\u604B\u7C7B\u578B>", "desc": "<\u89E3\u8BFB\uFF0C\u5F15\u539F\u53E5\uFF0C60~120 \u5B57>"},',
+    '    "other": {"style": "<\u5BF9\u65B9\u4F9D\u604B\u7C7B\u578B>", "desc": "<\u89E3\u8BFB\uFF0C\u5F15\u539F\u53E5\uFF0C60~120 \u5B57>"}',
+    "  },",
+    '  "interaction": {',
+    '    "initiative": "<\u6C9F\u901A\u4E3B\u52A8\u6027\uFF1A\u8C01\u53D1\u8D77\u3001\u8C01\u63A8\u52A8\uFF0C60~120 \u5B57>",',
+    '    "expression": "<\u60C5\u611F\u8868\u8FBE\u5DEE\u5F02\uFF1A\u76F4\u63A5/\u514B\u5236\u3001\u6B63\u9762/\u8D1F\u9762\u5404\u5982\u4F55\uFF0C60~120 \u5B57>",',
+    '    "conflict": "<\u51B2\u7A81\u5904\u7406\uFF1A\u5957\u7528\u8FFD\u9010-\u56DE\u907F\u7B49\u6A21\u578B\uFF0C60~120 \u5B57>"',
+    "  },",
+    '  "needs": {"me": "<\u6211\u65B9\u6838\u5FC3\u60C5\u611F\u9700\u6C42\uFF0C40~80 \u5B57>", "other": "<\u5BF9\u65B9\u6838\u5FC3\u60C5\u611F\u9700\u6C42\uFF0C40~80 \u5B57>"},',
+    '  "uniqueness": {"sharedMemory": "<\u53EA\u5C5E\u4E8E\u4F60\u4EEC\u7684\u5171\u540C\u8BB0\u5FC6/\u8BDD\u9898>", "ritual": "<\u4F60\u4EEC\u72EC\u7279\u7684\u4E92\u52A8\u4EEA\u5F0F/\u89D2\u8272\u626E\u6F14>"},',
+    '  "security": {',
+    '    "summary": "<\u5B89\u5168\u611F/\u4FE1\u4EFB\u5982\u4F55\u968F\u65F6\u95F4\u6D88\u957F\uFF0C\u7ED3\u5408\u9010\u6708\u6D88\u606F\u6570\uFF0C80~140 \u5B57>",',
+    '    "turningPoints": [<\u5173\u952E\u8F6C\u6298\uFF0C\u6BCF\u9879>{"month": <1-12>, "event": "<\u53D1\u751F\u4E86\u4EC0\u4E48\uFF0C\u5F15\u539F\u53E5>", "direction": "\u4E0A\u5347" \u6216 "\u4E0B\u964D"}]',
+    "  },",
+    '  "power": {"summary": "<\u6743\u529B/\u4E3B\u5BFC\u6743\u603B\u8FF0\uFF0C\u8C01\u66F4\u6295\u5165\u3001\u8C01\u638C\u63A7\u8282\u594F>", "whoLeads": "<\u8C01\u4E3B\u5BFC\uFF1A\u6211/\u5BF9\u65B9/\u5747\u8861>", "dependency": "<\u4F9D\u8D56\u4E0E\u88AB\u4F9D\u8D56\u5173\u7CFB>"},',
+    '  "triggers": {',
+    '    "me": [<\u6211\u65B9\u60C5\u7EEA\u96F7\u533A\uFF0C\u6BCF\u9879>{"trigger": "<\u4EC0\u4E48\u8BDD\u9898/\u884C\u4E3A\u4F1A\u89E6\u53D1>", "reaction": "<\u5178\u578B\u53CD\u5E94\uFF0C\u5F15\u539F\u53E5>"}],',
+    '    "other": [<\u5BF9\u65B9\u60C5\u7EEA\u96F7\u533A\uFF0C\u6BCF\u9879>{"trigger": "<...>", "reaction": "<...>"}]',
+    "  },",
+    '  "language": {"appellation": "<\u79F0\u547C\u4E60\u60EF>", "catchphrases": "<\u53E3\u5934\u7985/\u9AD8\u9891\u8BED>", "emoji": "<\u8868\u60C5\u5305\u4E60\u60EF>", "latency": "<\u56DE\u590D\u65F6\u5EF6\u4E0E\u8282\u594F>"},',
+    '  "suggestions": [<\u4F18\u5316\u5EFA\u8BAE\uFF0C\u6BCF\u9879\u6210\u5BF9>{"topic": "<\u4E3B\u9898\uFF0C\u5982 \u6C9F\u901A\u6A21\u5F0F/\u60C5\u611F\u8868\u8FBE>", "problem": "<\u95EE\u9898\u8BCA\u65AD>", "advice": "<\u53EF\u6267\u884C\u5EFA\u8BAE\uFF0C\u53EF\u7528 NVC \u56DB\u6B65>"}]',
+    "}",
+    "",
+    "\u8981\u6C42\uFF1A\u4EFB\u4E00\u5B57\u6BB5\u82E5\u6837\u672C\u4E2D\u65E0\u53EF\u9760\u7EBF\u7D22\uFF0C\u503C\u586B\u300C\u6682\u65E0\u8DB3\u591F\u7EBF\u7D22\u300D\uFF0C\u7981\u6B62\u81C6\u6D4B\uFF08\u5C24\u5176\u611F\u60C5\u3001\u5BB6\u5EAD\u3001\u8D22\u5BCC\uFF09\u3002",
+    "turningPoints / triggers / suggestions \u82E5\u65E0\u5185\u5BB9\u7ED9\u7A7A\u6570\u7EC4 []\u3002",
+    "",
+    "\u805A\u5408\u7EDF\u8BA1\uFF1A",
+    `- \u597D\u53CB\uFF1A${displayName}`,
+    `- \u5173\u7CFB\u6807\u7B7E\uFF1A${friend.rel}`,
+    `- \u804C\u52A1/\u5907\u6CE8\uFF1A${friend.role || "\uFF08\u672A\u586B\uFF09"}`,
+    `- \u5168\u5E74\u6D88\u606F\u5F80\u6765\uFF1A${friend.msgCount} \u6761`,
+    `- \u6211\u65B9\u53D1\u9001\u5360\u6BD4\uFF1A${friend.sentRatio}%`,
+    `- \u6D3B\u8DC3\u65F6\u6BB5\uFF1A${friend.peakPeriod || "\uFF08\u65E0\uFF09"}`,
+    `- \u9010\u6708\u6D88\u606F\u6570\uFF1A${monthly}`,
+    "",
+    "\u90E8\u5206\u804A\u5929\u6837\u672C\uFF08\u300C\u6211\u300D\u4E3A\u7528\u6237\u672C\u4EBA\uFF0C\u300C\u5BF9\u65B9\u300D\u4E3A\u8BE5\u597D\u53CB\uFF09\uFF1A",
+    sampleBlock
+  ].join("\n");
+}
+function str(v) {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : void 0;
+}
+function obj(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v) ? v : void 0;
+}
+function arr(v) {
+  return Array.isArray(v) ? v : [];
+}
+function compact(o) {
+  return Object.keys(o).length ? o : void 0;
+}
+function pickSide(v) {
+  const o = obj(v);
+  if (!o) return void 0;
+  const out = {};
+  const style = str(o.style);
+  if (style) out.style = style;
+  const desc = str(o.desc);
+  if (desc) out.desc = desc;
+  return compact(out);
+}
+function pickTriggers(v) {
+  return arr(v).map((e) => {
+    const o = obj(e);
+    if (!o) return {};
+    const out = {};
+    const t = str(o.trigger);
+    if (t) out.trigger = t;
+    const rx = str(o.reaction);
+    if (rx) out.reaction = rx;
+    return out;
+  }).filter((t) => Object.keys(t).length > 0);
+}
+function parseRelationDeep(text) {
+  if (typeof text !== "string") return {};
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return {};
+  let raw;
+  try {
+    raw = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return {};
+  }
+  const r = obj(raw);
+  if (!r) return {};
+  const out = {};
+  const overall = str(r.overall);
+  if (overall) out.overall = overall;
+  const att = obj(r.attachment);
+  if (att) {
+    const me = pickSide(att.me);
+    const other = pickSide(att.other);
+    const block = compact({ ...me ? { me } : {}, ...other ? { other } : {} });
+    if (block) out.attachment = block;
+  }
+  const inter = obj(r.interaction);
+  if (inter) {
+    const block = {};
+    const a = str(inter.initiative);
+    if (a) block.initiative = a;
+    const b = str(inter.expression);
+    if (b) block.expression = b;
+    const c = str(inter.conflict);
+    if (c) block.conflict = c;
+    if (compact(block)) out.interaction = block;
+  }
+  const needs = obj(r.needs);
+  if (needs) {
+    const block = {};
+    const me = str(needs.me);
+    if (me) block.me = me;
+    const other = str(needs.other);
+    if (other) block.other = other;
+    if (compact(block)) out.needs = block;
+  }
+  const uniq = obj(r.uniqueness);
+  if (uniq) {
+    const block = {};
+    const sm = str(uniq.sharedMemory);
+    if (sm) block.sharedMemory = sm;
+    const ri = str(uniq.ritual);
+    if (ri) block.ritual = ri;
+    if (compact(block)) out.uniqueness = block;
+  }
+  const sec = obj(r.security);
+  if (sec) {
+    const block = {};
+    const sm = str(sec.summary);
+    if (sm) block.summary = sm;
+    const tps = arr(sec.turningPoints).map((e) => {
+      const o = obj(e);
+      if (!o) return {};
+      const tp = {};
+      if (typeof o.month === "number") tp.month = o.month;
+      const ev = str(o.event);
+      if (ev) tp.event = ev;
+      if (o.direction === "\u4E0A\u5347" || o.direction === "\u4E0B\u964D") tp.direction = o.direction;
+      return tp;
+    }).filter((t) => Object.keys(t).length > 0);
+    if (tps.length) block.turningPoints = tps;
+    if (compact(block)) out.security = block;
+  }
+  const pow = obj(r.power);
+  if (pow) {
+    const block = {};
+    const s = str(pow.summary);
+    if (s) block.summary = s;
+    const w = str(pow.whoLeads);
+    if (w) block.whoLeads = w;
+    const d = str(pow.dependency);
+    if (d) block.dependency = d;
+    if (compact(block)) out.power = block;
+  }
+  const trig = obj(r.triggers);
+  if (trig) {
+    const me = pickTriggers(trig.me);
+    const other = pickTriggers(trig.other);
+    const block = {};
+    if (me.length) block.me = me;
+    if (other.length) block.other = other;
+    if (compact(block)) out.triggers = block;
+  }
+  const lang = obj(r.language);
+  if (lang) {
+    const block = {};
+    const ap = str(lang.appellation);
+    if (ap) block.appellation = ap;
+    const cp = str(lang.catchphrases);
+    if (cp) block.catchphrases = cp;
+    const em = str(lang.emoji);
+    if (em) block.emoji = em;
+    const la = str(lang.latency);
+    if (la) block.latency = la;
+    if (compact(block)) out.language = block;
+  }
+  const sugs = arr(r.suggestions).map((e) => {
+    const o = obj(e);
+    if (!o) return {};
+    const s = {};
+    const t = str(o.topic);
+    if (t) s.topic = t;
+    const p = str(o.problem);
+    if (p) s.problem = p;
+    const a = str(o.advice);
+    if (a) s.advice = a;
+    return s;
+  }).filter((s) => Object.keys(s).length > 0);
+  if (sugs.length) out.suggestions = sugs;
+  return out;
 }
 
 // src/ai/profile.ts
@@ -12775,8 +12982,8 @@ function parseFriendProfile(text) {
   const end = text.lastIndexOf("}");
   if (end > start) {
     try {
-      const obj = JSON.parse(text.slice(start, end + 1));
-      if (typeof obj === "object" && obj !== null) return fromObject(obj);
+      const obj2 = JSON.parse(text.slice(start, end + 1));
+      if (typeof obj2 === "object" && obj2 !== null) return fromObject(obj2);
     } catch {
     }
   }
@@ -12887,14 +13094,14 @@ function parseMbti(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return null;
-  let obj;
+  let obj2;
   try {
-    obj = JSON.parse(text.slice(start, end + 1));
+    obj2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return null;
   }
-  if (typeof obj !== "object" || obj === null) return null;
-  const r = obj;
+  if (typeof obj2 !== "object" || obj2 === null) return null;
+  const r = obj2;
   const code = typeof r.code === "string" ? detectMbtiFromText(r.code) : null;
   if (!code) return null;
   const title = typeof r.title === "string" && r.title.trim() ? r.title.trim() : mbtiTitle(code);
@@ -12967,14 +13174,14 @@ function parseFriendSuggestion(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return {};
-  let obj;
+  let obj2;
   try {
-    obj = JSON.parse(text.slice(start, end + 1));
+    obj2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return {};
   }
-  if (typeof obj !== "object" || obj === null) return {};
-  const record = obj;
+  if (typeof obj2 !== "object" || obj2 === null) return {};
+  const record = obj2;
   const result = {};
   if (isRelation(record.rel)) result.rel = record.rel;
   if (typeof record.role === "string" && record.role.trim() !== "") result.role = record.role.trim();
@@ -13239,14 +13446,14 @@ function parseAstroReading(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return {};
-  let obj;
+  let obj2;
   try {
-    obj = JSON.parse(text.slice(start, end + 1));
+    obj2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return {};
   }
-  if (typeof obj !== "object" || obj === null) return {};
-  const r = obj;
+  if (typeof obj2 !== "object" || obj2 === null) return {};
+  const r = obj2;
   const out = {};
   const personality = pickText2(r.personality);
   if (personality) out.personality = personality;
@@ -13280,14 +13487,14 @@ function parseBirthInfo(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return null;
-  let obj;
+  let obj2;
   try {
-    obj = JSON.parse(text.slice(start, end + 1));
+    obj2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return null;
   }
-  if (typeof obj !== "object" || obj === null) return null;
-  const r = obj;
+  if (typeof obj2 !== "object" || obj2 === null) return null;
+  const r = obj2;
   const year = pickInt(r.year, 1900, 2100);
   const month = pickInt(r.month, 1, 12);
   const day = pickInt(r.day, 1, 31);
@@ -13327,15 +13534,15 @@ function parseStockExtraction(text, ctx) {
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   if (start === -1 || end === -1 || end < start) return [];
-  let arr;
+  let arr2;
   try {
-    arr = JSON.parse(text.slice(start, end + 1));
+    arr2 = JSON.parse(text.slice(start, end + 1));
   } catch {
     return [];
   }
-  if (!Array.isArray(arr)) return [];
+  if (!Array.isArray(arr2)) return [];
   const out = [];
-  for (const item of arr) {
+  for (const item of arr2) {
     if (typeof item !== "object" || item === null) continue;
     const r = item;
     const stock = pickStr(r.stock);
@@ -13567,6 +13774,7 @@ export {
   buildFriendSentimentPrompt,
   buildFriendSuggestionPrompt,
   buildMbtiPrompt,
+  buildRelationDeepPrompt,
   buildReport,
   buildReportCopyPrompt,
   buildStockExtractionPrompt,
@@ -13601,6 +13809,7 @@ export {
   parseFriendSuggestion,
   parseJsonBackup,
   parseMbti,
+  parseRelationDeep,
   parseSentiment,
   parseStockExtraction,
   parseWeliveContacts,
