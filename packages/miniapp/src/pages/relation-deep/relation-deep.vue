@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
-import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
+import { ref, computed, nextTick, watch } from 'vue'
+import { onLoad, onReady, onShow, onHide } from '@dcloudio/uni-app'
 import { useDataStore } from '../../stores/data'
-import { aiClient } from '../../adapters/aiClient'
 import { samples } from '../../adapters/samples'
 import { storage } from '../../adapters/storage'
+import { useRelationDeepStore } from '../../stores/relationDeep'
 import { moodDualLinePoints } from '../../lib/insights'
+import ProgressBar from '../../components/ProgressBar.vue'
 import type { RelationDeep } from '@nianlun/core'
 
 const data = useDataStore()
@@ -16,7 +17,10 @@ const displayName = computed(() => (friend.value ? (friend.value.alias || friend
 
 const deep = ref<RelationDeep | null>(null)
 const stale = ref(false)
-const loading = ref(false)
+
+const rd = useRelationDeepStore()
+const loading = computed(() => rd.runningFor(friend.value?.id ?? ''))
+const progress = computed(() => rd.progress)
 
 function loadCache() {
   const f = friend.value
@@ -25,27 +29,27 @@ function loadCache() {
   if (d) { deep.value = d.data; stale.value = d.stale }
 }
 
-async function generate() {
+function generate() {
   const f = friend.value
-  if (!f || loading.value) return
+  if (!f) return
   const s = samples.loadSamplesFor(f.id)
-  loading.value = true
-  try {
-    const r = await aiClient.analyzeRelationDeep(f, s)
-    if (Object.keys(r).length > 0) {
-      deep.value = r
-      storage.saveRelationDeep(f.id, f, r)   // 仅有效结果落盘
-      stale.value = false
-      nextTick(drawSecurity)
-    } else {
-      deep.value = { overall: 'AI 无法生成深度关系分析' } // 空结果不写盘，允许重试
-    }
-  } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' })
-  } finally {
-    loading.value = false
+  const r = rd.start(f, s)
+  if (r === 'busy') {
+    uni.showToast({ title: '已有分析进行中，请稍候', icon: 'none' })
   }
 }
+
+// 记录本页是否可见，避免完成信号在别的页面误弹 toast。
+const visible = ref(false)
+
+// 后台分析完成信号：命中当前好友时按状态反应。
+watch(() => rd.completion, (c) => {
+  const f = friend.value
+  if (!c || !f || c.id !== f.id) return
+  if (c.status === 'ok') { loadCache(); nextTick(drawSecurity) }
+  else if (c.status === 'empty') { deep.value = { overall: 'AI 无法生成深度关系分析' } }
+  else if (c.status === 'error' && visible.value) { uni.showToast({ title: c.message, icon: 'none' }) }
+})
 
 // 安全感/信任曲线：复用本地已算好的逐月情绪(friend.emotion.monthly) + 现有 moodDualLinePoints，
 // 画「我(暖)/对方(冷)」双线（沿用 friend-detail drawMood 套路）。无逐月情绪数据则不显示图。
@@ -80,7 +84,8 @@ function drawSecurity() {
   }).exec()
 }
 
-onShow(() => { loadCache(); nextTick(drawSecurity) })
+onShow(() => { visible.value = true; loadCache(); nextTick(drawSecurity) })
+onHide(() => { visible.value = false })
 onReady(() => { setTimeout(drawSecurity, 80) })
 
 // ── 长海报导出：动态高度，逐块「彩色标题 + 折行正文」 ──
@@ -193,6 +198,7 @@ function drawPoster() {
         </text>
         <text v-if="stale" class="stale" @click="generate">数据已更新，点「重新生成」刷新</text>
         <text v-if="deep" class="act" @click="drawPoster">📥 保存长海报</text>
+        <ProgressBar v-if="loading" :percent="progress" :label="`分析中… ${Math.round(progress)}%`" />
       </view>
 
       <view v-if="!deep" class="ph">点上方按钮，让 AI 从依恋、互动、需求、安全感等 10 个维度剖析你们的关系。</view>
