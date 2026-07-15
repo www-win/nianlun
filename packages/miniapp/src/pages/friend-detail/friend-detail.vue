@@ -15,6 +15,9 @@ import type { RiverSide } from '../../lib/insights'
 import { storage } from '../../adapters/storage'
 import type { StoredAstroReading } from '../../adapters/storage'
 import { birthFingerprint, assembleAstro, astroExpired } from '../../lib/astroView'
+import {
+  SHICHEN_LABELS, shichenIndexToHour, hourToShichenIndex, toDateStr, fromDateStr, parseBirthFromText,
+} from '../../lib/birthPicker'
 
 const data = useDataStore()
 const queue = useAiQueueStore()
@@ -336,28 +339,53 @@ function goSetMyBazi() {
   uni.navigateTo({ url: '/pages/my-bazi/my-bazi' })
 }
 
-// 好友生辰补录表单
+// 好友生辰补录表单：日期用原生日期滚轮（bDateStr，"YYYY-MM-DD"），时辰用下拉（bShichenIdx，0=不确定）
 const showBirthForm = ref(false)
-const bYear = ref(''); const bMonth = ref(''); const bDay = ref(''); const bHour = ref('')
+const bDateStr = ref('')
+const bShichenIdx = ref(0)
+// 仅在好友尚无生辰时、从昵称/备注自动识别成功后提示；已有生辰/未识别到时为空，不显示提示条
+const birthHint = ref('')
+
 function openBirthForm() {
   const b = friendBirth.value
-  bYear.value = b ? String(b.year) : ''
-  bMonth.value = b ? String(b.month) : ''
-  bDay.value = b ? String(b.day) : ''
-  bHour.value = b?.hour != null ? String(b.hour) : ''
+  if (b) {
+    // 已有生辰：只回显，不做昵称识别
+    bDateStr.value = toDateStr(b.year, b.month, b.day)
+    bShichenIdx.value = hourToShichenIndex(b.hour)
+    birthHint.value = ''
+  } else {
+    bDateStr.value = ''
+    bShichenIdx.value = 0
+    birthHint.value = ''
+    const f = friend.value
+    const guess = f ? parseBirthFromText(`${f.alias || ''} ${f.name || ''} ${f.role || ''}`) : null
+    if (guess) {
+      bDateStr.value = toDateStr(guess.year, guess.month, guess.day)
+      birthHint.value = '已从昵称/备注识别生日，请确认后保存'
+    }
+  }
   showBirthForm.value = true
+}
+function onBDateChange(e: { detail: { value: string } }) {
+  bDateStr.value = e.detail.value
+}
+function onBShichenChange(e: { detail: { value: number | string } }) {
+  bShichenIdx.value = Number(e.detail.value)
 }
 function saveBirth() {
   const f = friend.value; if (!f) return
-  const y = Number(bYear.value), m = Number(bMonth.value), d = Number(bDay.value)
+  const parsed = fromDateStr(bDateStr.value)
+  const y = parsed?.year ?? NaN, m = parsed?.month ?? NaN, d = parsed?.day ?? NaN
   if (!Number.isInteger(y) || y < 1900 || y > 2100 || !(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) {
     uni.showToast({ title: '请填写有效的年月日', icon: 'none' }); return
   }
   const b: BirthInfo = { year: y, month: m, day: d }
-  if (bHour.value !== '') { const h = Number(bHour.value); if (h >= 0 && h <= 23) b.hour = h }
+  const h = shichenIndexToHour(bShichenIdx.value)
+  if (h !== undefined) b.hour = h
   const all = storage.loadBirths(); all[f.id] = b; storage.saveBirths(all)
   friendBirth.value = b
   showBirthForm.value = false
+  birthHint.value = ''
   // 触发云备份：好友生辰同样只存本地会随微信清空/换机丢失，须同步到云端
   useBackupStore().scheduleBackup()
   uni.showToast({ title: '已保存生辰', icon: 'success' })
@@ -370,8 +398,9 @@ async function extractBirthFromChat() {
   try {
     const b = await aiClient.extractBirth(f, samples.loadSamplesFor(f.id))
     if (b) {
-      bYear.value = String(b.year); bMonth.value = String(b.month); bDay.value = String(b.day)
-      bHour.value = b.hour != null ? String(b.hour) : ''
+      bDateStr.value = toDateStr(b.year, b.month, b.day)
+      bShichenIdx.value = hourToShichenIndex(b.hour)
+      birthHint.value = ''
       uni.showToast({ title: '已从聊天预填，请确认', icon: 'none' })
     } else {
       uni.showToast({ title: '聊天里没找到生辰，请手填', icon: 'none' })
@@ -638,10 +667,19 @@ async function generateAstro() {
         <!-- 态2：好友生辰缺失（或正在补录） -->
         <view v-else-if="!friendBirth || showBirthForm" class="astro-form">
           <text class="astro-tip-t">这位好友还没有生辰，补录后即可排盘：</text>
-          <view class="row2"><text class="lbl2">年</text><input class="inp2" type="number" v-model="bYear" placeholder="如 1990" /></view>
-          <view class="row2"><text class="lbl2">月</text><input class="inp2" type="number" v-model="bMonth" placeholder="1-12" /></view>
-          <view class="row2"><text class="lbl2">日</text><input class="inp2" type="number" v-model="bDay" placeholder="1-31" /></view>
-          <view class="row2"><text class="lbl2">时辰</text><input class="inp2" type="number" v-model="bHour" placeholder="0-23，选填" /></view>
+          <text v-if="birthHint" class="birth-hint">{{ birthHint }}</text>
+          <view class="row2">
+            <text class="lbl2">出生日期</text>
+            <picker mode="date" :value="bDateStr || '2000-01-01'" start="1900-01-01" :end="todayStr()" @change="onBDateChange">
+              <view class="inp2 picker-disp">{{ bDateStr || '请选择' }}</view>
+            </picker>
+          </view>
+          <view class="row2">
+            <text class="lbl2">时辰</text>
+            <picker :range="SHICHEN_LABELS" :value="bShichenIdx" @change="onBShichenChange">
+              <view class="inp2 picker-disp">{{ SHICHEN_LABELS[bShichenIdx] }}</view>
+            </picker>
+          </view>
           <view class="form-acts">
             <text class="act act-ai" @click="extractBirthFromChat">{{ extracting ? '抽取中…' : 'AI 从聊天抽取' }}</text>
             <text class="act" @click="saveBirth">保存生辰</text>
@@ -798,6 +836,8 @@ async function generateAstro() {
 .row2 { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; border-top: 1rpx solid var(--border); }
 .lbl2 { font-size: 25rpx; color: var(--muted); }
 .inp2 { flex: 1; margin-left: 20rpx; height: 60rpx; padding: 0 18rpx; font-size: 25rpx; color: var(--fg); background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx; text-align: right; }
+.picker-disp { display: flex; align-items: center; justify-content: flex-end; }
+.birth-hint { display: block; margin: 12rpx 0; padding: 10rpx 18rpx; font-size: 22rpx; color: var(--accent-strong); background: var(--accent-wash); border-radius: 10rpx; }
 .form-acts { display: flex; gap: 16rpx; margin-top: 20rpx; }
 .astro { margin-top: 20rpx; }
 .astro-stale { display: block; margin-bottom: 16rpx; padding: 10rpx 18rpx; font-size: 22rpx; color: #b8860b; background: rgba(184,134,11,0.1); border-radius: 10rpx; }
