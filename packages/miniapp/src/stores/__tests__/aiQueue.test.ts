@@ -33,10 +33,10 @@ describe('aiQueue 引擎', () => {
     // 只保留一个功能便于计数：用 stubFeatures 让 scan 只排 'role'
     s.__setFeaturesForTest(['role'])
     s.scan()
-    await Promise.resolve()
+    await vi.waitFor(() => expect(started).toBe(2))
     expect(started).toBe(2)                 // 3 个任务，但同时只起 2
     gates[0].resolve(true)
-    for (let i = 0; i < 6; i++) await Promise.resolve()
+    await vi.waitFor(() => expect(started).toBe(3))
     expect(started).toBe(3)                 // 腾位后第 3 个才起
     gates[1].resolve(true); gates[2].resolve(true)
   })
@@ -70,10 +70,11 @@ describe('aiQueue 引擎', () => {
     const runTask = vi.fn(async (_f: FeatureKey, fr: Friend) => { order.push(fr.id); return gates[fr.id].promise })
     const useStore = createAiQueueStore({ getFriends: () => friends, readDoneSets: emptyDone, runTask, concurrency: 1 })
     const s = useStore(); s.__setFeaturesForTest(['role'])
-    s.scan(); await Promise.resolve()        // a 起跑，b、c 在队列
+    s.scan()
+    await vi.waitFor(() => expect(order).toEqual(['a']))   // a 起跑，b、c 在队列
     s.prioritize('role', 'c')                // c 提到 b 前
     gates['a'].resolve(true)
-    for (let i = 0; i < 6; i++) await Promise.resolve()
+    await vi.waitFor(() => expect(order).toEqual(['a', 'c']))
     expect(order).toEqual(['a', 'c'])        // a 之后是 c 不是 b
     gates['c'].resolve(true); gates['b'].resolve(true)
   })
