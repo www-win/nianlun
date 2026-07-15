@@ -33,6 +33,7 @@
   - `hourToShichenIndex(hour: number | undefined): number` —— 存储 hour → 下拉 index（0..12）；`undefined`/非有限 → 0。
   - `toDateStr(year: number, month: number, day: number): string` —— 补零成 `"YYYY-MM-DD"`。
   - `fromDateStr(s: string): { year: number; month: number; day: number } | null` —— 解析 `"YYYY-MM-DD"`，非法 → `null`。
+  - `parseBirthFromText(text: string): { year: number; month: number; day: number } | null` —— 从任意文本（昵称/备注）里识别公历生日，识别不到 → `null`。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -46,6 +47,7 @@ import {
   hourToShichenIndex,
   toDateStr,
   fromDateStr,
+  parseBirthFromText,
 } from '../birthPicker'
 
 describe('SHICHEN_LABELS', () => {
@@ -104,6 +106,31 @@ describe('toDateStr / fromDateStr', () => {
     expect(fromDateStr(s)).toEqual({ year: 1988, month: 2, day: 29 })
   })
 })
+
+describe('parseBirthFromText', () => {
+  it('从昵称中挑出生日，忽略无关文字', () => {
+    expect(parseBirthFromText('月恒 95.1.8己亥')).toEqual({ year: 1995, month: 1, day: 8 })
+  })
+  it('支持多种分隔符与年月日写法', () => {
+    expect(parseBirthFromText('1995.1.8')).toEqual({ year: 1995, month: 1, day: 8 })
+    expect(parseBirthFromText('1995-1-8')).toEqual({ year: 1995, month: 1, day: 8 })
+    expect(parseBirthFromText('1995/1/8')).toEqual({ year: 1995, month: 1, day: 8 })
+    expect(parseBirthFromText('1995年1月8日')).toEqual({ year: 1995, month: 1, day: 8 })
+  })
+  it('两位数年份以 30 为界推断世纪', () => {
+    expect(parseBirthFromText('95.1.8')).toEqual({ year: 1995, month: 1, day: 8 })
+    expect(parseBirthFromText('08.3.5')).toEqual({ year: 2008, month: 3, day: 5 })
+    expect(parseBirthFromText('29.12.31')).toEqual({ year: 2029, month: 12, day: 31 })
+    expect(parseBirthFromText('30.1.1')).toEqual({ year: 1930, month: 1, day: 1 })
+  })
+  it('非法与纯数字串返回 null', () => {
+    expect(parseBirthFromText('19950108')).toBeNull()   // 无分隔纯数字不解析
+    expect(parseBirthFromText('2.0.1')).toBeNull()       // year 仅 1 位
+    expect(parseBirthFromText('95.13.8')).toBeNull()     // 月非法
+    expect(parseBirthFromText('95.1.40')).toBeNull()     // 日非法
+    expect(parseBirthFromText('无生日的昵称')).toBeNull()
+  })
+})
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -156,6 +183,18 @@ export function fromDateStr(s: string): { year: number; month: number; day: numb
   if (!m) return null
   return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) }
 }
+
+/** 从任意文本（昵称/备注）识别公历生日；识别不到返回 null。只认带分隔符/年月日的日期。 */
+export function parseBirthFromText(text: string): { year: number; month: number; day: number } | null {
+  const m = /(\d{2,4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})日?/.exec(text)
+  if (!m) return null
+  let year = Number(m[1])
+  const month = Number(m[2]), day = Number(m[3])
+  if (m[1].length === 2) year = year >= 30 ? 1900 + year : 2000 + year
+  else if (m[1].length !== 4) return null   // 1 或 3 位年份视为不合法
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null
+  return { year, month, day }
+}
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
@@ -190,7 +229,7 @@ git commit -m "feat(miniapp): 新增 birthPicker 生辰下拉映射工具"
 在 friend-detail.vue 顶部 import 区（`astroView` 那行之后）加：
 
 ```ts
-import { SHICHEN_LABELS, shichenIndexToHour, hourToShichenIndex, toDateStr, fromDateStr } from '../../lib/birthPicker'
+import { SHICHEN_LABELS, shichenIndexToHour, hourToShichenIndex, toDateStr, fromDateStr, parseBirthFromText } from '../../lib/birthPicker'
 ```
 
 - [ ] **Step 2: 替换表单状态**
@@ -206,6 +245,7 @@ const bYear = ref(''); const bMonth = ref(''); const bDay = ref(''); const bHour
 ```ts
 const birthDate = ref('')      // "YYYY-MM-DD"，空表示未选
 const shichenIdx = ref(0)      // 0=不确定，1..12=子..亥
+const birthHint = ref('')      // 从昵称/备注识别到生日时的核对提示，空表示无
 ```
 
 - [ ] **Step 3: 改 openBirthForm（预填）**
@@ -214,12 +254,29 @@ const shichenIdx = ref(0)      // 0=不确定，1..12=子..亥
 
 ```ts
 function openBirthForm() {
+  const f = friend.value
   const b = friendBirth.value
-  birthDate.value = b ? toDateStr(b.year, b.month, b.day) : ''
-  shichenIdx.value = hourToShichenIndex(b?.hour)
+  birthHint.value = ''
+  if (b) {
+    // 已有生辰：按存储值回显，不做昵称识别
+    birthDate.value = toDateStr(b.year, b.month, b.day)
+    shichenIdx.value = hourToShichenIndex(b.hour)
+  } else {
+    // 尚无生辰：尝试从昵称、再从备注识别生日并预填
+    shichenIdx.value = 0
+    const guess = f ? (parseBirthFromText(f.name) ?? parseBirthFromText(f.alias)) : null
+    if (guess) {
+      birthDate.value = toDateStr(guess.year, guess.month, guess.day)
+      birthHint.value = `已根据昵称识别生日 ${birthDate.value}，请确认`
+    } else {
+      birthDate.value = ''
+    }
+  }
   showBirthForm.value = true
 }
 ```
+
+注：`parseBirthFromText` 对 `name` 与 `alias` 依次尝试，两者都可能为空串（返回 `null`），`??` 保证昵称优先。
 
 - [ ] **Step 4: 改 saveBirth（保存）**
 
@@ -264,6 +321,7 @@ function saveBirth() {
     if (b) {
       birthDate.value = toDateStr(b.year, b.month, b.day)
       shichenIdx.value = hourToShichenIndex(b.hour)
+      birthHint.value = ''   // 来源改为 AI 抽取，清掉昵称识别提示
       uni.showToast({ title: '已从聊天预填，请确认', icon: 'none' })
     } else {
 ```
@@ -282,6 +340,7 @@ function saveBirth() {
 替换为：
 
 ```html
+          <text v-if="birthHint" class="birth-hint">{{ birthHint }}</text>
           <view class="row2"><text class="lbl2">出生日期</text>
             <picker class="inp2 pk" mode="date" :value="birthDate" start="1900-01-01" end="2100-12-31" @change="(e: any) => birthDate = e.detail.value">
               <text :class="['pk-v', !birthDate && 'ph']">{{ birthDate || '请选择出生日期' }}</text>
@@ -302,6 +361,7 @@ function saveBirth() {
 .pk { display: flex; align-items: center; justify-content: flex-end; }
 .pk-v { font-size: 25rpx; color: var(--fg); }
 .pk-v.ph { color: var(--muted); }
+.birth-hint { display: block; margin: 12rpx 0; padding: 12rpx 18rpx; font-size: 23rpx; color: var(--accent-strong); background: var(--accent-wash); border-radius: 10rpx; }
 ```
 
 - [ ] **Step 8: 回归测试**
@@ -313,8 +373,10 @@ Expected: PASS（不引入回归；birthPicker 用例也在内）。
 
 `pnpm --filter @nianlun/miniapp dev:mp-weixin`，在开发者工具打开：
 - 进一个无生辰好友 → 补录表单出现日期滚轮 + 时辰下拉。
+- 昵称含生日的好友（如「月恒 95.1.8己亥」）→ 打开补录时日期已预填 1995-01-08 + 顶部提示条「已根据昵称识别生日…请确认」；改日期后保存以改后值为准。
+- 昵称无生日的好友 → 无提示条、日期空，可手选或用「AI 从聊天抽取」。
 - 选日期 + 某时辰 → 保存 → 命盘正常排出、时柱与预期时辰一致。
-- 点「修改生辰」重开 → 日期与时辰下拉正确回显。
+- 点「修改生辰」重开 → 日期与时辰下拉正确回显（已有生辰不再触发昵称识别、无提示条）。
 - 时辰选「不确定」保存 → 排盘走无时柱分支（glance 显示「未含时柱，结果偏粗」）。
 
 - [ ] **Step 10: 提交**
@@ -473,6 +535,9 @@ git commit -m "feat(miniapp): 我的命盘设置改日期滚轮+时辰下拉"
 - 「不确定」不写 hour → `shichenIndexToHour(0) === undefined` + save 里 `if (h !== undefined)` ✓
 - 共用工具放 miniapp lib、core 不动 → Task 1 建于 `packages/miniapp/src/lib/` ✓
 - 手输范围校验保留兜底 → Task 2 Step 4、Task 3 Step 4 的 1900-2100/月/日 校验 ✓
+- 从昵称/备注识别生日（仅好友补录）→ Task 1 `parseBirthFromText` + 测试、Task 2 Step 3 openBirthForm 预填 + Step 6 提示条 ✓
+- 识别只预填、用户可改 → Task 2 日期/时辰 picker 可改、saveBirth 以表单值为准；「修改生辰」重开走已有生辰分支不再识别 ✓
+- 不解析纯数字串、时辰不猜 → `parseBirthFromText` 需分隔符、openBirthForm 里 `shichenIdx=0` ✓
 
 **占位符扫描：** 无 TBD/TODO；每个改代码步骤都给出完整代码块。
 
