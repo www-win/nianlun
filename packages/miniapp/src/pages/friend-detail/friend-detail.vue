@@ -6,6 +6,7 @@ import { effectiveMbtiCode, mbtiTitle, MBTI_CODES } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
 import { useDataStore } from '../../stores/data'
+import { useAiQueueStore } from '../../stores/aiQueue'
 import { useBackupStore } from '../../stores/backup'
 import { samples } from '../../adapters/samples'
 import { aiClient } from '../../adapters/aiClient'
@@ -16,6 +17,7 @@ import type { StoredAstroReading } from '../../adapters/storage'
 import { birthFingerprint, assembleAstro, astroExpired } from '../../lib/astroView'
 
 const data = useDataStore()
+const queue = useAiQueueStore()
 const id = ref('')
 onLoad((q) => {
   id.value = decodeURIComponent((q?.id as string) || '')
@@ -201,57 +203,18 @@ function onRole(e: { detail: { value: string } }) {
   if (friend.value) data.updateFriend(friend.value.id, { role: e.detail.value })
 }
 
+const sentState = computed(() => queue.stateFor('sentiment', id.value))
+const profState = computed(() => queue.stateFor('profile', id.value))
+const mbtiState = computed(() => queue.stateFor('mbti', id.value))
+const deepState = computed(() => queue.stateFor('relationDeep', id.value))
+
 const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
-const sentimentStale = ref(false)
-const loadingSent = ref(false)
-async function analyzeSentiment() {
-  const f = friend.value
-  if (!f) return
-  const s = samples.loadSamplesFor(f.id)
-  loadingSent.value = true
-  try {
-    const r = await aiClient.analyzeFriendSentiment(f, s)
-    if (r.tone || r.summary) {
-      sentiment.value = r
-      storage.saveFriendSentiment(f.id, f, r)   // 仅有效结果落盘
-      sentimentStale.value = false
-    } else {
-      sentiment.value = { summary: 'AI 无法判断情绪' } // 空结果不写盘，允许重试
-    }
-  } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' })
-  } finally {
-    loadingSent.value = false
-  }
-}
+function analyzeSentiment() { queue.prioritize('sentiment', id.value) }
 
 const profile = ref<FriendProfile | null>(null)
-const profileStale = ref(false)
-const loadingProfile = ref(false)
-async function analyzeProfile() {
-  const f = friend.value
-  if (!f) return
-  const s = samples.loadSamplesFor(f.id)
-  loadingProfile.value = true
-  try {
-    const r = await aiClient.analyzeFriendProfile(f, s)
-    if (r.identity || r.family || r.romance || r.lifestyle || r.investment) {
-      profile.value = r
-      storage.saveFriendProfile(f.id, f, r)      // 仅有效结果落盘
-      profileStale.value = false
-    } else {
-      profile.value = { identity: 'AI 无法生成画像' } // 空结果不写盘，允许重试
-    }
-  } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' })
-  } finally {
-    loadingProfile.value = false
-  }
-}
+function analyzeProfile() { queue.prioritize('profile', id.value) }
 
 const mbtiAi = ref<MbtiResult | null>(null)
-const mbtiStale = ref(false)
-const loadingMbti = ref(false)
 const MBTI_SRC_LABEL: Record<string, string> = { manual: '手动', remark: '备注', ai: 'AI', none: '' }
 const AXIS_POLES: Record<string, [string, string]> = {
   EI: ['E 外向', 'I 内向'], SN: ['S 实感', 'N 直觉'], TF: ['T 思考', 'F 情感'], JP: ['J 判断', 'P 知觉'],
@@ -261,17 +224,7 @@ const mbtiEff = computed(() =>
 )
 const mbtiPickerOptions = [...MBTI_CODES, '清除']
 
-async function analyzeMbti() {
-  const f = friend.value
-  if (!f || loadingMbti.value) return
-  const s = samples.loadSamplesFor(f.id)
-  loadingMbti.value = true
-  try {
-    const r = await aiClient.analyzeFriendMbti(f, s)
-    if (r) { mbtiAi.value = r; storage.saveFriendMbti(f.id, f, r); mbtiStale.value = false }
-    else uni.showToast({ title: 'AI 未能判断 MBTI', icon: 'none' })
-  } finally { loadingMbti.value = false }
-}
+function analyzeMbti() { queue.prioritize('mbti', id.value) }
 
 function onMbtiPick(e: { detail: { value: number | string } }) {
   const f = friend.value
@@ -287,17 +240,20 @@ function openRelationDeep() {
   uni.navigateTo({ url: `/pages/relation-deep/relation-deep?id=${encodeURIComponent(f.id)}` })
 }
 
-// 进页/返回时装载已持久化的情绪/画像缓存，命中直显、过期打标（不自动重算）。
+// 进页/返回时装载已持久化的情绪/画像缓存，命中直显（不再打 stale 标——已完成即不再提供刷新入口）。
 function loadAiCache() {
   const f = friend.value
   if (!f) return
   const sent = storage.loadFriendSentiment(f.id, f)
-  if (sent) { sentiment.value = sent.data; sentimentStale.value = sent.stale }
+  if (sent) sentiment.value = sent.data
   const prof = storage.loadFriendProfile(f.id, f)
-  if (prof) { profile.value = prof.data; profileStale.value = prof.stale }
+  if (prof) profile.value = prof.data
   const mb = storage.loadFriendMbti(f.id, f)
-  if (mb) { mbtiAi.value = mb.data; mbtiStale.value = mb.stale }
+  if (mb) mbtiAi.value = mb.data
 }
+
+// 队列忙碌状态变化（含排空）时重读缓存，让刚落盘的结果显示出来。
+watch(() => queue.busy, () => loadAiCache())
 
 // —— 命理运势 —— //
 const myBazi = ref<BirthInfo | null>(null)
@@ -539,16 +495,19 @@ async function generateAstro() {
       <view class="card block">
         <view class="edit-row">
           <picker :range="RELS" @change="onRel"><text class="act">改关系</text></picker>
-          <text class="act act-ai" @click="analyzeSentiment">{{ loadingSent ? '分析中…' : (sentiment ? '↻ 重新分析' : '✦ 情绪分析') }}</text>
-          <text class="act act-ai" @click="analyzeProfile">{{ loadingProfile ? '生成中…' : (profile ? '↻ 重新生成' : '✦ 好友画像') }}</text>
-          <text class="act act-ai" @click="openRelationDeep">✦ 深度关系分析</text>
+          <text v-if="sentState === 'idle'" class="act act-ai" @click="analyzeSentiment">✦ 情绪分析</text>
+          <text v-else-if="sentState !== 'done'" class="act act-ai busy">{{ sentState === 'running' ? '分析中…' : '排队中…' }}</text>
+          <text v-if="profState === 'idle'" class="act act-ai" @click="analyzeProfile">✦ 好友画像</text>
+          <text v-else-if="profState !== 'done'" class="act act-ai busy">{{ profState === 'running' ? '生成中…' : '排队中…' }}</text>
+          <text v-if="deepState === 'idle'" class="act act-ai" @click="openRelationDeep">✦ 深度关系分析</text>
+          <text v-else-if="deepState === 'running'" class="act act-ai busy">分析中…</text>
+          <text v-else-if="deepState === 'queued'" class="act act-ai busy">排队中…</text>
         </view>
-        <view v-if="loadingSent || loadingProfile" class="ai-progress">
-          <ProgressBar indeterminate :label="loadingSent ? 'AI 情绪分析中…' : 'AI 生成画像中…'" />
+        <view v-if="sentState === 'running' || profState === 'running'" class="ai-progress">
+          <ProgressBar indeterminate :label="sentState === 'running' ? 'AI 情绪分析中…' : 'AI 生成画像中…'" />
         </view>
         <input class="role-input" :value="friend.role" placeholder="职务 / 备注" placeholder-class="ph" @blur="onRole" />
         <view v-if="sentiment" class="senti">
-          <text v-if="sentimentStale" class="astro-stale" @click="analyzeSentiment">数据已更新，点「重新分析」刷新</text>
           <view v-if="sentiment.tone" class="senti-tone">{{ sentiment.tone }}</view>
           <text v-if="sentiment.summary" class="senti-sum">{{ sentiment.summary }}</text>
           <text class="senti-note faint">AI 推测，仅供参考</text>
@@ -557,7 +516,6 @@ async function generateAstro() {
 
       <view v-if="profile" class="card block">
         <text class="block-t">好友画像</text>
-        <text v-if="profileStale" class="astro-stale" @click="analyzeProfile">数据已更新，点「重新生成」刷新</text>
         <view class="prof">
           <view class="prof-row"><text class="prof-k">身份/职业</text><text class="prof-v">{{ profile.identity || '暂无足够线索' }}</text></view>
           <view class="prof-row"><text class="prof-k">家庭状况</text><text class="prof-v">{{ profile.family || '暂无足够线索' }}</text></view>
@@ -580,8 +538,6 @@ async function generateAstro() {
           <text class="block-t">MBTI 人格</text>
           <text v-if="mbtiEff.code" class="mbti-src">{{ MBTI_SRC_LABEL[mbtiEff.source] }}</text>
         </view>
-        <text v-if="mbtiStale && mbtiEff.source === 'ai'" class="astro-stale" @click="analyzeMbti">数据已更新，点「重新分析」刷新</text>
-
         <view v-if="mbtiEff.code" class="mbti-code-row">
           <text class="mbti-code">{{ mbtiEff.code }}</text>
           <text class="mbti-title">{{ mbtiTitle(mbtiEff.code) }}</text>
@@ -608,12 +564,15 @@ async function generateAstro() {
             <text class="act">✎ 手动设置</text>
           </picker>
           <text
-            v-if="mbtiEff.source === 'ai' || mbtiEff.source === 'none'"
-            class="act act-ai"
-            @click="analyzeMbti"
-          >{{ loadingMbti ? '分析中…' : (mbtiAi ? '↻ 重新分析' : '✦ AI 分析 MBTI') }}</text>
+            v-if="(mbtiEff.source === 'none') && mbtiState === 'idle'"
+            class="act act-ai" @click="analyzeMbti"
+          >✦ AI 分析 MBTI</text>
+          <text
+            v-else-if="mbtiEff.source !== 'ai' && (mbtiState === 'running' || mbtiState === 'queued')"
+            class="act act-ai busy"
+          >{{ mbtiState === 'running' ? '分析中…' : '排队中…' }}</text>
         </view>
-        <view v-if="loadingMbti" class="ai-progress">
+        <view v-if="mbtiState === 'running'" class="ai-progress">
           <ProgressBar indeterminate label="AI 分析 MBTI 中…" />
         </view>
       </view>
@@ -753,6 +712,7 @@ async function generateAstro() {
 .ai-progress { margin-top: 20rpx; }
 .act { padding: 12rpx 22rpx; border-radius: 12rpx; font-size: 24rpx; font-weight: 550; color: var(--muted); background: var(--surface-2); }
 .act-ai { color: var(--accent-strong); background: var(--accent-wash); }
+.act-ai.busy { opacity: 0.5; }
 .role-input { margin-top: 18rpx; height: 64rpx; padding: 0 20rpx; font-size: 25rpx; color: var(--fg); background: var(--surface); border: 1rpx solid var(--border-2); border-radius: 12rpx; }
 .ph { color: var(--faint); }
 .senti { margin-top: 24rpx; padding: 24rpx; background: var(--accent-wash); border-radius: 16rpx; }
