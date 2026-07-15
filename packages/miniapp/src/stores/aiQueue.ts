@@ -74,6 +74,16 @@ export function createAiQueueStore(deps: AiQueueDeps) {
       bump(); pump()
     }
 
+    // 分析失败即刹车：清空待跑队列、不再拉起后续（在跑的自然结束）。
+    // 触发条件——runTask 抛错(后端挂了/欠费/上游 RST) 或 返回 false(AI 没抽出内容)。
+    // 后端一旦不可用，继续 pump 只会把剩下所有好友逐个失败一遍，白烧电/额度。
+    // 停下不是永久放弃：未完成的没标 done，下次回前台 onShow 重扫会自动补跑重试。
+    function halt(): void {
+      for (const t of order) inQueue.delete(keyOf(t.feature, t.id))
+      order.length = 0
+      bump()
+    }
+
     function pump(): void {
       while (running.size < concurrency && order.length > 0) {
         const task = order.shift() as Task
@@ -82,8 +92,11 @@ export function createAiQueueStore(deps: AiQueueDeps) {
         const friend = deps.getFriends().find((f) => f.id === task.id)
         if (!friend) { running.delete(key); continue }
         void deps.runTask(task.feature, friend)
-          .then((ok) => { if (ok) done.value[task.feature] = new Set(done.value[task.feature]).add(task.id) })
-          .catch(() => { /* 失败：不计入 done，下次开机/手动重试 */ })
+          .then((ok) => {
+            if (ok) done.value[task.feature] = new Set(done.value[task.feature]).add(task.id)
+            else halt()             // 空结果视为失败 → 刹车
+          })
+          .catch(() => halt())      // 抛错 → 刹车
           .finally(() => { running.delete(key); bump(); pump() })
       }
       if (running.size === 0 && order.length === 0) flush()   // 队列排空：把批量结果落盘
@@ -94,6 +107,17 @@ export function createAiQueueStore(deps: AiQueueDeps) {
 
     return { scan, prioritize, stateFor, busy, flush, __setFeaturesForTest }
   })
+}
+
+// App onShow 回前台补扫的时序决策（抽成纯函数便于单测）：
+// 首次 onShow 跳过——交给 onLaunch 云端同步之后那次 scan，避免和它抢跑重复入队；
+// 之后每次回前台都 scan，补跑上次失败刹车/没跑完的分析。scan 幂等：已完成的跳过。
+export function makeReentryScanner(scan: () => void): () => void {
+  let firstShow = true
+  return () => {
+    if (firstShow) { firstShow = false; return }
+    scan()
+  }
 }
 
 // —— 生产单例：真实 aiClient/storage/samples/data 组装 —— //

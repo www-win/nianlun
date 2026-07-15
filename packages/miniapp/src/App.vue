@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onLaunch, onHide } from '@dcloudio/uni-app'
+import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
 import { useBackupStore } from './stores/backup'
-import { useAiQueueStore } from './stores/aiQueue'
+import { useAiQueueStore, makeReentryScanner } from './stores/aiQueue'
 import { purgeUnzipTemp } from './adapters/fileReader'
 import { storage } from './adapters/storage'
 import { rawStore } from './adapters/rawStore'
@@ -52,6 +52,10 @@ onLaunch(async () => {
     })()
   }, 0)
 })
+
+// 回前台补扫：首次 onShow 跳过（交给 onLaunch 云同步后那次 scan），之后每次回前台都重扫，
+// 补跑上次因 AI 失败刹车/没跑完的分析。scan 幂等，已完成的跳过、只补缺结果的。
+onShow(makeReentryScanner(() => useAiQueueStore().scan()))
 
 onHide(() => {
   // App 退后台：flush aiQueue（好友级四表 debounce + role 批量暂存一并落盘），
