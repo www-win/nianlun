@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
-import type { Relation, FriendProfile, BirthInfo, MbtiResult } from '@nianlun/core'
+import type { Relation, FriendProfile, BirthInfo, MbtiResult, RelationDeep } from '@nianlun/core'
 import { effectiveMbtiCode, mbtiTitle, MBTI_CODES } from '@nianlun/core'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
@@ -207,6 +207,7 @@ const sentState = computed(() => queue.stateFor('sentiment', id.value))
 const profState = computed(() => queue.stateFor('profile', id.value))
 const mbtiState = computed(() => queue.stateFor('mbti', id.value))
 const deepState = computed(() => queue.stateFor('relationDeep', id.value))
+const deep = ref<RelationDeep | null>(null)   // 深度关系结果：完成后在本页显示「整体评估」+ 查看详情入口
 
 const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
 const manualSent = ref(false)
@@ -253,6 +254,8 @@ function loadAiCache() {
   if (prof) profile.value = prof.data
   const mb = storage.loadFriendMbti(f.id, f)
   if (mb) mbtiAi.value = mb.data
+  const dp = storage.loadRelationDeep(f.id, f)
+  if (dp) deep.value = dp.data
 }
 
 // 本好友任一功能状态变化（如 running → done）时重读缓存，让刚落盘的结果显示出来；
@@ -544,6 +547,13 @@ async function generateAstro() {
         </view>
       </view>
 
+      <view v-if="deepState === 'done' && deep" class="card block">
+        <text class="block-t">深度关系分析</text>
+        <text class="senti-sum">{{ deep.overall || '已生成深度关系分析，点下方查看完整维度。' }}</text>
+        <view class="deep-detail-row"><text class="act act-ai" @click="openRelationDeep">查看完整分析 ›</text></view>
+        <text class="senti-note faint">AI 推测，仅供参考</text>
+      </view>
+
       <view v-if="profile" class="card block">
         <text class="block-t">好友画像</text>
         <view class="prof">
@@ -749,6 +759,7 @@ async function generateAstro() {
 .senti-tone { display: inline-block; padding: 6rpx 22rpx; border-radius: 999rpx; background: var(--accent); color: #fff; font-size: 26rpx; font-weight: 600; }
 .senti-sum { display: block; margin-top: 16rpx; font-size: 27rpx; color: var(--fg); line-height: 1.7; }
 .senti-note { display: block; margin-top: 12rpx; font-size: 21rpx; }
+.deep-detail-row { margin-top: 20rpx; }
 
 .prof { margin-top: 20rpx; }
 .prof-row { display: flex; padding: 14rpx 0; border-top: 1rpx solid var(--border); }
