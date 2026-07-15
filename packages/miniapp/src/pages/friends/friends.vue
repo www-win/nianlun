@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { onShow, onReachBottom } from '@dcloudio/uni-app'
 import { useDataStore } from '../../stores/data'
-import { useImportStore } from '../../stores/import'
 import { useBackupStore } from '../../stores/backup'
 import type { Relation } from '@nianlun/core'
 import { effectiveMbtiCode } from '@nianlun/core'
@@ -10,11 +9,9 @@ import { storage } from '../../adapters/storage'
 import { filterSortFriends } from '../../lib/friendsList'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
-import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
-import { useRelationDeepStore } from '../../stores/relationDeep'
+import { useAiQueueStore } from '../../stores/aiQueue'
 
-useRelationDeepBadge()   // 深度分析进行中 → 好友 tab 红点（本页可见时同步）
-const rd = useRelationDeepStore()   // 正在深度分析的好友 → 该行头像加红点，便于找回
+const queue = useAiQueueStore()
 
 const data = useDataStore()
 const backup = useBackupStore()
@@ -33,7 +30,6 @@ function refreshMbti() {
 // 返回本页由 onShow 兜底刷新（friend-detail 里改的 MBTI 回来即生效）。
 watch(() => data.friends, refreshMbti, { immediate: true })
 onShow(refreshMbti)
-const imp = useImportStore()
 const kw = ref('')
 const sortKey = ref<'msgCount' | 'lastContact'>('msgCount')
 const RELS: Relation[] = ['家人', '挚友', '同事', '同学', '客户', '其他']
@@ -70,19 +66,9 @@ function onRole(id: string, e: { detail: { value: string } }) {
   data.updateFriend(id, { role: e.detail.value })
 }
 
-// 手动分析单个好友：调 store，按返回枚举 toast（uni 仅在页面层用，store 保持纯）。
-async function onAnalyze(id: string) {
-  const f = data.friends.find((x) => x.id === id)
-  const r = await imp.analyzeOne(id)
-  if (r.status === 'ok') {
-    uni.showToast({ title: `已分析：${f?.alias || f?.name || ''}`, icon: 'none' })
-  } else if (r.status === 'empty') {
-    uni.showToast({ title: '未分析出结果', icon: 'none' })
-  } else if (r.status === 'error') {
-    uni.showToast({ title: `分析失败：${r.error ?? ''}`, icon: 'none' })
-  }
-  // skipped（重入/无此人）：不提示
-}
+// role（关系/职务）分析态：交由 aiQueue 托管，按 feature+id 查询/插队。
+function roleState(id: string) { return queue.stateFor('role', id) }
+function onAnalyze(id: string) { queue.prioritize('role', id) }
 </script>
 
 <template>
@@ -112,21 +98,12 @@ async function onAnalyze(id: string) {
         <AntennaBuddy :color="'var(--laa)'" antenna="curl" :scale="0.5" />
       </view>
 
-      <ProgressBar
-        v-if="imp.analyzing"
-        :percent="imp.analyzing.total
-          ? Math.round(imp.analyzing.done / imp.analyzing.total * 100) : 0"
-        :label="`分析关系/职务 ${imp.analyzing.done}/${imp.analyzing.total}`" />
-      <ProgressBar
-        v-else-if="imp.analyzingIds.size"
-        indeterminate
-        label="AI 分析中…" />
+      <ProgressBar v-if="queue.busy" indeterminate label="AI 分析进行中…" />
 
       <view v-for="f in rows" :key="f.id" class="card frow">
         <view class="top" @click="openDetail(f.id)">
           <view class="avatar" :style="{ background: relColor(f.rel) }">
             {{ initials(f.alias || f.name) }}
-            <view v-if="rd.activeId === f.id" class="deep-dot" />
           </view>
           <view class="info">
             <text class="name">{{ f.alias || f.name }}</text>
@@ -144,10 +121,11 @@ async function onAnalyze(id: string) {
             <text class="act-t">改关系</text>
           </picker>
           <view
-            class="act act-ai" :class="{ busy: imp.analyzingIds.has(f.id) }"
+            v-if="roleState(f.id) !== 'done'"
+            class="act act-ai" :class="{ busy: roleState(f.id) !== 'idle' }"
             @click="onAnalyze(f.id)"
           >
-            <text class="act-t">{{ imp.analyzingIds.has(f.id) ? '分析中…' : '🪄 AI分析' }}</text>
+            <text class="act-t">{{ roleState(f.id) === 'running' ? '分析中…' : roleState(f.id) === 'queued' ? '排队中…' : '🪄 AI分析' }}</text>
           </view>
           <input
             class="role-input" :value="f.role" placeholder="职务 / 备注"
@@ -184,16 +162,9 @@ async function onAnalyze(id: string) {
 .frow { padding: 28rpx; margin-bottom: 20rpx; }
 .top { display: flex; align-items: center; }
 .avatar {
-  position: relative;
   flex: none; width: 84rpx; height: 84rpx; border-radius: 24rpx; margin-right: 22rpx;
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 28rpx; font-weight: 600;
-}
-/* 正在深度分析的好友：头像右上角红点（跟随 rd.activeId，跑完自动消失） */
-.deep-dot {
-  position: absolute; top: -6rpx; right: -6rpx;
-  width: 24rpx; height: 24rpx; border-radius: 50%;
-  background: var(--danger); border: 3rpx solid var(--surface);
 }
 .info { flex: 1; min-width: 0; }
 .chevron { flex: none; margin-left: 12rpx; color: var(--faint); font-size: 40rpx; line-height: 1; }
