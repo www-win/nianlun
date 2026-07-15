@@ -189,6 +189,26 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       for (const id in all) out[id] = all[id].data as MbtiResult
       return out
     },
+    // 以下三个整表批量读语义同 loadFriendMbtiMap：一次 backend.get 拿整表，丢弃 fp 元数据。
+    // scan 判定「已分析」用它们，避免每好友每功能各一次同步 getStorageSync（防卡）。
+    loadFriendSentimentMap(): Record<string, Sentiment> {
+      const all = loadFriendMap(K_FRIEND_SENTIMENT)
+      const out: Record<string, Sentiment> = {}
+      for (const id in all) out[id] = all[id].data as Sentiment
+      return out
+    },
+    loadFriendProfileMap(): Record<string, FriendProfile> {
+      const all = loadFriendMap(K_FRIEND_PROFILE)
+      const out: Record<string, FriendProfile> = {}
+      for (const id in all) out[id] = all[id].data as FriendProfile
+      return out
+    },
+    loadRelationDeepMap(): Record<string, RelationDeep> {
+      const all = loadFriendMap(K_FRIEND_RELATION_DEEP)
+      const out: Record<string, RelationDeep> = {}
+      for (const id in all) out[id] = all[id].data as RelationDeep
+      return out
+    },
     saveRelationDeep(id: string, friend: Friend, data: RelationDeep): void {
       saveFriendEntry(K_FRIEND_RELATION_DEEP, id, friend, data)
     },

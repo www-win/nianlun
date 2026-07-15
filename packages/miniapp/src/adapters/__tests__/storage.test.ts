@@ -364,6 +364,19 @@ function memFsBackend(): RawFsBackend {
   }
 }
 
+describe('storage 整表批量读（防卡）', () => {
+  it('loadFriendSentimentMap/ProfileMap/RelationDeepMap 整表一次读，返回 {id:data}', () => {
+    const s = makeStorage(memBackend())
+    const f = (id: string): Friend => ({ id, msgCount: 30, lastContact: 1 } as unknown as Friend)
+    s.saveFriendSentiment('a', f('a'), { tone: '暖', summary: 's' } as any)
+    s.saveFriendProfile('b', f('b'), { identity: 'x' } as any)
+    s.saveRelationDeep('c', f('c'), { overall: 'o' } as any)
+    expect(s.loadFriendSentimentMap()['a']).toEqual({ tone: '暖', summary: 's' })
+    expect(s.loadFriendProfileMap()['b']).toEqual({ identity: 'x' })
+    expect(s.loadRelationDeepMap()['c']).toEqual({ overall: 'o' })
+  })
+})
+
 describe('storage 大数据走文件后端', () => {
   it('saveFriends 写文件后端、不写 KV；loadFriends 从文件读回并补默认字段', () => {
     const kvMap = new Map<string, unknown>()
