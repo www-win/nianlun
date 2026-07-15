@@ -47,7 +47,8 @@ export function createAiQueueStore(deps: AiQueueDeps) {
     }
 
     function scan(): void {
-      const friends = deps.getFriends()
+      // 按好友消息数从多到少入队：聊得多的好友先分析（每个好友内部仍是 FRIEND_FEATURES 顺序）。
+      const friends = [...deps.getFriends()].sort((a, b) => b.msgCount - a.msgCount)
       if (friends.length === 0) return
       const fresh = deps.readDoneSets()       // 5 次整表读，构建磁盘 done 集
       // 并入内存里已有的 done（完成但尚未 flush 落盘的，不能被磁盘集覆盖丢失）

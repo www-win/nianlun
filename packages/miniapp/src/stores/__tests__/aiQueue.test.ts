@@ -79,6 +79,23 @@ describe('aiQueue 引擎', () => {
     expect(runTask).toHaveBeenCalledTimes(1)   // 未被重复调用
   })
 
+  it('scan 按好友消息数从多到少入队（聊得多的先分析）', async () => {
+    const mk = (id: string, msgCount: number): Friend => ({ ...F(id), msgCount } as any)
+    const friends = [mk('a', 5), mk('b', 100), mk('c', 50)]   // 存储顺序 a,b,c；期望按 msgCount 跑 b,c,a
+    const order: string[] = []
+    const gates: Record<string, ReturnType<typeof defer>> = { a: defer(), b: defer(), c: defer() }
+    const runTask = vi.fn(async (_f: FeatureKey, fr: Friend) => { order.push(fr.id); return gates[fr.id].promise })
+    const useStore = createAiQueueStore({ getFriends: () => friends, readDoneSets: emptyDone, runTask, concurrency: 1 })
+    const s = useStore(); s.__setFeaturesForTest(['role'])
+    s.scan()
+    await vi.waitFor(() => expect(order).toEqual(['b']))          // 消息最多的 b 先跑
+    gates['b'].resolve(true)
+    await vi.waitFor(() => expect(order).toEqual(['b', 'c']))     // 再 c
+    gates['c'].resolve(true)
+    await vi.waitFor(() => expect(order).toEqual(['b', 'c', 'a'])) // 最后最少的 a
+    gates['a'].resolve(true)
+  })
+
   it('prioritize 把队列中的任务移到队首', async () => {
     const friends = [F('a'), F('b'), F('c')]
     const order: string[] = []
