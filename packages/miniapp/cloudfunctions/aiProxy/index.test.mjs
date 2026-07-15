@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { isTransientError, isTransientStatus, backoffMs, _budget, parseSseText, attemptTimeout } = require('./index.js')
+const { isTransientError, isTransientStatus, backoffMs, _budget, parseSseText, attemptTimeout, isBillingError } = require('./index.js')
 
 // 构造一段 event: X\ndata: {json} 的 SSE 事件块
 const sse = (events) =>
@@ -29,6 +29,24 @@ test('确定性错误不重试', () => {
 test('限流与 5xx 判为瞬时状态，4xx（除 429）不是', () => {
   for (const s of [429, 500, 502, 503, 504]) assert.equal(isTransientStatus(s), true)
   for (const s of [200, 400, 401, 403, 404, 505]) assert.equal(isTransientStatus(s), false)
+})
+
+test('欠费/密钥失效：鉴权付费类状态码判为 billing，应触发切 key', () => {
+  for (const s of [401, 402, 403]) assert.equal(isBillingError(s, ''), true)
+  // 200/瞬时状态不算欠费（它们各有自己的处理路径）
+  for (const s of [200, 429, 500, 502]) assert.equal(isBillingError(s, 'ok'), false)
+})
+
+test('欠费/密钥失效：响应体或流内错误里的欠费关键字（中英文）判为 billing', () => {
+  assert.equal(isBillingError(200, 'insufficient balance'), true)
+  assert.equal(isBillingError(200, '账户余额不足'), true)
+  assert.equal(isBillingError(200, '当前账户已欠费'), true)
+  assert.equal(isBillingError(0, 'quota exceeded'), true)
+  assert.equal(isBillingError(0, '额度已用完'), true)
+  assert.equal(isBillingError(0, 'api key expired'), true)
+  // 普通业务错误不误判为欠费
+  assert.equal(isBillingError(0, 'overloaded_error'), false)
+  assert.equal(isBillingError(0, '内容被安全策略拦截'), false)
 })
 
 test('退避指数增长且封顶 4s', () => {
