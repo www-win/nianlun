@@ -79,6 +79,34 @@ describe('aiQueue 引擎', () => {
     expect(runTask).toHaveBeenCalledTimes(1)   // 未被重复调用
   })
 
+  it('AI 失败(返回 false)的任务不计入 done；再次 scan 会重新入队重试', async () => {
+    const friends = [F('a')]
+    let attempt = 0
+    // 第一次失败(AI 偶发抽风返回空)，第二次成功
+    const runTask = vi.fn(async () => { attempt++; return attempt >= 2 })
+    const useStore = createAiQueueStore({ getFriends: () => friends, readDoneSets: emptyDone, runTask, concurrency: 2 })
+    const s = useStore(); s.__setFeaturesForTest(['role'])
+    s.scan()
+    await vi.waitFor(() => expect(runTask).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(s.stateFor('role', 'a')).toBe('idle'))  // 失败 → 回 idle，未标 done
+    // 重扫(模拟再次进入 app)：未完成的 'a' 应被重新入队并重试
+    s.scan()
+    await vi.waitFor(() => expect(runTask).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(s.stateFor('role', 'a')).toBe('done'))  // 第二次成功
+  })
+
+  it('AI 抛错的任务同样不计入 done；再次 scan 会重试', async () => {
+    const friends = [F('a')]
+    let attempt = 0
+    const runTask = vi.fn(async () => { attempt++; if (attempt < 2) throw new Error('上游 RST'); return true })
+    const useStore = createAiQueueStore({ getFriends: () => friends, readDoneSets: emptyDone, runTask, concurrency: 2 })
+    const s = useStore(); s.__setFeaturesForTest(['role'])
+    s.scan()
+    await vi.waitFor(() => expect(s.stateFor('role', 'a')).toBe('idle'))  // 抛错 → 回 idle
+    s.scan()
+    await vi.waitFor(() => expect(s.stateFor('role', 'a')).toBe('done'))  // 重扫后重试成功
+  })
+
   it('scan 按好友消息数从多到少入队（聊得多的先分析）', async () => {
     const mk = (id: string, msgCount: number): Friend => ({ ...F(id), msgCount } as any)
     const friends = [mk('a', 5), mk('b', 100), mk('c', 50)]   // 存储顺序 a,b,c；期望按 msgCount 跑 b,c,a
@@ -110,5 +138,33 @@ describe('aiQueue 引擎', () => {
     await vi.waitFor(() => expect(order).toEqual(['a', 'c']))
     expect(order).toEqual(['a', 'c'])        // a 之后是 c 不是 b
     gates['c'].resolve(true); gates['b'].resolve(true)
+  })
+})
+
+describe('makeReentryScanner（App onShow 补扫时序）', () => {
+  it('首次 onShow 不重扫（交给 onLaunch 云同步后那次 scan）', () => {
+    const scan = vi.fn()
+    const onShow = makeReentryScanner(scan)
+    onShow()
+    expect(scan).toHaveBeenCalledTimes(0)
+  })
+
+  it('之后每次回前台都重扫，补跑上次失败/没跑完的分析', () => {
+    const scan = vi.fn()
+    const onShow = makeReentryScanner(scan)
+    onShow()                                  // 首次：跳过
+    onShow(); expect(scan).toHaveBeenCalledTimes(1)  // 再次进入：重扫
+    onShow(); expect(scan).toHaveBeenCalledTimes(2)  // 每次进入都重扫
+    onShow(); expect(scan).toHaveBeenCalledTimes(3)
+  })
+
+  it('各实例独立计数（firstShow 不串台）', () => {
+    const a = vi.fn(); const b = vi.fn()
+    const onShowA = makeReentryScanner(a)
+    const onShowB = makeReentryScanner(b)
+    onShowA(); onShowA()                       // A 第二次触发
+    onShowB()                                  // B 仍是首次
+    expect(a).toHaveBeenCalledTimes(1)
+    expect(b).toHaveBeenCalledTimes(0)
   })
 })
