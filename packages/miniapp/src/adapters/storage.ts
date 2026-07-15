@@ -50,7 +50,12 @@ export interface StorageBackend {
   keys?(): string[]
 }
 
-export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvFsJson(backend)) {
+export function makeStorage(
+  backend: StorageBackend,
+  fs: FsJsonBackend = makeKvFsJson(backend),
+  schedule: (fn: () => void, ms: number) => { cancel: () => void } =
+    (fn, ms) => { const t = setTimeout(fn, ms); return { cancel: () => clearTimeout(t) } },
+) {
   // ── 四类 AI 结果持久化：指纹 + 好友级/报告级通用读写 ──────────────
   // 指纹 = 生成时喂给 AI 的输入的轻量摘要；输入不变则缓存新鲜。
   const friendFp = (f: Friend): string => `${f.msgCount}:${f.lastContact}`
@@ -59,21 +64,45 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   // 因为这些结果走 storage.set 直存、不经 data store。触发失败不影响本地保存。
   let onChanged: (() => void) | null = null
   const fireChanged = () => { try { onChanged?.() } catch { /* 备份触发失败不影响本地保存 */ } }
-  // 好友级：键存 { [id]: { data, fp } }，按当前 friend 现算 fp 比对新鲜度。
-  function loadFriendMap(key: string): Record<string, { data: unknown; fp: string }> {
+
+  const FLUSH_MS = 800
+  // 四张好友级表的写缓冲：key -> { id -> {data, fp} }。debounce 合并写，减少高频整表同步写卡顿。
+  // read-through：读时叠加在已存之上，flush 前也能读到刚写的值。
+  const pending: Record<string, Record<string, { data: unknown; fp: string }>> = {}
+  let flushHandle: { cancel: () => void } | null = null
+  function scheduleFlush(): void {
+    if (flushHandle) return
+    flushHandle = schedule(() => { flushHandle = null; flushNow() }, FLUSH_MS)
+  }
+  function bufferFriendEntry(key: string, id: string, friend: Friend, data: unknown): void {
+    const bucket = pending[key] ?? (pending[key] = {})
+    bucket[id] = { data, fp: friendFp(friend) }
+    scheduleFlush()
+  }
+  function flushNow(): void {
+    const keys = Object.keys(pending)
+    if (keys.length === 0) return
+    for (const key of keys) {
+      const merged = { ...loadFriendMapStored(key), ...pending[key] }
+      backend.set(key, merged)
+      delete pending[key]
+    }
+    if (flushHandle) { flushHandle.cancel(); flushHandle = null }
+    fireChanged()   // 合并后的一次落盘 → 排一次防抖备份
+  }
+  // 已存部分（不含缓冲），供 flushNow 合并用，避免与 read-through 版本互相递归。
+  function loadFriendMapStored(key: string): Record<string, { data: unknown; fp: string }> {
     const raw = backend.get(key)
     return raw && typeof raw === 'object' ? (raw as Record<string, { data: unknown; fp: string }>) : {}
   }
+  // 好友级：键存 { [id]: { data, fp } }，按当前 friend 现算 fp 比对新鲜度。read-through：叠加缓冲。
+  function loadFriendMap(key: string): Record<string, { data: unknown; fp: string }> {
+    const stored = loadFriendMapStored(key)
+    const buf = pending[key]
+    return buf ? { ...stored, ...buf } : stored
+  }
   function saveFriendEntry(key: string, id: string, friend: Friend, data: unknown): void {
-    const all = loadFriendMap(key)
-    all[id] = { data, fp: friendFp(friend) }
-    // [perf] 诊断插桩：AI 结果 map 整表同步写 KV 的耗时 + 条目数。排查完删。
-    const _t0 = Date.now()
-    backend.set(key, all)
-    const _t1 = Date.now()
-    // eslint-disable-next-line no-console
-    console.log(`[perf] saveFriendEntry ${key} entries=${Object.keys(all).length} set=${_t1 - _t0}ms`)
-    fireChanged()   // 情绪/画像/MBTI/深度关系 AI 结果落盘 → 排一次备份
+    bufferFriendEntry(key, id, friend, data)   // 缓冲 + debounce flush（原整表同步写已下沉到 flushNow）
   }
   function loadFriendEntry<T>(key: string, id: string, friend: Friend): { data: T; stale: boolean } | null {
     const entry = loadFriendMap(key)[id]
@@ -96,6 +125,8 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   return {
     // 注册 AI 结果落盘后的回调（App 里接到 backupStore.scheduleBackup，防抖合并）。
     setOnChanged(fn: () => void): void { onChanged = fn },
+    // 把好友级 AI 结果缓冲立即落盘（供 App 退后台/队列排空时调用），合并触发一次 fireChanged。
+    flushNow(): void { flushNow() },
     // —— 大数据：文件后端 ——
     saveFriends(friends: Friend[]): void { fs.write('friends', friends) },
     loadFriends(): Friend[] {
@@ -232,6 +263,9 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
       backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
       backend.remove(K_LAST_BACKUP_AT)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')
+      // 未落盘的好友级缓冲也要清掉，否则残留的缓冲会在下次 read-through/flush 时把已清空的数据带回来。
+      if (flushHandle) { flushHandle.cancel(); flushHandle = null }
+      for (const key of Object.keys(pending)) delete pending[key]
     },
     exportAll(): StorageSnapshot {
       const kv: Record<string, unknown> = {}

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { makeStorage } from '../storage'
 import { makeFsJson, makeKvFsJson } from '../fsStore'
 import type { RawFsBackend } from '../rawStore'
@@ -377,6 +377,25 @@ describe('storage 整表批量读（防卡）', () => {
   })
 })
 
+describe('好友级 AI 结果 debounce 合并写（防卡）', () => {
+  it('saveFriendSentiment 缓冲：debounce 窗口内多次写只触发一次 backend.set；flushNow 立即写', () => {
+    const mem = memBackend()
+    const setSpy = vi.spyOn(mem, 'set')
+    const s = makeStorage(mem)
+    const f = (id: string): Friend => ({ id, msgCount: 30, lastContact: 1 } as unknown as Friend)
+    const before = setSpy.mock.calls.filter((c) => c[0] === 'nianlun:friendSentiment').length
+    s.saveFriendSentiment('a', f('a'), { tone: '暖' } as any)
+    s.saveFriendSentiment('b', f('b'), { tone: '冷' } as any)
+    // flush 前：read-through 能读到；backend 尚未写入这张表
+    expect(s.loadFriendSentiment('a', f('a'))?.data).toEqual({ tone: '暖' })
+    expect(setSpy.mock.calls.filter((c) => c[0] === 'nianlun:friendSentiment').length).toBe(before)
+    s.flushNow()
+    const merged = mem.get('nianlun:friendSentiment') as Record<string, { data: unknown }>
+    expect(merged.a.data).toEqual({ tone: '暖' })
+    expect(merged.b.data).toEqual({ tone: '冷' })
+  })
+})
+
 describe('storage 大数据走文件后端', () => {
   it('saveFriends 写文件后端、不写 KV；loadFriends 从文件读回并补默认字段', () => {
     const kvMap = new Map<string, unknown>()
@@ -478,15 +497,17 @@ describe('AI 结果落盘触发 onChanged（供自动云备份）', () => {
     let calls = 0
     s.setOnChanged(() => { calls++ })
 
-    s.saveFriendSentiment('f1', FRIEND, { tone: '热络' })              // saveFriendEntry
-    s.saveFriendProfile('f1', FRIEND, { identity: '产品' })            // saveFriendEntry
-    s.saveFriendMbti('f1', FRIEND, { code: 'INTJ' } as unknown as MbtiResult) // saveFriendEntry
-    s.saveRelationDeep('f1', FRIEND, { overall: 'x' } as RelationDeep) // saveFriendEntry
+    s.saveFriendSentiment('f1', FRIEND, { tone: '热络' })              // saveFriendEntry（缓冲，不立即触发）
+    s.saveFriendProfile('f1', FRIEND, { identity: '产品' })            // saveFriendEntry（缓冲，不立即触发）
+    s.saveFriendMbti('f1', FRIEND, { code: 'INTJ' } as unknown as MbtiResult) // saveFriendEntry（缓冲，不立即触发）
+    s.saveRelationDeep('f1', FRIEND, { overall: 'x' } as RelationDeep) // saveFriendEntry（缓冲，不立即触发）
+    expect(calls).toBe(0)   // 四个好友级缓冲写合并等待 flush，尚未触发
+    s.flushNow()                                                        // 合并落盘，一次触发
     s.saveReportCopy(REPORT, '文案')                                    // saveReportEntry
     s.saveYearMood(REPORT, '情绪')                                      // saveReportEntry
     s.saveAstroReading({})                                              // 单独
     s.saveStockPicks([])                                                // 单独
-    expect(calls).toBe(8)   // 8 类 AI 结果各触发一次
+    expect(calls).toBe(5)   // 好友级 4 类合并为 1 次 + 报告文案/全年情绪/命理/荐股各 1 次
 
     const before = calls
     s.saveFriends([FRIEND])   // 非 AI（其备份由 data store 的 onSaved 负责），不触发
