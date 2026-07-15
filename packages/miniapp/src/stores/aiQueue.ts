@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Friend } from '@nianlun/core'
+import { useDataStore } from './data'
+import { storage } from '../adapters/storage'
+import { samples } from '../adapters/samples'
+import { aiClient } from '../adapters/aiClient'
+import { makeAiQueueRegistry } from './aiQueueRegistry'
 
 export type FeatureKey = 'role' | 'sentiment' | 'profile' | 'mbti' | 'relationDeep'
 export type TaskState = 'idle' | 'queued' | 'running' | 'done'
@@ -77,6 +82,7 @@ export function createAiQueueStore(deps: AiQueueDeps) {
           .catch(() => { /* 失败：不计入 done，下次开机/手动重试 */ })
           .finally(() => { running.delete(key); bump(); pump() })
       }
+      if (running.size === 0 && order.length === 0) flush()   // 队列排空：把批量结果落盘
     }
 
     function flush(): void { deps.flush?.() }
@@ -85,3 +91,17 @@ export function createAiQueueStore(deps: AiQueueDeps) {
     return { scan, prioritize, stateFor, busy, flush, __setFeaturesForTest }
   })
 }
+
+// —— 生产单例：真实 aiClient/storage/samples/data 组装 —— //
+const registry = makeAiQueueRegistry({
+  ai: aiClient,
+  storage,
+  loadSamples: samples.loadSamplesFor,
+  updateFriendsBatch: (patches) => useDataStore().updateFriendsBatch(patches),
+})
+export const useAiQueueStore = createAiQueueStore({
+  getFriends: () => useDataStore().friends,
+  readDoneSets: registry.readDoneSets,
+  runTask: registry.runTask,
+  flush: registry.flush,
+})
