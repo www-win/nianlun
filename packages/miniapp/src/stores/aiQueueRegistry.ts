@@ -28,9 +28,6 @@ export type RegistryDeps = {
 }
 
 export function makeAiQueueRegistry(deps: RegistryDeps) {
-  // role 批量缓冲：runTask 只暂存，flush 时一次落盘（防③全数组深拷贝频繁触发）。
-  const rolePending: Array<{ id: string; role?: string; rel?: Relation }> = []
-  const roleDoneIds: string[] = []
 
   function readDoneSets(): Record<FeatureKey, Set<string>> {
     return {
@@ -47,8 +44,10 @@ export function makeAiQueueRegistry(deps: RegistryDeps) {
     if (feature === 'role') {
       const sug = await deps.ai.suggestFriend(friend, s)
       if (!(sug.rel || sug.role)) return false
-      rolePending.push({ id: friend.id, rel: sug.rel, role: sug.role })
-      roleDoneIds.push(friend.id)
+      // 立即写入好友对象（role 即好友页/详情页显示的「职务/备注」值）+ 记 analyzedIds，
+      // 而非攒到队列排空才 flush——否则全量自动分析时职务/备注长时间不显示。
+      deps.updateFriendsBatch([{ id: friend.id, rel: sug.rel as Relation | undefined, role: sug.role }])
+      deps.storage.addAnalyzedIds([friend.id])
       return true
     }
     if (feature === 'sentiment') {
@@ -77,9 +76,7 @@ export function makeAiQueueRegistry(deps: RegistryDeps) {
   }
 
   function flush(): void {
-    if (rolePending.length) { deps.updateFriendsBatch([...rolePending]); rolePending.length = 0 }
-    if (roleDoneIds.length) { deps.storage.addAnalyzedIds([...roleDoneIds]); roleDoneIds.length = 0 }
-    deps.storage.flushNow()   // 好友级四表 debounce 缓冲一并落盘
+    deps.storage.flushNow()   // 好友级四表 debounce 缓冲一并落盘（role 已即时写入，无需在此处理）
   }
 
   return { readDoneSets, runTask, flush }

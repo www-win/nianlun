@@ -49,23 +49,20 @@ describe('aiQueueRegistry', () => {
     expect(d.storage.saveFriendSentiment).not.toHaveBeenCalled()
   })
 
-  it('role runTask：暂存 patch、返回 true；flush 时批量写好友+analyzedIds', async () => {
+  it('role runTask：立即写好友+analyzedIds、返回 true（不再等 flush）', async () => {
     const d = fakeDeps()
     const reg = makeAiQueueRegistry(d as any)
     const ok = await reg.runTask('role', F('a'))
     expect(ok).toBe(true)
-    reg.flush()
-    expect(d.rolePatches).toEqual([{ id: 'a', rel: '同事', role: '产品' }])
-    expect(d.analyzed).toContain('a')
-    expect(d.storage.flushNow).toHaveBeenCalled()
+    expect(d.rolePatches).toEqual([{ id: 'a', rel: '同事', role: '产品' }])   // 立即应用，不等 flush
+    expect(d.analyzed).toContain('a')                                        // analyzedIds 立即记
   })
 
-  it('role 空结果（无 rel/role）：不暂存、返回 false', async () => {
+  it('role 空结果（无 rel/role）：不写好友、返回 false', async () => {
     const d = fakeDeps({ ai: { suggestFriend: vi.fn(async () => ({})) } })
     const reg = makeAiQueueRegistry(d as any)
     const ok = await reg.runTask('role', F('a'))
     expect(ok).toBe(false)
-    reg.flush()
     expect(d.rolePatches).toEqual([])
   })
 
