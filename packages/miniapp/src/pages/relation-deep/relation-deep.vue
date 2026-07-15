@@ -27,15 +27,27 @@ function loadCache() {
   if (d) { deep.value = d.data }
 }
 
+const manualGen = ref(false)
 function generate() {
   const f = friend.value
   if (!f) return
+  manualGen.value = true
   queue.prioritize('relationDeep', f.id)   // 插队优先跑
 }
 
 // 本好友深度分析状态一变（含跑完）就重载缓存；用 per-feature state 而非全局 queue.busy，
 // 避免队列积压时别的好友任务挡住本好友完成后的及时刷新。
-watch(() => state.value, () => { loadCache(); nextTick(drawSecurity) })
+// 同时：仅「用户手动点击」发起的分析在失败/空结果（running→idle，非 done）时提示；
+// manualGen 只在 generate() 里置 true，后台自动跑的失败不会触发这里的 toast。
+watch(state, (s, prev) => {
+  loadCache()
+  nextTick(drawSecurity)
+  if (s === 'done') { manualGen.value = false; return }
+  if (manualGen.value && prev === 'running' && s === 'idle') {
+    manualGen.value = false
+    uni.showToast({ title: 'AI 未能生成深度关系分析，请稍后重试', icon: 'none' })
+  }
+})
 
 // 安全感/信任曲线：复用本地已算好的逐月情绪(friend.emotion.monthly) + 现有 moodDualLinePoints，
 // 画「我(暖)/对方(冷)」双线（沿用 friend-detail drawMood 套路）。无逐月情绪数据则不显示图。

@@ -209,10 +209,12 @@ const mbtiState = computed(() => queue.stateFor('mbti', id.value))
 const deepState = computed(() => queue.stateFor('relationDeep', id.value))
 
 const sentiment = ref<{ tone?: string; summary?: string } | null>(null)
-function analyzeSentiment() { queue.prioritize('sentiment', id.value) }
+const manualSent = ref(false)
+function analyzeSentiment() { manualSent.value = true; queue.prioritize('sentiment', id.value) }
 
 const profile = ref<FriendProfile | null>(null)
-function analyzeProfile() { queue.prioritize('profile', id.value) }
+const manualProf = ref(false)
+function analyzeProfile() { manualProf.value = true; queue.prioritize('profile', id.value) }
 
 const mbtiAi = ref<MbtiResult | null>(null)
 const MBTI_SRC_LABEL: Record<string, string> = { manual: '手动', remark: '备注', ai: 'AI', none: '' }
@@ -224,7 +226,8 @@ const mbtiEff = computed(() =>
 )
 const mbtiPickerOptions = [...MBTI_CODES, '清除']
 
-function analyzeMbti() { queue.prioritize('mbti', id.value) }
+const manualMbti = ref(false)
+function analyzeMbti() { manualMbti.value = true; queue.prioritize('mbti', id.value) }
 
 function onMbtiPick(e: { detail: { value: number | string } }) {
   const f = friend.value
@@ -256,6 +259,31 @@ function loadAiCache() {
 // 用 per-feature 状态而非全局 queue.busy —— busy 要整条队列排空才归 false，
 // 队列积压时会导致本好友已完成也迟迟不刷新。
 watch([sentState, profState, mbtiState, deepState], () => loadAiCache())
+
+// 仅「用户手动点击」发起的分析在失败/空结果（running→idle，非 done）时提示；
+// 后台自动分析同样会经历 running→idle 或 running→done，但 manual* 标志只在点击处理里置 true，
+// 因此后台跑的失败不会触发这里的 toast。
+watch(sentState, (s, prev) => {
+  if (s === 'done') { manualSent.value = false; return }
+  if (manualSent.value && prev === 'running' && s === 'idle') {
+    manualSent.value = false
+    uni.showToast({ title: 'AI 未能生成，请稍后重试', icon: 'none' })
+  }
+})
+watch(profState, (s, prev) => {
+  if (s === 'done') { manualProf.value = false; return }
+  if (manualProf.value && prev === 'running' && s === 'idle') {
+    manualProf.value = false
+    uni.showToast({ title: 'AI 未能生成，请稍后重试', icon: 'none' })
+  }
+})
+watch(mbtiState, (s, prev) => {
+  if (s === 'done') { manualMbti.value = false; return }
+  if (manualMbti.value && prev === 'running' && s === 'idle') {
+    manualMbti.value = false
+    uni.showToast({ title: 'AI 未能生成，请稍后重试', icon: 'none' })
+  }
+})
 
 // —— 命理运势 —— //
 const myBazi = ref<BirthInfo | null>(null)
