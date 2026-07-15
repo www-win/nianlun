@@ -44,7 +44,11 @@ onLaunch(async () => {
   }, 0)
 })
 
-onHide(() => { storage.flushNow() })   // App 退后台：把 debounce 缓冲立即落盘，避免丢结果
+onHide(() => {
+  // App 退后台：flush aiQueue（好友级四表 debounce + role 批量暂存一并落盘），
+  // registry.flush() 内部已调 storage.flushNow()，这里无需再单独调一次。
+  useAiQueueStore().flush()
+})
 </script>
 
 <template><slot /></template>

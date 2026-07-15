@@ -69,6 +69,30 @@ describe('aiQueueRegistry', () => {
     expect(d.rolePatches).toEqual([])
   })
 
+  it('profile 空结果：不落盘、返回 false', async () => {
+    const d = fakeDeps({ ai: { analyzeFriendProfile: vi.fn(async () => ({})) } })
+    const reg = makeAiQueueRegistry(d as any)
+    const ok = await reg.runTask('profile', F('a'))
+    expect(ok).toBe(false)
+    expect(d.storage.saveFriendProfile).not.toHaveBeenCalled()
+  })
+
+  it('mbti 空结果（null）：不落盘、返回 false', async () => {
+    const d = fakeDeps({ ai: { analyzeFriendMbti: vi.fn(async () => null) } })
+    const reg = makeAiQueueRegistry(d as any)
+    const ok = await reg.runTask('mbti', F('a'))
+    expect(ok).toBe(false)
+    expect(d.storage.saveFriendMbti).not.toHaveBeenCalled()
+  })
+
+  it('relationDeep 空结果：不落盘、返回 false', async () => {
+    const d = fakeDeps({ ai: { analyzeRelationDeep: vi.fn(async () => ({})) } })
+    const reg = makeAiQueueRegistry(d as any)
+    const ok = await reg.runTask('relationDeep', F('a'))
+    expect(ok).toBe(false)
+    expect(d.storage.saveRelationDeep).not.toHaveBeenCalled()
+  })
+
   it('readDoneSets：把各表 id 汇成集合', () => {
     const d = fakeDeps({ storage: {
       loadAnalyzedIds: () => ['a'],

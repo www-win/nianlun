@@ -1,10 +1,10 @@
-import type { Friend } from '@nianlun/core'
+import type { Friend, Relation } from '@nianlun/core'
 import type { FeatureKey } from './aiQueue'
 
 // 依赖以接口注入，便于测试；生产在 aiQueue.ts 里用真实 aiClient/storage/samples/data 组装。
 export type RegistryDeps = {
   ai: {
-    suggestFriend: (f: Friend, s: string[]) => Promise<{ rel?: string; role?: string }>
+    suggestFriend: (f: Friend, s: string[]) => Promise<{ rel?: Relation; role?: string }>
     analyzeFriendSentiment: (f: Friend, s: string[]) => Promise<{ tone?: string; summary?: string }>
     analyzeFriendProfile: (f: Friend, s: string[]) => Promise<Record<string, unknown>>
     analyzeFriendMbti: (f: Friend, s: string[]) => Promise<unknown | null>
@@ -24,12 +24,12 @@ export type RegistryDeps = {
     flushNow: () => void
   }
   loadSamples: (id: string) => string[]
-  updateFriendsBatch: (patches: Array<{ id: string; role?: string; rel?: any }>) => void
+  updateFriendsBatch: (patches: Array<{ id: string; role?: string; rel?: Relation }>) => void
 }
 
 export function makeAiQueueRegistry(deps: RegistryDeps) {
   // role 批量缓冲：runTask 只暂存，flush 时一次落盘（防③全数组深拷贝频繁触发）。
-  const rolePending: Array<{ id: string; role?: string; rel?: any }> = []
+  const rolePending: Array<{ id: string; role?: string; rel?: Relation }> = []
   const roleDoneIds: string[] = []
 
   function readDoneSets(): Record<FeatureKey, Set<string>> {

@@ -63,6 +63,22 @@ describe('aiQueue 引擎', () => {
     gate.resolve(true)
   })
 
+  it('scan 合并而非覆盖内存 done：已完成但未 flush 落盘的 role 不会被磁盘空集覆盖而重新入队', async () => {
+    const friends = [F('a')]
+    const runTask = vi.fn(async () => true)
+    // 模拟磁盘 done 集始终为空（尚未 flush 落盘）
+    const useStore = createAiQueueStore({ getFriends: () => friends, readDoneSets: emptyDone, runTask, concurrency: 2 })
+    const s = useStore(); s.__setFeaturesForTest(['role'])
+    s.scan()
+    await vi.waitFor(() => expect(s.stateFor('role', 'a')).toBe('done'))
+    expect(runTask).toHaveBeenCalledTimes(1)
+    // 再次 scan：readDoneSets 仍返回空集，但内存里 'a' 已完成，不应被重新入队再跑一次
+    s.scan()
+    await Promise.resolve()
+    expect(s.stateFor('role', 'a')).toBe('done')
+    expect(runTask).toHaveBeenCalledTimes(1)   // 未被重复调用
+  })
+
   it('prioritize 把队列中的任务移到队首', async () => {
     const friends = [F('a'), F('b'), F('c')]
     const order: string[] = []

@@ -49,7 +49,10 @@ export function createAiQueueStore(deps: AiQueueDeps) {
     function scan(): void {
       const friends = deps.getFriends()
       if (friends.length === 0) return
-      done.value = deps.readDoneSets()        // 5 次整表读，构建内存 done 集
+      const fresh = deps.readDoneSets()       // 5 次整表读，构建磁盘 done 集
+      // 并入内存里已有的 done（完成但尚未 flush 落盘的，不能被磁盘集覆盖丢失）
+      for (const f of FRIEND_FEATURES) for (const id of done.value[f]) fresh[f].add(id)
+      done.value = fresh
       for (const f of friends) {
         for (const feature of features) {
           const key = keyOf(feature, f.id)
