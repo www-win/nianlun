@@ -346,6 +346,21 @@ const bShichenIdx = ref(0)
 // 仅在好友尚无生辰时、从昵称/备注自动识别成功后提示；已有生辰/未识别到时为空，不显示提示条
 const birthHint = ref('')
 
+// 从好友昵称/备注识别生日并预填表单；识别不到则清空。仅在好友无生辰时使用。
+function recognizeBirthFromProfile() {
+  const f = friend.value
+  const guess = f ? (parseBirthFromText(f.name) ?? parseBirthFromText(f.alias)) : null
+  if (guess) {
+    bDateStr.value = toDateStr(guess.year, guess.month, guess.day)
+    bShichenIdx.value = 0
+    birthHint.value = `已根据昵称识别生日 ${bDateStr.value}，请确认`
+  } else {
+    bDateStr.value = ''
+    bShichenIdx.value = 0
+    birthHint.value = ''
+  }
+}
+
 function openBirthForm() {
   const b = friendBirth.value
   if (b) {
@@ -354,18 +369,18 @@ function openBirthForm() {
     bShichenIdx.value = hourToShichenIndex(b.hour)
     birthHint.value = ''
   } else {
-    bDateStr.value = ''
-    bShichenIdx.value = 0
-    birthHint.value = ''
-    const f = friend.value
-    const guess = f ? (parseBirthFromText(f.name) ?? parseBirthFromText(f.alias)) : null
-    if (guess) {
-      bDateStr.value = toDateStr(guess.year, guess.month, guess.day)
-      birthHint.value = guess ? `已根据昵称识别生日 ${bDateStr.value}，请确认` : ''
-    }
+    recognizeBirthFromProfile()
   }
   showBirthForm.value = true
 }
+
+// 好友无生辰时补录表单靠 v-else-if 自动展示、不经过 openBirthForm；
+// 故在好友就绪且无生辰、表单尚未填过时，自动从昵称/备注识别预填一次。
+watch([friend, friendBirth], () => {
+  if (friend.value && !friendBirth.value && !showBirthForm.value && !bDateStr.value) {
+    recognizeBirthFromProfile()
+  }
+}, { immediate: true })
 function onBDateChange(e: { detail: { value: string } }) {
   bDateStr.value = e.detail.value
 }
@@ -681,11 +696,7 @@ async function generateAstro() {
             </picker>
           </view>
           <view class="form-acts">
-            <text class="act act-ai" @click="extractBirthFromChat">{{ extracting ? '抽取中…' : 'AI 从聊天抽取' }}</text>
             <text class="act" @click="saveBirth">保存生辰</text>
-          </view>
-          <view v-if="extracting" class="ai-progress">
-            <ProgressBar indeterminate label="AI 从聊天抽取生辰中…" />
           </view>
         </view>
 

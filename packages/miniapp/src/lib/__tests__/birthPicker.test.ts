@@ -11,7 +11,7 @@ import {
 describe('SHICHEN_LABELS', () => {
   it('共 13 项，首项为不确定', () => {
     expect(SHICHEN_LABELS).toHaveLength(13)
-    expect(SHICHEN_LABELS[0]).toBe('不确定')
+    expect(SHICHEN_LABELS[0]).toBe('请手动输入')
     expect(SHICHEN_LABELS[1]).toContain('子时')
     expect(SHICHEN_LABELS[12]).toContain('亥时')
   })
