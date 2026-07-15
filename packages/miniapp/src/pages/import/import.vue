@@ -123,9 +123,6 @@ async function onImport() {
       <view v-else-if="imp.status === 'error'" class="status err">
         导入失败：{{ imp.error }}
       </view>
-      <view v-if="imp.analyzing" class="status">
-        <text class="status-t muted">正在分析关系/职务… {{ imp.analyzing.done }}/{{ imp.analyzing.total }}</text>
-      </view>
 
       <view v-if="imp.status === 'done' && imp.warnings.length" class="warns">
         <view v-for="(w, i) in imp.warnings.slice(0, 8)" :key="i" class="warn-item">· {{ w }}</view>
