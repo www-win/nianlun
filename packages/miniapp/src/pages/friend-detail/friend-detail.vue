@@ -252,8 +252,10 @@ function loadAiCache() {
   if (mb) mbtiAi.value = mb.data
 }
 
-// 队列忙碌状态变化（含排空）时重读缓存，让刚落盘的结果显示出来。
-watch(() => queue.busy, () => loadAiCache())
+// 本好友任一功能状态变化（如 running → done）时重读缓存，让刚落盘的结果显示出来；
+// 用 per-feature 状态而非全局 queue.busy —— busy 要整条队列排空才归 false，
+// 队列积压时会导致本好友已完成也迟迟不刷新。
+watch([sentState, profState, mbtiState, deepState], () => loadAiCache())
 
 // —— 命理运势 —— //
 const myBazi = ref<BirthInfo | null>(null)
