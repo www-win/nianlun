@@ -403,6 +403,26 @@ describe('好友级 AI 结果 debounce 合并写（防卡）', () => {
     expect(s.loadFriendSentimentMap()).toEqual({ a: { tone: '暖' }, b: { tone: '冷' } })
   })
 
+  it('mergeAiResults：本地缺的从云端补、本地已有的优先；兼容新文件格式与旧 KV 格式；analyzedIds 取并集', () => {
+    const mem = memBackend()
+    const s = makeStorage(mem)
+    const f = (id: string): Friend => ({ id, msgCount: 30, lastContact: 1 } as unknown as Friend)
+    s.saveFriendSentiment('a', f('a'), { tone: '本地A' } as any); s.flushNow()   // 本地已有 a（新分析）
+    const snap = {
+      kv: {
+        'nianlun:analyzedIds': ['x'],
+        'nianlun:friendProfile': { c: { data: { identity: '云C' }, fp: '1:1' } },   // 旧 KV 格式
+      },
+      files: {   // 新文件格式（raw 字符串）
+        friendSentiment: JSON.stringify({ a: { data: { tone: '云A' }, fp: '1:1' }, b: { data: { tone: '云B' }, fp: '1:1' } }),
+      },
+    }
+    s.mergeAiResults(snap)
+    expect(s.loadFriendSentimentMap()).toEqual({ a: { tone: '本地A' }, b: { tone: '云B' } })   // a 保留本地、b 从云补
+    expect(s.loadFriendProfileMap()).toEqual({ c: { identity: '云C' } })                       // 旧 KV 格式也合并进来
+    expect(s.loadAnalyzedIds()).toEqual(['x'])                                                 // analyzedIds 并集
+  })
+
   it('migrateAiResultsToFs：把旧 KV 表搬到文件系统、删除 KV 键、文件已有的优先保留', () => {
     const mem = memBackend()
     const s = makeStorage(mem)

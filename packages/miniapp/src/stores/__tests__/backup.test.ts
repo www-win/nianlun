@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createBackupStore } from '../backup'
 
 function fakeCloud() {
-  return { backup: vi.fn(async () => ({ bytes: 10 })), restore: vi.fn(async () => true) }
+  return { backup: vi.fn(async () => ({ bytes: 10 })), restore: vi.fn(async () => true), restoreMerge: vi.fn(async () => true) }
 }
 function fakeStorage() {
   let ts: number | null = null
@@ -72,5 +72,20 @@ describe('backup store', () => {
     expect(await s.restoreNow()).toBe(false)
     expect(s.status).toBe('error')
     expect(s.error).toBeTruthy()
+  })
+
+  it('restoreMergeNow 调 cloudBackup.restoreMerge 并返回其结果', async () => {
+    const okCloud = fakeCloud()
+    const useOk = createBackupStore({ cloudBackup: okCloud as any, storage: fakeStorage(), schedule: (fn) => fn() })
+    expect(await useOk().restoreMergeNow()).toBe(true)
+    expect(okCloud.restoreMerge).toHaveBeenCalledTimes(1)
+  })
+
+  it('restoreMergeNow 抛错时返回 false 且 status 置 error', async () => {
+    const errCloud = { backup: vi.fn(), restore: vi.fn(), restoreMerge: vi.fn(async () => { throw new Error('网络错误') }) }
+    const useErr = createBackupStore({ cloudBackup: errCloud as any, storage: fakeStorage(), schedule: (fn) => fn() })
+    const e = useErr()
+    expect(await e.restoreMergeNow()).toBe(false)
+    expect(e.status).toBe('error')
   })
 })

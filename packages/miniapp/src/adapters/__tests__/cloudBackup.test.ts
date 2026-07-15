@@ -5,10 +5,13 @@ import type { StorageSnapshot } from '../storage'
 
 function memStorage(initial: StorageSnapshot) {
   let snap = initial
+  let merged: StorageSnapshot | null = null
   return {
     exportAll: () => snap,
     importAll: (s: StorageSnapshot) => { snap = s },
+    mergeAiResults: (s: StorageSnapshot) => { merged = s },
     _get: () => snap,
+    _merged: () => merged,
   }
 }
 /** 内存云：按 cloudPath 存字节。 */
@@ -46,6 +49,25 @@ describe('cloudBackup 单包', () => {
     const dst = memStorage({ kv: {}, files: {} })
     const cb = makeCloudBackup(deps(dst, memCloud()))
     expect(await cb.restore()).toBe(false)
+  })
+
+  it('restoreMerge：取回云端快照后调 mergeAiResults（不覆盖，交给 storage 合并）', async () => {
+    const src = memStorage({ kv: { 'nianlun:analyzedIds': ['a'] }, files: { friendSentiment: '{"a":{"data":{"tone":"暖"},"fp":"1:1"}}' } })
+    const cloud = memCloud()
+    await makeCloudBackup(deps(src, cloud)).backup()
+
+    const dst = memStorage({ kv: {}, files: {} })
+    const cb = makeCloudBackup(deps(dst, cloud))
+    const ok = await cb.restoreMerge()
+    expect(ok).toBe(true)
+    expect(dst._merged()).toEqual({ kv: { 'nianlun:analyzedIds': ['a'] }, files: { friendSentiment: '{"a":{"data":{"tone":"暖"},"fp":"1:1"}}' } })
+  })
+
+  it('restoreMerge：云端无备份返回 false、不调 mergeAiResults', async () => {
+    const dst = memStorage({ kv: {}, files: {} })
+    const cb = makeCloudBackup(deps(dst, memCloud()))
+    expect(await cb.restoreMerge()).toBe(false)
+    expect(dst._merged()).toBeNull()
   })
 
   it('上传的确实是 gzip 压缩后的字节（能被 gunzip 还原成含 version 的信封）', async () => {

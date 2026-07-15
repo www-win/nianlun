@@ -10,7 +10,7 @@ export interface BackupEnvelope {
 }
 
 export interface CloudBackupDeps {
-  storage: { exportAll(): StorageSnapshot; importAll(s: StorageSnapshot): void }
+  storage: { exportAll(): StorageSnapshot; importAll(s: StorageSnapshot): void; mergeAiResults(s: StorageSnapshot): void }
   /** 上传字节到逻辑路径（wx 实现映射到按用户隔离的云存储路径）。 */
   upload(cloudPath: string, bytes: Uint8Array): Promise<void>
   /** 下载逻辑路径的字节；不存在返回 null。 */
@@ -67,18 +67,18 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
     return { bytes: total }
   }
 
-  async function restoreSingle(): Promise<boolean> {
+  // 取回云端快照（不写本地），供 restore（覆盖）与 restoreMerge（合并）复用。云端无备份则返回 null。
+  async function fetchSingle(): Promise<StorageSnapshot | null> {
     const single = await deps.download(SINGLE_PATH)
-    if (!single) return false
+    if (!single) return null
     const env = ungz(single) as BackupEnvelope
     if (env.version !== 1) throw new Error(`不支持的备份版本：${env.version}`)
-    deps.storage.importAll({ kv: env.kv, files: env.files })
-    return true
+    return { kv: env.kv, files: env.files }
   }
 
-  async function restoreChunked(): Promise<boolean> {
+  async function fetchChunked(): Promise<StorageSnapshot | null> {
     const mBytes = await deps.download(MANIFEST_PATH)
-    if (!mBytes) return false
+    if (!mBytes) return null
     const manifest = ungz(mBytes) as Manifest
     if (manifest.version !== 1) throw new Error(`不支持的备份版本：${manifest.version}`)
     const kvPart = await deps.download('parts/kv.json.gz')
@@ -88,21 +88,34 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
       const b = await deps.download(`parts/file-${name}.json.gz`)
       if (b) files[name] = ungz(b) as string
     }
-    deps.storage.importAll({ kv, files })
+    return { kv, files }
+  }
+
+  async function fetchSnapshot(): Promise<StorageSnapshot | null> {
+    const mode = deps.resolveMode ? await deps.resolveMode() : null
+    if (mode === 'single') return fetchSingle()
+    if (mode === 'chunked') return fetchChunked()
+    // mode === null：无 resolveMode（现有单测）或云端无模式记录，走旧的兼容逻辑——先试单包再试 manifest
+    return (await fetchSingle()) ?? (await fetchChunked())
+  }
+
+  // 覆盖恢复：本地为空时用（换机/被清空）。
+  async function restore(): Promise<boolean> {
+    const snap = await fetchSnapshot()
+    if (!snap) return false
+    deps.storage.importAll(snap)
     return true
   }
 
-  async function restore(): Promise<boolean> {
-    const mode = deps.resolveMode ? await deps.resolveMode() : null
-    if (mode === 'single') return restoreSingle()
-    if (mode === 'chunked') return restoreChunked()
-    // mode === null：无 resolveMode（现有单测）或云端无模式记录，走旧的兼容逻辑——先试单包再试 manifest
-    const viaSingle = await restoreSingle()
-    if (viaSingle) return true
-    return restoreChunked()
+  // 合并恢复：本地有数据时用，只补齐本地缺的 AI 结果（本地优先），避免重分析、不覆盖本地新数据。
+  async function restoreMerge(): Promise<boolean> {
+    const snap = await fetchSnapshot()
+    if (!snap) return false
+    deps.storage.mergeAiResults(snap)
+    return true
   }
 
-  return { backup, restore }
+  return { backup, restore, restoreMerge }
 }
 
 // —— 真机 wx.cloud 接线（薄封装，真机验证；wx 惰性访问）——
@@ -129,7 +142,7 @@ function tempFile(name: string): string { return `${wx.env.USER_DATA_PATH}/__bk_
 const CLOUD_FILE_PREFIX = 'cloud://cloud1-d4gzww8dp909b47cb.636c-cloud1-d4gzww8dp909b47cb-1448757478/'
 
 const wxDeps: CloudBackupDeps = {
-  storage: { exportAll: () => storage.exportAll(), importAll: (s) => storage.importAll(s) },
+  storage: { exportAll: () => storage.exportAll(), importAll: (s) => storage.importAll(s), mergeAiResults: (s) => storage.mergeAiResults(s) },
   gzip: (d) => gzipSync(d, { level: 4 }),
   gunzip: (d) => gunzipSync(d),
   now: () => Date.now(),

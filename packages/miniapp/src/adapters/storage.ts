@@ -302,6 +302,35 @@ export function makeStorage(
       for (const [k, v] of Object.entries(snap.kv ?? {})) backend.set(k, v)
       for (const [name, raw] of Object.entries(snap.files ?? {})) fs.writeRaw(name, raw)
     },
+    /**
+     * 从云端快照「合并补齐」四张 AI 结果表 + analyzedIds：只填本地缺的，**本地已有的优先**
+     * （不被旧云端覆盖）。用于开机时把「之前分析过、本地丢了」的结果找回，避免重分析。
+     * 兼容两种云端格式：新版存 files[dataset]（raw 字符串），旧版存 kv[nianlun:friendXxx]（对象）。
+     */
+    mergeAiResults(snap: StorageSnapshot): void {
+      const cloudMapOf = (kvKey: string, dataset: string): Record<string, { data: unknown; fp: string }> => {
+        const rawFile = snap.files?.[dataset]
+        if (typeof rawFile === 'string') {
+          try { const o = JSON.parse(rawFile); if (o && typeof o === 'object') return o } catch { /* 坏数据忽略 */ }
+        }
+        const kvObj = snap.kv?.[kvKey]
+        return kvObj && typeof kvObj === 'object' ? (kvObj as Record<string, { data: unknown; fp: string }>) : {}
+      }
+      for (const [kvKey, dataset] of Object.entries(AI_RESULT_FILES)) {
+        const cloud = cloudMapOf(kvKey, dataset)
+        if (Object.keys(cloud).length === 0) continue
+        const local = loadFriendMapStored(kvKey)   // 本地文件现状
+        fs.write(dataset, { ...cloud, ...local })   // 本地优先：只补云端里本地没有的 id
+      }
+      // analyzedIds 取并集
+      const cloudIds = Array.isArray(snap.kv?.[K_ANALYZED]) ? (snap.kv[K_ANALYZED] as string[]) : []
+      if (cloudIds.length) {
+        const raw = backend.get(K_ANALYZED)
+        const localIds = Array.isArray(raw) ? (raw as string[]) : []
+        backend.set(K_ANALYZED, [...new Set([...cloudIds, ...localIds])])
+      }
+      fireChanged()
+    },
     /** 删除旧版本存 KV 单键的大数据（现已迁文件），回收配额。真机启动调用一次。 */
     purgeLegacyBigKeys(): void { for (const k of LEGACY_BIG_KEYS) backend.remove(k) },
     /**

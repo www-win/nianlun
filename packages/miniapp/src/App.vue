@@ -36,12 +36,20 @@ onLaunch(async () => {
     // AI 分析结果落盘（情绪/画像/MBTI/深度关系/命理/年度文案/全年情绪/荐股）也排一次防抖备份；
     // 一连串分析会被 scheduleBackup 合并成一次上传。
     storage.setOnChanged(() => useBackupStore().scheduleBackup())
-    if (data.friends.length === 0) {
-      useBackupStore().restoreNow()
-        .then((ok) => (ok ? data.hydrate().then(() => useAiQueueStore().scan()) : undefined))
-        .catch(() => { /* 无网/云端无备份/未部署：静默，不打断使用 */ })
-    }
-    useAiQueueStore().scan()   // hydrate 完成后：把未分析的好友级功能入队后台跑
+    // 先跟云端同步、再扫描入队：避免把云端「之前分析过」的结果又重排一遍浪费调用。
+    void (async () => {
+      try {
+        if (data.friends.length === 0) {
+          // 本地为空（换机/被清空）：整包覆盖恢复 → 重新 hydrate → 把恢复进来的旧 KV 格式 AI 结果搬到文件
+          const ok = await useBackupStore().restoreNow()
+          if (ok) { await data.hydrate(); storage.migrateAiResultsToFs() }
+        } else {
+          // 本地有好友、但可能缺 AI 结果（曾撞 1MB 写失败等）：从云端合并补齐（本地优先，不覆盖新数据）
+          await useBackupStore().restoreMergeNow()
+        }
+      } catch { /* 无网/云端无备份/未部署：静默，不阻塞后台分析 */ }
+      useAiQueueStore().scan()   // 云端同步之后再入队：已恢复的跳过、不重分析
+    })()
   }, 0)
 })
 

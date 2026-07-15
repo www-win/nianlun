@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-type CloudBackup = { backup(): Promise<{ bytes: number }>; restore(): Promise<boolean> }
+type CloudBackup = { backup(): Promise<{ bytes: number }>; restore(): Promise<boolean>; restoreMerge(): Promise<boolean> }
 type LastAtStore = { saveLastBackupAt(t: number): void; loadLastBackupAt(): number | null }
 type ScheduleFn = (fn: () => void) => void
 
@@ -55,7 +55,21 @@ export function createBackupStore(deps: BackupDeps) {
       }
     }
 
-    return { status, lastBackupAt, error, scheduleBackup, backupNow, restoreNow }
+    // 合并恢复：本地有数据、但可能缺 AI 结果时用；只补齐、不覆盖本地。失败静默返回 false。
+    async function restoreMergeNow(): Promise<boolean> {
+      if (status.value === 'backing' || status.value === 'restoring') return false
+      status.value = 'restoring'; error.value = ''
+      try {
+        const ok = await deps.cloudBackup.restoreMerge()
+        status.value = 'idle'
+        return ok
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : String(e); status.value = 'error'
+        return false
+      }
+    }
+
+    return { status, lastBackupAt, error, scheduleBackup, backupNow, restoreNow, restoreMergeNow }
   })
 }
 
