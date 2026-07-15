@@ -358,10 +358,10 @@ function openBirthForm() {
     bShichenIdx.value = 0
     birthHint.value = ''
     const f = friend.value
-    const guess = f ? parseBirthFromText(`${f.alias || ''} ${f.name || ''} ${f.role || ''}`) : null
+    const guess = f ? (parseBirthFromText(f.name) ?? parseBirthFromText(f.alias)) : null
     if (guess) {
       bDateStr.value = toDateStr(guess.year, guess.month, guess.day)
-      birthHint.value = '已从昵称/备注识别生日，请确认后保存'
+      birthHint.value = guess ? `已根据昵称识别生日 ${bDateStr.value}，请确认` : ''
     }
   }
   showBirthForm.value = true
