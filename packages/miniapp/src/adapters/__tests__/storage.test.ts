@@ -385,21 +385,35 @@ describe('storage 整表批量读（防卡）', () => {
 })
 
 describe('好友级 AI 结果 debounce 合并写（防卡）', () => {
-  it('saveFriendSentiment 缓冲：debounce 窗口内多次写只触发一次 backend.set；flushNow 立即写', () => {
+  it('saveFriendSentiment 缓冲：debounce 窗口内多次写只落盘一次；flushNow 立即写（已迁文件系统）', () => {
     const mem = memBackend()
     const setSpy = vi.spyOn(mem, 'set')
     const s = makeStorage(mem)
     const f = (id: string): Friend => ({ id, msgCount: 30, lastContact: 1 } as unknown as Friend)
-    const before = setSpy.mock.calls.filter((c) => c[0] === 'nianlun:friendSentiment').length
+    const FS_KEY = 'nianlun:fsjson:friendSentiment'   // 四表已迁文件系统；测试的 fs 后端存于此 KV 键
+    const before = setSpy.mock.calls.filter((c) => c[0] === FS_KEY).length
     s.saveFriendSentiment('a', f('a'), { tone: '暖' } as any)
     s.saveFriendSentiment('b', f('b'), { tone: '冷' } as any)
-    // flush 前：read-through 能读到；backend 尚未写入这张表
+    // flush 前：read-through 能读到；文件尚未写入
     expect(s.loadFriendSentiment('a', f('a'))?.data).toEqual({ tone: '暖' })
-    expect(setSpy.mock.calls.filter((c) => c[0] === 'nianlun:friendSentiment').length).toBe(before)
+    expect(setSpy.mock.calls.filter((c) => c[0] === FS_KEY).length).toBe(before)
     s.flushNow()
-    const merged = mem.get('nianlun:friendSentiment') as Record<string, { data: unknown }>
-    expect(merged.a.data).toEqual({ tone: '暖' })
-    expect(merged.b.data).toEqual({ tone: '冷' })
+    // flush 后：两条合并、只写一次
+    expect(setSpy.mock.calls.filter((c) => c[0] === FS_KEY).length).toBe(before + 1)
+    expect(s.loadFriendSentimentMap()).toEqual({ a: { tone: '暖' }, b: { tone: '冷' } })
+  })
+
+  it('migrateAiResultsToFs：把旧 KV 表搬到文件系统、删除 KV 键、文件已有的优先保留', () => {
+    const mem = memBackend()
+    const s = makeStorage(mem)
+    // 预置旧格式：直接写 KV 键（模拟旧版本落盘）
+    mem.set('nianlun:friendSentiment', { a: { data: { tone: '暖' }, fp: '1:1' } })
+    mem.set('nianlun:friendMbti', { b: { data: { code: 'INTJ' }, fp: '1:1' } })
+    s.migrateAiResultsToFs()
+    expect(mem.get('nianlun:friendSentiment')).toBeUndefined()   // KV 键已删
+    expect(mem.get('nianlun:friendMbti')).toBeUndefined()
+    expect(s.loadFriendSentimentMap()).toEqual({ a: { tone: '暖' } })   // 从文件读回
+    expect(s.loadFriendMbtiMap()).toEqual({ b: { code: 'INTJ' } })
   })
 })
 

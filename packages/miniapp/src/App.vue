@@ -11,6 +11,7 @@ onLaunch(async () => {
   // ① Storage 原文残留键(nianlun:raw:*)——真机无 Console 手动清；② 文件系统原文目录(nianlun_raw)；③ 解压临时目录。
   storage.purgeLegacyRaw()
   storage.purgeLegacyBigKeys()   // ← 新增：清掉旧版存 KV 的大数据(已迁文件系统)，回收配额
+  storage.migrateAiResultsToFs() // 四张 AI 结果表从 KV 搬到文件系统(去 1MB 限制)；能搬多少搬多少，缺的靠云端合并恢复补
   // @ts-ignore wx 由微信小程序运行时提供
   if (typeof wx !== 'undefined' && wx.getFileSystemManager) {
     rawStore.clear()

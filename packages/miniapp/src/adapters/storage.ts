@@ -21,8 +21,20 @@ const K_LAST_BACKUP_AT = 'nianlun:lastBackupAt'
 // 旧版本把大数据存 Storage 单键用的键（现已迁至文件系统）；启动时清理这些残留以回收配额。
 const LEGACY_BIG_KEYS = ['nianlun:friends', 'nianlun:samples', 'nianlun:recentInsights', 'nianlun:recentSamples', 'nianlun:stocks']
 
+// 四张好友级 AI 结果表迁至文件系统（无 KV 单键 1MB 限制）：KV 键 → 文件数据集名。
+// 全量自动分析后这些表可能很大，存 KV 会撞 1MB 上限写失败→结果丢→重分析；文件无此限。
+const AI_RESULT_FILES: Record<string, string> = {
+  [K_FRIEND_SENTIMENT]: 'friendSentiment',
+  [K_FRIEND_PROFILE]: 'friendProfile',
+  [K_FRIEND_MBTI]: 'friendMbti',
+  [K_FRIEND_RELATION_DEEP]: 'friendRelationDeep',
+}
+
 /** 进备份的「大数据文件」数据集清单；新增文件数据集须在此登记。 */
-export const BACKUP_FILE_DATASETS = ['friends', 'samples', 'recentInsights', 'recentSamples', 'stocks'] as const
+export const BACKUP_FILE_DATASETS = [
+  'friends', 'samples', 'recentInsights', 'recentSamples', 'stocks',
+  'friendSentiment', 'friendProfile', 'friendMbti', 'friendRelationDeep',
+] as const
 export interface StorageSnapshot { kv: Record<string, unknown>; files: Record<string, string> }
 
 const LEGACY_KV_PREFIXES = ['nianlun:raw:', 'nianlun:fsjson:']
@@ -84,15 +96,15 @@ export function makeStorage(
     if (keys.length === 0) return
     for (const key of keys) {
       const merged = { ...loadFriendMapStored(key), ...pending[key] }
-      backend.set(key, merged)
+      fs.write(AI_RESULT_FILES[key], merged)   // 写文件系统（无 1MB 单键限制），不再写 KV
       delete pending[key]
     }
     if (flushHandle) { flushHandle.cancel(); flushHandle = null }
     fireChanged()   // 合并后的一次落盘 → 排一次防抖备份
   }
-  // 已存部分（不含缓冲），供 flushNow 合并用，避免与 read-through 版本互相递归。
+  // 已存部分（不含缓冲），供 flushNow 合并用，避免与 read-through 版本互相递归。从文件系统读。
   function loadFriendMapStored(key: string): Record<string, { data: unknown; fp: string }> {
-    const raw = backend.get(key)
+    const raw = fs.read(AI_RESULT_FILES[key])
     return raw && typeof raw === 'object' ? (raw as Record<string, { data: unknown; fp: string }>) : {}
   }
   // 好友级：键存 { [id]: { data, fp } }，按当前 friend 现算 fp 比对新鲜度。read-through：叠加缓冲。
@@ -269,6 +281,8 @@ export function makeStorage(
       backend.remove(K_REPORT_COPY); backend.remove(K_YEAR_MOOD)
       backend.remove(K_LAST_BACKUP_AT)
       fs.remove('friends'); fs.remove('samples'); fs.remove('recentInsights'); fs.remove('recentSamples'); fs.remove('stocks')
+      // 四张 AI 结果表现存文件系统，一并清除。
+      for (const dataset of Object.values(AI_RESULT_FILES)) fs.remove(dataset)
       // 未落盘的好友级缓冲也要清掉，否则残留的缓冲会在下次 read-through/flush 时把已清空的数据带回来。
       if (flushHandle) { flushHandle.cancel(); flushHandle = null }
       for (const key of Object.keys(pending)) delete pending[key]
@@ -290,6 +304,21 @@ export function makeStorage(
     },
     /** 删除旧版本存 KV 单键的大数据（现已迁文件），回收配额。真机启动调用一次。 */
     purgeLegacyBigKeys(): void { for (const k of LEGACY_BIG_KEYS) backend.remove(k) },
+    /**
+     * 一次性把四张 AI 结果表从旧的 KV 单键搬到文件系统（去掉 1MB 限制）。真机启动调用一次。
+     * 文件已有数据的优先保留（新数据不被旧 KV 覆盖）；搬完删掉 KV 键回收配额。
+     * 注意：撞过 1MB 的大表当初可能压根没写进 KV，这里能搬多少搬多少，缺的靠云端合并恢复补齐。
+     */
+    migrateAiResultsToFs(): void {
+      for (const [kvKey, dataset] of Object.entries(AI_RESULT_FILES)) {
+        const kvData = backend.get(kvKey)
+        if (!kvData || typeof kvData !== 'object' || Object.keys(kvData).length === 0) continue
+        const existing = fs.read(dataset)
+        const existingMap = existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {}
+        fs.write(dataset, { ...(kvData as Record<string, unknown>), ...existingMap })  // 文件已有的优先
+        backend.remove(kvKey)
+      }
+    },
     /**
      * 清掉旧版本（原文存 Storage）遗留的 nianlun:raw:* / nianlun:rawIndex 键，回收配额。
      * 原文已迁至文件系统，这些是死数据；真机无 Console 手动清，故 App 启动时自动调用。
