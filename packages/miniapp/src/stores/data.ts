@@ -57,10 +57,22 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
       // eslint-disable-next-line no-console
       console.log(`[perf] updateFriend n=${friends.value.length} clone=${_t1 - _t0}ms save=${_t2 - _t1}ms fireSaved=${_t3 - _t2}ms`)
     }
+    function updateFriendsBatch(patches: Array<{ id: string; role?: string; rel?: Relation }>): void {
+      let changed = false
+      for (const p of patches) {
+        const f = friends.value.find((x) => x.id === p.id)
+        if (!f) continue
+        if (p.role !== undefined) { f.role = p.role; f.userEdited.role = p.role; changed = true }
+        if (p.rel !== undefined) { f.rel = p.rel; f.userEdited.rel = p.rel; changed = true }
+      }
+      if (!changed) return
+      storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))   // 整批只深拷贝+写一次
+      fireSaved()
+    }
     async function clear() {
       friends.value = []; report.value = null; storage.clearAll(); rawStore.clear()
     }
-    return { friends, report, hasData, hydrate, setData, updateFriend, clear, setOnSaved }
+    return { friends, report, hasData, hydrate, setData, updateFriend, updateFriendsBatch, clear, setOnSaved }
   })
 }
 

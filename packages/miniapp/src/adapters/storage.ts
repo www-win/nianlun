@@ -172,6 +172,12 @@ export function makeStorage(
       const raw = backend.get(K_ANALYZED)
       return Array.isArray(raw) ? (raw as string[]) : []
     },
+    // 把多个 id 并入已存的 analyzedIds（去重）后一次写；自读 backend，不依赖 this。
+    addAnalyzedIds(ids: string[]): void {
+      const raw = backend.get(K_ANALYZED)
+      const base = Array.isArray(raw) ? (raw as string[]) : []
+      backend.set(K_ANALYZED, [...new Set([...base, ...ids])])
+    },
     saveMyBazi(b: BirthInfo): void { backend.set(K_MY_BAZI, b) },
     loadMyBazi(): BirthInfo | null {
       const raw = backend.get(K_MY_BAZI)

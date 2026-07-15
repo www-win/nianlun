@@ -81,6 +81,13 @@ describe('storage 适配器', () => {
     expect(s.loadAnalyzedIds()).toEqual([])
   })
 
+  it('addAnalyzedIds 并入去重后一次写', () => {
+    const s = makeStorage(memBackend())
+    s.saveAnalyzedIds(['a'])
+    s.addAnalyzedIds(['b', 'a', 'c'])
+    expect(s.loadAnalyzedIds().sort()).toEqual(['a', 'b', 'c'])
+  })
+
   it('purgeLegacyRaw 用 keys 精确清 raw 残留键、保留其它数据', () => {
     const m = new Map<string, unknown>([
       ['nianlun:rawIndex', { count: 2 }],

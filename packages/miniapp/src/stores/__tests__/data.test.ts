@@ -26,6 +26,11 @@ function fakeRawStore() {
 const FRIEND = { id: 'f1', name: '张三', rel: '其他', role: '', alias: '', userEdited: {}, msgCount: 1, monthly: [], sentRatio: 0, peakPeriod: '', maxStreak: 0, firstContact: 0, lastContact: 0 } as unknown as Friend
 const REPORT = { year: 2025 } as unknown as ReportData
 
+// 批量测试用：每个 id 一个独立 friend 对象（独立 userEdited，避免多人共用同一引用互相污染）。
+function mkFriend(id: string): Friend {
+  return { ...FRIEND, id, userEdited: {} } as Friend
+}
+
 describe('data store', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -130,5 +135,18 @@ describe('data store', () => {
     d.setOnSaved(() => { throw new Error('backup failed') })
     await expect(d.setData([FRIEND], REPORT)).resolves.toBeUndefined()
     expect(s.loadFriends()[0].id).toBe('f1')
+  })
+
+  it('updateFriendsBatch 一次改多人 role/rel、写 userEdited，只保存一次', () => {
+    const saveSpy = vi.fn()
+    const storage = { ...memStorage(), saveFriends: saveSpy }
+    const useData = createDataStore(storage, fakeRawStore())
+    const d = useData()
+    d.friends = [mkFriend('a'), mkFriend('b'), mkFriend('c')] as any
+    d.updateFriendsBatch([{ id: 'a', role: '同事' }, { id: 'b', rel: '挚友' }])
+    expect(d.friends.find((f: any) => f.id === 'a').role).toBe('同事')
+    expect(d.friends.find((f: any) => f.id === 'a').userEdited.role).toBe('同事')
+    expect(d.friends.find((f: any) => f.id === 'b').rel).toBe('挚友')
+    expect(saveSpy).toHaveBeenCalledTimes(1)   // 批量只写一次
   })
 })
