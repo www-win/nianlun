@@ -7,6 +7,7 @@ import ProgressBar from '../../components/ProgressBar.vue'
 import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
+import { useAiQueueStore } from '../../stores/aiQueue'
 import { assessImportSize } from '../../lib/importGuard'
 import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
 
@@ -65,6 +66,7 @@ async function onImport() {
       if (!ok) { imp.reset(); return }           // 放弃导入：清掉读取进度块
     }
     await imp.run(files, year.value)
+    if (imp.status === 'done') useAiQueueStore().scan()   // 导入成功：把新好友的未分析功能入队后台跑
   } catch (e) {
     // 读文件/解压阶段的异常以前被静默吞掉（表现为「选完文件没反应」），这里显式提示
     imp.reset()                                  // 清掉卡在读取阶段的进度块

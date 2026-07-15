@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onLaunch } from '@dcloudio/uni-app'
+import { onLaunch, onHide } from '@dcloudio/uni-app'
 import { useDataStore } from './stores/data'
 import { useBackupStore } from './stores/backup'
+import { useAiQueueStore } from './stores/aiQueue'
 import { purgeUnzipTemp } from './adapters/fileReader'
 import { storage } from './adapters/storage'
 import { rawStore } from './adapters/rawStore'
@@ -36,11 +37,14 @@ onLaunch(async () => {
     storage.setOnChanged(() => useBackupStore().scheduleBackup())
     if (data.friends.length === 0) {
       useBackupStore().restoreNow()
-        .then((ok) => { if (ok) return data.hydrate() })
+        .then((ok) => (ok ? data.hydrate().then(() => useAiQueueStore().scan()) : undefined))
         .catch(() => { /* 无网/云端无备份/未部署：静默，不打断使用 */ })
     }
+    useAiQueueStore().scan()   // hydrate 完成后：把未分析的好友级功能入队后台跑
   }, 0)
 })
+
+onHide(() => { storage.flushNow() })   // App 退后台：把 debounce 缓冲立即落盘，避免丢结果
 </script>
 
 <template><slot /></template>
