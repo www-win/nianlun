@@ -10,8 +10,10 @@ import { filterSortFriends } from '../../lib/friendsList'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
 import { useAiQueueStore } from '../../stores/aiQueue'
+import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
 
 const queue = useAiQueueStore()
+useRelationDeepBadge()
 
 const data = useDataStore()
 const backup = useBackupStore()
@@ -69,6 +71,13 @@ function onRole(id: string, e: { detail: { value: string } }) {
 // role（关系/职务）分析态：交由 aiQueue 托管，按 feature+id 查询/插队。
 function roleState(id: string) { return queue.stateFor('role', id) }
 function onAnalyze(id: string) { queue.prioritize('role', id) }
+
+// 行内「正在分析该好友」红点：任一好友维度特征（含深度关系）在跑就点亮。
+function analyzingRow(id: string) {
+  return ['role', 'sentiment', 'profile', 'mbti', 'relationDeep'].some(
+    (f) => queue.stateFor(f as any, id) === 'running',
+  )
+}
 </script>
 
 <template>
@@ -104,6 +113,7 @@ function onAnalyze(id: string) { queue.prioritize('role', id) }
         <view class="top" @click="openDetail(f.id)">
           <view class="avatar" :style="{ background: relColor(f.rel) }">
             {{ initials(f.alias || f.name) }}
+            <view v-if="analyzingRow(f.id)" class="deep-dot" />
           </view>
           <view class="info">
             <text class="name">{{ f.alias || f.name }}</text>
@@ -162,9 +172,16 @@ function onAnalyze(id: string) { queue.prioritize('role', id) }
 .frow { padding: 28rpx; margin-bottom: 20rpx; }
 .top { display: flex; align-items: center; }
 .avatar {
+  position: relative;
   flex: none; width: 84rpx; height: 84rpx; border-radius: 24rpx; margin-right: 22rpx;
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 28rpx; font-weight: 600;
+}
+/* 正在深度分析的好友：头像右上角红点（跟随 analyzingRow，跑完自动消失） */
+.deep-dot {
+  position: absolute; top: -6rpx; right: -6rpx;
+  width: 24rpx; height: 24rpx; border-radius: 50%;
+  background: var(--danger); border: 3rpx solid var(--surface);
 }
 .info { flex: 1; min-width: 0; }
 .chevron { flex: none; margin-left: 12rpx; color: var(--faint); font-size: 40rpx; line-height: 1; }

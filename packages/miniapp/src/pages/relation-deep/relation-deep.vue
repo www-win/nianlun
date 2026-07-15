@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { onLoad, onReady, onShow, onHide } from '@dcloudio/uni-app'
+import { onLoad, onReady, onShow } from '@dcloudio/uni-app'
 import { useDataStore } from '../../stores/data'
-import { samples } from '../../adapters/samples'
 import { storage } from '../../adapters/storage'
-import { useRelationDeepStore } from '../../stores/relationDeep'
+import { useAiQueueStore } from '../../stores/aiQueue'
 import { moodDualLinePoints } from '../../lib/insights'
 import ProgressBar from '../../components/ProgressBar.vue'
 import type { RelationDeep } from '@nianlun/core'
@@ -16,40 +15,27 @@ const friend = computed(() => data.friends.find((f) => f.id === id.value) || nul
 const displayName = computed(() => (friend.value ? (friend.value.alias || friend.value.name) : ''))
 
 const deep = ref<RelationDeep | null>(null)
-const stale = ref(false)
 
-const rd = useRelationDeepStore()
-const loading = computed(() => rd.runningFor(friend.value?.id ?? ''))
-const progress = computed(() => rd.progress)
+const queue = useAiQueueStore()
+const state = computed(() => queue.stateFor('relationDeep', friend.value?.id ?? ''))
+const loading = computed(() => state.value === 'running' || state.value === 'queued')
 
 function loadCache() {
   const f = friend.value
   if (!f) return
   const d = storage.loadRelationDeep(f.id, f)
-  if (d) { deep.value = d.data; stale.value = d.stale }
+  if (d) { deep.value = d.data }
 }
 
 function generate() {
   const f = friend.value
   if (!f) return
-  const s = samples.loadSamplesFor(f.id)
-  const r = rd.start(f, s)
-  if (r === 'busy') {
-    uni.showToast({ title: '已有分析进行中，请稍候', icon: 'none' })
-  }
+  queue.prioritize('relationDeep', f.id)   // 插队优先跑
 }
 
-// 记录本页是否可见，避免完成信号在别的页面误弹 toast。
-const visible = ref(false)
-
-// 后台分析完成信号：命中当前好友时按状态反应。
-watch(() => rd.completion, (c) => {
-  const f = friend.value
-  if (!c || !f || c.id !== f.id) return
-  if (c.status === 'ok') { loadCache(); nextTick(drawSecurity) }
-  else if (c.status === 'empty') { deep.value = { overall: 'AI 无法生成深度关系分析' } }
-  else if (c.status === 'error' && visible.value) { uni.showToast({ title: c.message, icon: 'none' }) }
-})
+// 本好友深度分析状态一变（含跑完）就重载缓存；用 per-feature state 而非全局 queue.busy，
+// 避免队列积压时别的好友任务挡住本好友完成后的及时刷新。
+watch(() => state.value, () => { loadCache(); nextTick(drawSecurity) })
 
 // 安全感/信任曲线：复用本地已算好的逐月情绪(friend.emotion.monthly) + 现有 moodDualLinePoints，
 // 画「我(暖)/对方(冷)」双线（沿用 friend-detail drawMood 套路）。无逐月情绪数据则不显示图。
@@ -84,8 +70,7 @@ function drawSecurity() {
   }).exec()
 }
 
-onShow(() => { visible.value = true; loadCache(); nextTick(drawSecurity) })
-onHide(() => { visible.value = false })
+onShow(() => { loadCache(); nextTick(drawSecurity) })
 onReady(() => { setTimeout(drawSecurity, 80) })
 
 // ── 长海报导出：动态高度，逐块「彩色标题 + 折行正文」 ──
@@ -193,12 +178,10 @@ function drawPoster() {
       <view class="head">
         <text class="h-name">{{ displayName }}</text>
         <text class="h-rel">{{ friend.rel }}</text>
-        <text class="act" @click="generate">
-          {{ loading ? '分析中…' : (deep ? '↻ 重新生成' : '✦ 生成深度关系分析') }}
-        </text>
-        <text v-if="stale" class="stale" @click="generate">数据已更新，点「重新生成」刷新</text>
+        <text v-if="!deep && state === 'idle'" class="act" @click="generate">✦ 生成深度关系分析</text>
+        <text v-else-if="!deep && state !== 'done'" class="act">{{ state === 'queued' ? '排队中…' : '分析中…' }}</text>
         <text v-if="deep" class="act" @click="drawPoster">📥 保存长海报</text>
-        <ProgressBar v-if="loading" :percent="progress" :label="`分析中… ${Math.round(progress)}%`" />
+        <ProgressBar v-if="loading" indeterminate :label="state === 'queued' ? '排队中…' : '分析中…'" />
       </view>
 
       <view v-if="!deep" class="ph">点上方按钮，让 AI 从依恋、互动、需求、安全感等 10 个维度剖析你们的关系。</view>
@@ -305,7 +288,6 @@ function drawPoster() {
 .h-name { font-size: 40rpx; font-weight: 700; color: #2f2b26; }
 .h-rel { font-size: 26rpx; color: #8a8f99; }
 .act { align-self: flex-start; margin-top: 12rpx; padding: 12rpx 24rpx; background: #eafaef; color: #2ea34a; border-radius: 999rpx; font-size: 28rpx; }
-.stale { color: #d08a2c; font-size: 24rpx; }
 .banner { background: #eef3fb; border-left: 6rpx solid #5a8fd0; border-radius: 12rpx; padding: 24rpx; margin-bottom: 20rpx; }
 .b-t { display: block; color: #4a72b8; font-weight: 700; font-size: 30rpx; margin-bottom: 12rpx; }
 .b-body { font-size: 28rpx; line-height: 1.7; color: #3a4657; }
