@@ -8,24 +8,17 @@ import { stepProgress } from '../components/progressBarLogic'
 export type Completion = { id: string; status: 'ok' | 'empty' | 'error'; message?: string }
 type AnalyzeFn = (friend: Friend, samples: string[]) => Promise<RelationDeep>
 type StorageDep = { saveRelationDeep: (id: string, friend: Friend, data: RelationDeep) => void }
-type TabBadge = { show: () => void; hide: () => void }
-type Deps = { ai?: AnalyzeFn; storage?: StorageDep; tabBadge?: TabBadge; tick?: number }
+type Deps = { ai?: AnalyzeFn; storage?: StorageDep; tick?: number }
 
-// 「好友」tab 在 pages.json tabBar.list 里的下标（导入0/概览1/好友2/二级市场3/报告4）。
-const FRIENDS_TAB_INDEX = 2
+// 注：全局「分析进行中」红点不在此处理。tabBar API 只能在 tab 页上下文调用（否则报
+// not TabBar page），而分析从非 tab 页发起——红点改由各 tab 页经 useRelationDeepBadge()
+// 监听 busy 自行同步。store 保持 UI 无关，只暴露运行态。
 
-// 默认全局提示：好友 tab 红点。uni tabBar API 在非预期时机可能抛错 → try/catch 兜底，不影响分析主流程。
-const defaultTabBadge: TabBadge = {
-  show: () => { try { uni.showTabBarRedDot({ index: FRIENDS_TAB_INDEX }) } catch { /* 忽略 */ } },
-  hide: () => { try { uni.hideTabBarRedDot({ index: FRIENDS_TAB_INDEX }) } catch { /* 忽略 */ } },
-}
-
-// 工厂：测试注入 fake ai/storage/tabBadge/tick；运行时用真实依赖。
+// 工厂：测试注入 fake ai/storage/tick；运行时用真实依赖。
 // 跨页面存活的单例，托管「单任务」深度分析生命周期——离开页面分析继续跑、跑完落盘。
 export function createRelationDeepStore(deps: Deps = {}) {
   const ai: AnalyzeFn = deps.ai ?? aiClient.analyzeRelationDeep
   const store: StorageDep = deps.storage ?? defaultStorage
-  const tabBadge: TabBadge = deps.tabBadge ?? defaultTabBadge
   const tick = deps.tick ?? 400
 
   return defineStore('relationDeep', () => {
@@ -50,7 +43,6 @@ export function createRelationDeepStore(deps: Deps = {}) {
       activeId.value = id
       completion.value = null
       startProgress()
-      tabBadge.show()
       void run(id, friend, samples)
       return 'started'
     }
@@ -69,7 +61,6 @@ export function createRelationDeepStore(deps: Deps = {}) {
       } finally {
         stopProgress()
         progress.value = 100
-        tabBadge.hide()
         activeId.value = null
       }
     }

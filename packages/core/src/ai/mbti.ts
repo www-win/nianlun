@@ -103,16 +103,8 @@ function normalizeDimensions(raw: unknown, code: MbtiCode): MbtiDimension[] {
   })
 }
 
-/** 容错解析 MBTI JSON：剥围栏、定花括号、校验 code；缺字段补齐。无法解析返回 null，永不抛异常。 */
-export function parseMbti(text: string): MbtiResult | null {
-  if (typeof text !== 'string') return null
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start === -1 || end === -1 || end < start) return null
-  let obj: unknown
-  try { obj = JSON.parse(text.slice(start, end + 1)) } catch { return null }
-  if (typeof obj !== 'object' || obj === null) return null
-  const r = obj as Record<string, unknown>
+/** 从对象逐字段构造 MbtiResult；code 非法则 null。 */
+function fromMbtiObject(r: Record<string, unknown>): MbtiResult | null {
   // code 兜底：模型常返回带装饰的码（INTJ-A / INTJ型 / INTJ（建筑师）），
   // 用 detectMbtiFromText 从中抽出合法码，而非要求严格等值，避免变体整条作废。
   const code = typeof r.code === 'string' ? detectMbtiFromText(r.code) : null
@@ -120,6 +112,68 @@ export function parseMbti(text: string): MbtiResult | null {
   const title = typeof r.title === 'string' && r.title.trim() ? r.title.trim() : mbtiTitle(code)
   const summary = typeof r.summary === 'string' && r.summary.trim() ? r.summary.trim() : ''
   return { code, title, summary, dimensions: normalizeDimensions(r.dimensions, code) }
+}
+
+/**
+ * 从（可能被截断/不闭合的）文本正则抓取 "key": "value"。
+ * 闭合引号认「其后紧跟结构分隔符 `,`/`}`（或段末）的那个」，而非值内出现的第一个引号——
+ * 模型常在解读/维度 note 里用未转义半角双引号引用原话，停在第一个内嵌引号会把字段抓成半截。
+ * 参照 profile.ts 的 grabField；真被截断的尾字段无「闭合引号+分隔符」，仍抓不到（保留截断兜底行为）。
+ */
+function grabStr(text: string, key: string): string | undefined {
+  const m = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?=[,}]|$)`).exec(text)
+  if (!m) return undefined
+  const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+  return raw.trim() || undefined
+}
+
+/** 抓取某轴维度对象里已写出的 strength/note（对象可能未闭合）。界定到下一个 "axis" 前，避免串到别轴。 */
+function grabDimension(text: string, axis: MbtiAxis): { axis: MbtiAxis; strength?: number; note?: string } | null {
+  const at = text.search(new RegExp(`"axis"\\s*:\\s*"${axis}"`))
+  if (at < 0) return null
+  const next = text.slice(at + 1).search(/"axis"\s*:/)
+  const seg = next < 0 ? text.slice(at) : text.slice(at, at + 1 + next)
+  const out: { axis: MbtiAxis; strength?: number; note?: string } = { axis }
+  const sm = /"strength"\s*:\s*(\d+)/.exec(seg)
+  if (sm) out.strength = Number(sm[1])
+  const note = grabStr(seg, 'note')
+  if (note) out.note = note
+  return out
+}
+
+/**
+ * JSON 被 maxTokens 截断（尾部不闭合、无法 parse）时的兜底：正则抢救 code/title/summary 与已写出的维度强度，
+ * 至少产出一个合法 MbtiResult；code 尚未写出（无从确定类型）则返回 null。参照 parseFriendProfile 的 salvage。
+ */
+function salvageMbti(text: string): MbtiResult | null {
+  const codeStr = grabStr(text, 'code')
+  const code = codeStr ? detectMbtiFromText(codeStr) : null
+  if (!code) return null
+  const title = grabStr(text, 'title') || mbtiTitle(code)
+  const summary = grabStr(text, 'summary') || ''
+  const dims = AXES.map((a) => grabDimension(text, a)).filter((d): d is NonNullable<typeof d> => d !== null)
+  return { code, title, summary, dimensions: normalizeDimensions(dims, code) }
+}
+
+/**
+ * 容错解析 MBTI JSON：剥围栏、定花括号、校验 code；缺字段补齐。
+ * JSON 完整则直接解析；被截断/不闭合时退回逐字段正则抢救。无法确定 code 返回 null，永不抛异常。
+ */
+export function parseMbti(text: string): MbtiResult | null {
+  if (typeof text !== 'string') return null
+  const start = text.indexOf('{')
+  if (start === -1) return null
+  const end = text.lastIndexOf('}')
+  if (end > start) {
+    try {
+      const obj = JSON.parse(text.slice(start, end + 1))
+      if (typeof obj === 'object' && obj !== null) {
+        const parsed = fromMbtiObject(obj as Record<string, unknown>)
+        if (parsed) return parsed
+      }
+    } catch { /* 截断的 JSON 无法 parse，落到 salvage 抢救 */ }
+  }
+  return salvageMbti(text)
 }
 
 /** 计算好友的有效 MBTI 码与来源：手改 > 备注识别(alias>role>name) > AI 码 > 无。 */

@@ -18,6 +18,19 @@ import type {
 // model 可选：不传则由后端用默认模型；深度关系分析等重调用可指定更快模型避免云函数超时。
 export type Transport = (prompt: string, maxTokens: number, model?: string) => Promise<string>
 
+// 严格 JSON 类分析首解析为空时，追加这段提示重试一次，压掉模型偶发的截断/格式波动。
+const RETRY_HINT = '\n\n注意：上一次未能得到有效结果。请务必只输出一个完整、闭合的 JSON 对象，不要截断、不要多余文字。'
+
+/** 调 transport 解析一次；结果被判为空则追加提示重试一次（最多两次调用）。 */
+async function withRetry<T>(
+  transport: Transport, prompt: string, maxTokens: number,
+  parse: (text: string) => T, isEmpty: (v: T) => boolean, model?: string,
+): Promise<T> {
+  const first = parse(await transport(prompt, maxTokens, model))
+  if (!isEmpty(first)) return first
+  return parse(await transport(prompt + RETRY_HINT, maxTokens, model))
+}
+
 export function makeAiClient(transport: Transport) {
   return {
     async generateReportCopy(report: ReportData, friends: Friend[]): Promise<string> {
@@ -32,12 +45,18 @@ export function makeAiClient(transport: Transport) {
       return parseSentiment(text)
     },
     async analyzeFriendProfile(friend: Friend, samples: string[]): Promise<FriendProfile> {
-      const text = await transport(buildFriendProfilePrompt(friend, samples), 1024)
-      return parseFriendProfile(text)
+      // 画像 5 侧面 + 投资子维度字段多，1024 易被截断 → 2048；首解析为空重试一次。
+      return withRetry(
+        transport, buildFriendProfilePrompt(friend, samples), 2048,
+        parseFriendProfile, (p) => Object.keys(p).length === 0,
+      )
     },
     async analyzeFriendMbti(friend: Friend, samples: string[]): Promise<MbtiResult | null> {
-      const text = await transport(buildMbtiPrompt(friend, samples), 768)
-      return parseMbti(text)
+      // code+title+summary(60~100字)+4 维度各带一句 note，中文重，768 易被截断 → 1536；首解析为空重试一次。
+      return withRetry(
+        transport, buildMbtiPrompt(friend, samples), 1536,
+        parseMbti, (r) => r === null,
+      )
     },
     async analyzeRelationDeep(friend: Friend, samples: string[]): Promise<RelationDeep> {
       // 单次全量 10 块生成会撞云函数 60s 硬顶(-504003)，故拆 3 段（各 3~4 块）。

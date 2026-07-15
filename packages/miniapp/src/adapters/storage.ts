@@ -67,7 +67,12 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
   function saveFriendEntry(key: string, id: string, friend: Friend, data: unknown): void {
     const all = loadFriendMap(key)
     all[id] = { data, fp: friendFp(friend) }
+    // [perf] 诊断插桩：AI 结果 map 整表同步写 KV 的耗时 + 条目数。排查完删。
+    const _t0 = Date.now()
     backend.set(key, all)
+    const _t1 = Date.now()
+    // eslint-disable-next-line no-console
+    console.log(`[perf] saveFriendEntry ${key} entries=${Object.keys(all).length} set=${_t1 - _t0}ms`)
     fireChanged()   // 情绪/画像/MBTI/深度关系 AI 结果落盘 → 排一次备份
   }
   function loadFriendEntry<T>(key: string, id: string, friend: Friend): { data: T; stale: boolean } | null {
@@ -175,6 +180,14 @@ export function makeStorage(backend: StorageBackend, fs: FsJsonBackend = makeKvF
     },
     loadFriendMbti(id: string, friend: Friend): { data: MbtiResult; stale: boolean } | null {
       return loadFriendEntry<MbtiResult>(K_FRIEND_MBTI, id, friend)
+    },
+    // 批量读整表：{ [id]: MbtiResult }，只触发 1 次 backend.get。
+    // 好友列表页给全部好友取 MBTI 时用它，避免每人一次同步 getStorageSync 阻塞主线程。
+    loadFriendMbtiMap(): Record<string, MbtiResult> {
+      const all = loadFriendMap(K_FRIEND_MBTI)
+      const out: Record<string, MbtiResult> = {}
+      for (const id in all) out[id] = all[id].data as MbtiResult
+      return out
     },
     saveRelationDeep(id: string, friend: Friend, data: RelationDeep): void {
       saveFriendEntry(K_FRIEND_RELATION_DEEP, id, friend, data)

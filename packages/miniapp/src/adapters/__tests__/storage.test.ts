@@ -273,6 +273,28 @@ describe('四类 AI 结果持久化', () => {
     s.clearAll()
     expect(s.loadFriendMbti('f1', FRIEND_FP)).toBeNull()
   })
+
+  it('loadFriendMbtiMap 一次性读整表：N 个好友只触发 1 次 backend.get', () => {
+    // 计数后端：统计对 MBTI 键的 get 次数，验证批量读避免 O(N) 次同步 getStorageSync
+    const m = new Map<string, unknown>()
+    let getCount = 0
+    const counting = {
+      get: (k: string) => { getCount++; return m.get(k) },
+      set: (k: string, v: unknown) => void m.set(k, v),
+      remove: (k: string) => void m.delete(k),
+    }
+    const s = makeStorage(counting)
+    const mk = (code: string): MbtiResult => ({ code, title: 't', summary: 's', dimensions: [] } as unknown as MbtiResult)
+    for (let i = 0; i < 50; i++) {
+      s.saveFriendMbti(`f${i}`, { id: `f${i}`, msgCount: 1, lastContact: 1 } as unknown as Friend, mk('INTJ'))
+    }
+    getCount = 0
+    const map = s.loadFriendMbtiMap()
+    expect(getCount).toBe(1)                    // 整表只读 1 次，而非 50 次
+    expect(map.f0?.code).toBe('INTJ')
+    expect(map.f49?.code).toBe('INTJ')
+    expect(map.fx).toBeUndefined()
+  })
 })
 
 describe('storage relationDeep', () => {

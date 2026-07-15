@@ -8,6 +8,9 @@ import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
 import { assessImportSize } from '../../lib/importGuard'
+import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
+
+useRelationDeepBadge()   // 深度分析进行中 → 好友 tab 红点（本页可见时同步）
 
 const imp = useImportStore()
 const data = useDataStore()

@@ -94,6 +94,46 @@ describe('parseMbti', () => {
     expect(parseMbti('这不是 JSON')).toBeNull()
     expect(parseMbti('')).toBeNull()
   })
+
+  it('JSON 被 maxTokens 截断（整体不闭合）时逐字段抢救出 code 与已写维度', () => {
+    const truncated =
+      '{"code":"INTJ","title":"建筑师","summary":"理性独立，逻辑清晰。","dimensions":[' +
+      '{"axis":"EI","pole":"I","strength":72,"note":"很少主动发起"},' +
+      '{"axis":"SN","pole":"N","strength":65,"note":"偏好抽象与' // 从这里被截断
+    const r = parseMbti(truncated)!
+    expect(r).not.toBeNull()
+    expect(r.code).toBe('INTJ')
+    expect(r.title).toBe('建筑师')
+    expect(r.summary).toBe('理性独立，逻辑清晰。')
+    expect(r.dimensions).toHaveLength(4)
+    const ei = r.dimensions.find((d) => d.axis === 'EI')!
+    expect(ei.strength).toBe(72)
+    expect(ei.note).toBe('很少主动发起')
+    const sn = r.dimensions.find((d) => d.axis === 'SN')!
+    expect(sn.strength).toBe(65) // 强度已写出，note 半截未闭合则忽略
+  })
+
+  it('summary/note 含未转义半角引号（整段 JSON 非法→salvage）仍完整救回', () => {
+    const bad = '{"code":"INTJ","title":"建筑师",' +
+      '"summary":"常说"谋定后动"，不打无准备的仗","dimensions":[' +
+      '{"axis":"EI","pole":"I","strength":72,"note":"口头禅是"再想想""}]}'
+    const r = parseMbti(bad)!
+    expect(r.code).toBe('INTJ')
+    expect(r.summary).toBe('常说"谋定后动"，不打无准备的仗')
+    const ei = r.dimensions.find((d) => d.axis === 'EI')!
+    expect(ei.note).toBe('口头禅是"再想想"')
+  })
+
+  it('无任何闭合括号（早截断）仍能救回 code 并补齐 4 维度', () => {
+    const r = parseMbti('{"code":"ENFP","title":"竞选者","summary":"热情外向')!
+    expect(r.code).toBe('ENFP')
+    expect(r.title).toBe('竞选者')
+    expect(r.dimensions.map((d) => d.pole)).toEqual(['E', 'N', 'F', 'P'])
+  })
+
+  it('截断且 code 尚未写出则仍返回 null', () => {
+    expect(parseMbti('{"title":"建筑师","summary":"理性')).toBeNull()
+  })
 })
 
 describe('effectiveMbtiCode 优先级', () => {

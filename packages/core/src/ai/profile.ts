@@ -47,6 +47,7 @@ export function buildFriendProfilePrompt(friend: Friend, samples: string[]): str
     '',
     '要求：每个字段给一小段简述（约 30~60 字，可点出聊天里的依据），不要只给一个标签词。',
     '任一字段若样本中无可靠线索，值填「暂无足够线索」，禁止臆测（尤其感情、家庭、财富）。',
+    '字段值内如需引用词句，一律用中文全角引号「」，切勿使用半角双引号，以免破坏 JSON 结构。',
     '',
     '聚合统计：',
     `- 好友：${displayName}`,
@@ -90,9 +91,15 @@ function fromObject(r: Record<string, unknown>): FriendProfile {
   return out
 }
 
-/** 从任意（可能被截断/不闭合的）文本里正则抓取 "key": "value"，取首个完整闭合的值。 */
+/**
+ * 从任意（可能被截断/不闭合的）文本里正则抓取 "key": "value"。
+ * 闭合引号认「其后紧跟结构分隔符 `,`/`}`（或字符串末尾）的那个」，而非值内出现的第一个引号——
+ * 因为模型常在值里用未转义的半角双引号引用对方原话（如 常把"随缘"挂嘴边），
+ * 若停在第一个内嵌引号会把字段抓成半截。中文正文用全角标点，结构分隔符是半角 `,`/`}`，故此界定可靠。
+ * 真被 max_tokens 截断的尾字段没有「闭合引号+分隔符」，自然抓不到，仍被忽略（保留原截断行为）。
+ */
 function grabField(text: string, key: string): string | undefined {
-  const m = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(text)
+  const m = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?=[,}]|$)`).exec(text)
   if (!m) return undefined
   const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t')
   return pickText(raw)

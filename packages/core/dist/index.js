@@ -12915,6 +12915,7 @@ function buildFriendProfilePrompt(friend, samples) {
     "",
     "\u8981\u6C42\uFF1A\u6BCF\u4E2A\u5B57\u6BB5\u7ED9\u4E00\u5C0F\u6BB5\u7B80\u8FF0\uFF08\u7EA6 30~60 \u5B57\uFF0C\u53EF\u70B9\u51FA\u804A\u5929\u91CC\u7684\u4F9D\u636E\uFF09\uFF0C\u4E0D\u8981\u53EA\u7ED9\u4E00\u4E2A\u6807\u7B7E\u8BCD\u3002",
     "\u4EFB\u4E00\u5B57\u6BB5\u82E5\u6837\u672C\u4E2D\u65E0\u53EF\u9760\u7EBF\u7D22\uFF0C\u503C\u586B\u300C\u6682\u65E0\u8DB3\u591F\u7EBF\u7D22\u300D\uFF0C\u7981\u6B62\u81C6\u6D4B\uFF08\u5C24\u5176\u611F\u60C5\u3001\u5BB6\u5EAD\u3001\u8D22\u5BCC\uFF09\u3002",
+    "\u5B57\u6BB5\u503C\u5185\u5982\u9700\u5F15\u7528\u8BCD\u53E5\uFF0C\u4E00\u5F8B\u7528\u4E2D\u6587\u5168\u89D2\u5F15\u53F7\u300C\u300D\uFF0C\u5207\u52FF\u4F7F\u7528\u534A\u89D2\u53CC\u5F15\u53F7\uFF0C\u4EE5\u514D\u7834\u574F JSON \u7ED3\u6784\u3002",
     "",
     "\u805A\u5408\u7EDF\u8BA1\uFF1A",
     `- \u597D\u53CB\uFF1A${displayName}`,
@@ -12962,7 +12963,7 @@ function fromObject(r) {
   return out;
 }
 function grabField(text, key) {
-  const m = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(text);
+  const m = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?=[,}]|$)`).exec(text);
   if (!m) return void 0;
   const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, "\n").replace(/\\t/g, "	");
   return pickText(raw);
@@ -13105,24 +13106,56 @@ function normalizeDimensions(raw, code) {
     return dim;
   });
 }
-function parseMbti(text) {
-  if (typeof text !== "string") return null;
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) return null;
-  let obj2;
-  try {
-    obj2 = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-  if (typeof obj2 !== "object" || obj2 === null) return null;
-  const r = obj2;
+function fromMbtiObject(r) {
   const code = typeof r.code === "string" ? detectMbtiFromText(r.code) : null;
   if (!code) return null;
   const title = typeof r.title === "string" && r.title.trim() ? r.title.trim() : mbtiTitle(code);
   const summary = typeof r.summary === "string" && r.summary.trim() ? r.summary.trim() : "";
   return { code, title, summary, dimensions: normalizeDimensions(r.dimensions, code) };
+}
+function grabStr(text, key) {
+  const m = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?=[,}]|$)`).exec(text);
+  if (!m) return void 0;
+  const raw = m[1].replace(/\\"/g, '"').replace(/\\n/g, "\n").replace(/\\t/g, "	");
+  return raw.trim() || void 0;
+}
+function grabDimension(text, axis) {
+  const at = text.search(new RegExp(`"axis"\\s*:\\s*"${axis}"`));
+  if (at < 0) return null;
+  const next = text.slice(at + 1).search(/"axis"\s*:/);
+  const seg = next < 0 ? text.slice(at) : text.slice(at, at + 1 + next);
+  const out = { axis };
+  const sm = /"strength"\s*:\s*(\d+)/.exec(seg);
+  if (sm) out.strength = Number(sm[1]);
+  const note = grabStr(seg, "note");
+  if (note) out.note = note;
+  return out;
+}
+function salvageMbti(text) {
+  const codeStr = grabStr(text, "code");
+  const code = codeStr ? detectMbtiFromText(codeStr) : null;
+  if (!code) return null;
+  const title = grabStr(text, "title") || mbtiTitle(code);
+  const summary = grabStr(text, "summary") || "";
+  const dims = AXES.map((a) => grabDimension(text, a)).filter((d) => d !== null);
+  return { code, title, summary, dimensions: normalizeDimensions(dims, code) };
+}
+function parseMbti(text) {
+  if (typeof text !== "string") return null;
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  const end = text.lastIndexOf("}");
+  if (end > start) {
+    try {
+      const obj2 = JSON.parse(text.slice(start, end + 1));
+      if (typeof obj2 === "object" && obj2 !== null) {
+        const parsed = fromMbtiObject(obj2);
+        if (parsed) return parsed;
+      }
+    } catch {
+    }
+  }
+  return salvageMbti(text);
 }
 function effectiveMbtiCode(friend, aiCode) {
   const manual = friend.userEdited?.mbti;

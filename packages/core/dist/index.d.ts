@@ -297,7 +297,10 @@ interface MbtiResult {
 type MbtiSource = 'manual' | 'remark' | 'ai' | 'none';
 /** MBTI 提示词：喂聚合统计 + 有界样本，要求 AI 输出严格 JSON。参照 buildFriendProfilePrompt。 */
 declare function buildMbtiPrompt(friend: Friend, samples: string[]): string;
-/** 容错解析 MBTI JSON：剥围栏、定花括号、校验 code；缺字段补齐。无法解析返回 null，永不抛异常。 */
+/**
+ * 容错解析 MBTI JSON：剥围栏、定花括号、校验 code；缺字段补齐。
+ * JSON 完整则直接解析；被截断/不闭合时退回逐字段正则抢救。无法确定 code 返回 null，永不抛异常。
+ */
 declare function parseMbti(text: string): MbtiResult | null;
 /** 计算好友的有效 MBTI 码与来源：手改 > 备注识别(alias>role>name) > AI 码 > 无。 */
 declare function effectiveMbtiCode(friend: Friend, aiCode?: MbtiCode | null): {

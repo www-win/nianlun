@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import type { BirthInfo } from '@nianlun/core'
 import { storage } from '../../adapters/storage'
+import { useBackupStore } from '../../stores/backup'
 
 const year = ref('')
 const month = ref('')
@@ -34,6 +35,8 @@ function save() {
   if (isLunar.value) b.isLunar = true
   if (gender.value) b.gender = gender.value
   storage.saveMyBazi(b)
+  // 触发云备份：生辰只存本地会被微信清空/换机丢失，须同步到云端才能"设一次就好"
+  useBackupStore().scheduleBackup()
   uni.showToast({ title: '已保存', icon: 'success' })
   setTimeout(() => uni.navigateBack(), 500)
 }

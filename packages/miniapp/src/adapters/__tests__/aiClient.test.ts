@@ -53,6 +53,26 @@ describe('aiClient', () => {
     expect(await bad.analyzeFriendMbti(FRIEND, [])).toBeNull()
   })
 
+  it('analyzeFriendMbti 用 1536 maxTokens（字段多、中文重，防截断）', async () => {
+    const transport = vi.fn().mockResolvedValue('{"code":"INTJ","summary":"理性。"}')
+    await makeAiClient(transport).analyzeFriendMbti(FRIEND, ['我：hi'])
+    expect(transport.mock.calls[0][1]).toBe(1536)
+  })
+
+  it('analyzeFriendMbti 解析为空则返回 null（单次调用，不重试）', async () => {
+    const transport = vi.fn().mockResolvedValue('抱歉，我无法输出')
+    expect(await makeAiClient(transport).analyzeFriendMbti(FRIEND, [])).toBeNull()
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
+
+  it('analyzeFriendProfile 用 2048 maxTokens（单次调用，不重试）', async () => {
+    const transport = vi.fn().mockResolvedValue('{"identity":"某城商行支行长"}')
+    const r = await makeAiClient(transport).analyzeFriendProfile(FRIEND, ['我：hi'])
+    expect(transport.mock.calls[0][1]).toBe(2048)
+    expect(transport).toHaveBeenCalledTimes(1)
+    expect(r.identity).toBe('某城商行支行长')
+  })
+
   it('analyzeYearSentiment 回传整段文本', async () => {
     const transport = vi.fn().mockResolvedValue('这一年整体热络、以正向互动为主。')
     const out = await makeAiClient(transport).analyzeYearSentiment(REPORT, ['对方：新年快乐'])

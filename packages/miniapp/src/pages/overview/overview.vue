@@ -6,6 +6,9 @@ import { useBackupStore } from '../../stores/backup'
 import { wordCloudItems, weekHourHeatmap, monthlyTrend } from '../../lib/insights'
 import AntennaBuddy from '../../components/AntennaBuddy.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
+import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
+
+useRelationDeepBadge()   // 深度分析进行中 → 好友 tab 红点（本页可见时同步）
 
 const data = useDataStore()
 const backup = useBackupStore()

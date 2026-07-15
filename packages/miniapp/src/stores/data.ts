@@ -46,8 +46,16 @@ export function createDataStore(storage: Storage = defaultStorage, rawStore: Raw
         if (patch.mbti === null) delete f.userEdited.mbti
         else f.userEdited.mbti = patch.mbti
       }
-      storage.saveFriends(JSON.parse(JSON.stringify(friends.value)))
+      // [perf] 诊断插桩：拆分「整表深拷贝 / 写盘 / 触发备份」三步耗时，定位卡顿源。排查完删。
+      const _t0 = Date.now()
+      const snap = JSON.parse(JSON.stringify(friends.value))
+      const _t1 = Date.now()
+      storage.saveFriends(snap)
+      const _t2 = Date.now()
       fireSaved()
+      const _t3 = Date.now()
+      // eslint-disable-next-line no-console
+      console.log(`[perf] updateFriend n=${friends.value.length} clone=${_t1 - _t0}ms save=${_t2 - _t1}ms fireSaved=${_t3 - _t2}ms`)
     }
     async function clear() {
       friends.value = []; report.value = null; storage.clearAll(); rawStore.clear()

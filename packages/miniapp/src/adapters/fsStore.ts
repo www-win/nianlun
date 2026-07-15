@@ -20,7 +20,14 @@ export function makeFsJson(fs: RawFsBackend, baseDir: string): FsJsonBackend {
     },
     write(name, data) {
       fs.ensureDir(baseDir)
-      fs.writeFile(path(name), JSON.stringify(data))
+      // [perf] 诊断插桩：拆分「序列化 / 同步写盘」耗时 + 字节数。排查完删。
+      const _t0 = Date.now()
+      const json = JSON.stringify(data)
+      const _t1 = Date.now()
+      fs.writeFile(path(name), json)
+      const _t2 = Date.now()
+      // eslint-disable-next-line no-console
+      console.log(`[perf] fs.write ${name} bytes=${json.length} stringify=${_t1 - _t0}ms writeFile=${_t2 - _t1}ms`)
     },
     remove(name) {
       try { fs.unlink(path(name)) } catch { /* 不存在，忽略 */ }

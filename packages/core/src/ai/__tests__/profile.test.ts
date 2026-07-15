@@ -68,4 +68,41 @@ describe('parseFriendProfile', () => {
     expect(parseFriendProfile('不是 JSON')).toEqual({})
     expect(parseFriendProfile('')).toEqual({})
   })
+
+  // —— 值内含未转义半角双引号（模型引用对方原话），整段 JSON 非法 → 退回 salvage —— //
+  it('值内未转义双引号：仍能救回完整字段而非只到第一个引号', () => {
+    const r = parseFriendProfile(
+      '{\n  "identity": "普通上班族",\n  "lifestyle": "常把"随缘"挂嘴边，周末爱爬山，作息规律"\n}',
+    )
+    expect(r.identity).toBe('普通上班族')
+    expect(r.lifestyle).toBe('常把"随缘"挂嘴边，周末爱爬山，作息规律')
+  })
+
+  it('多字段里某字段含内嵌引号：其余字段不受牵连、该字段也完整', () => {
+    const r = parseFriendProfile([
+      '{',
+      '  "identity": "某公司做"技术顾问"，负责后端",',
+      '  "family": "已婚有一子",',
+      '  "romance": "婚姻稳定",',
+      '  "lifestyle": "爱爬山"',
+      '}',
+    ].join('\n'))
+    expect(r.identity).toBe('某公司做"技术顾问"，负责后端')
+    expect(r.family).toBe('已婚有一子')
+    expect(r.romance).toBe('婚姻稳定')
+    expect(r.lifestyle).toBe('爱爬山')
+  })
+
+  it('investment 子字段含内嵌引号也能完整救回', () => {
+    const r = parseFriendProfile([
+      '{',
+      '  "investment": {',
+      '    "summary": "常说"稳字当头"，偏保守",',
+      '    "risk": "稳健型"',
+      '  }',
+      '}',
+    ].join('\n'))
+    expect(r.investment?.summary).toBe('常说"稳字当头"，偏保守')
+    expect(r.investment?.risk).toBe('稳健型')
+  })
 })
