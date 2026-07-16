@@ -59,10 +59,10 @@ describe('aiClient', () => {
     expect(transport.mock.calls[0][1]).toBe(1536)
   })
 
-  it('analyzeFriendMbti 解析为空则返回 null（单次调用，不重试）', async () => {
+  it('analyzeFriendMbti 首解析为空则追加提示重试一次，仍空返回 null（共 2 次调用）', async () => {
     const transport = vi.fn().mockResolvedValue('抱歉，我无法输出')
     expect(await makeAiClient(transport).analyzeFriendMbti(FRIEND, [])).toBeNull()
-    expect(transport).toHaveBeenCalledTimes(1)
+    expect(transport).toHaveBeenCalledTimes(2)   // 首解析为空 → withRetry 追加提示重试一次
   })
 
   it('analyzeFriendProfile 用 2048 maxTokens（单次调用，不重试）', async () => {
