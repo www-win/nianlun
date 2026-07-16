@@ -44,7 +44,15 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
   }
 
   async function backup(): Promise<{ bytes: number }> {
-    const snap = deps.storage.exportAll()
+    const local = deps.storage.exportAll()
+    // 合并到云端已有快照之上：本机有的更新、本机没有的保留云端原值 → 备份「只增不减」。
+    // 这样任何情况下都不会用「缺字段的本机快照」把云端已有数据覆盖没（例如换机后只恢复了好友、
+    // report 尚未回来时触发的自动备份）。若云端读取失败（网络/权限），fetchSnapshot 抛错 →
+    // 本次 backup 直接抛出中止、绝不上传，从而不破坏云端。云端确无备份时返回 null → 首次全量上传。
+    const base = await fetchSnapshot()
+    const snap: StorageSnapshot = base
+      ? { kv: { ...base.kv, ...local.kv }, files: { ...base.files, ...local.files } }
+      : local
     if (estimate(snap) <= bigThreshold) {
       const bytes = gz({ version: 1, createdAt: deps.now(), kv: snap.kv, files: snap.files } as BackupEnvelope)
       await deps.upload(SINGLE_PATH, bytes)
@@ -67,16 +75,16 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
     return { bytes: total }
   }
 
-  // 取回云端快照（不写本地），供 restore（覆盖）与 restoreMerge（合并）复用。云端无备份则返回 null。
-  async function fetchSingle(): Promise<StorageSnapshot | null> {
+  // 取回云端快照 + 其 createdAt（不写本地），供 restore（覆盖）、restoreMerge（合并）、backup（合并基底）复用。
+  // 云端无对应备份 → 返回 null；download 抛错（网络/权限等）会向上传播，让调用方（尤其 backup）中止而非覆盖。
+  async function fetchSingleRaw(): Promise<{ snap: StorageSnapshot; createdAt: number } | null> {
     const single = await deps.download(SINGLE_PATH)
     if (!single) return null
     const env = ungz(single) as BackupEnvelope
     if (env.version !== 1) throw new Error(`不支持的备份版本：${env.version}`)
-    return { kv: env.kv, files: env.files }
+    return { snap: { kv: env.kv, files: env.files }, createdAt: env.createdAt }
   }
-
-  async function fetchChunked(): Promise<StorageSnapshot | null> {
+  async function fetchChunkedRaw(): Promise<{ snap: StorageSnapshot; createdAt: number } | null> {
     const mBytes = await deps.download(MANIFEST_PATH)
     if (!mBytes) return null
     const manifest = ungz(mBytes) as Manifest
@@ -88,15 +96,22 @@ export function makeCloudBackup(deps: CloudBackupDeps, opts: { bigThreshold?: nu
       const b = await deps.download(`parts/file-${name}.json.gz`)
       if (b) files[name] = ungz(b) as string
     }
-    return { kv, files }
+    return { snap: { kv, files }, createdAt: manifest.createdAt }
   }
+  const fetchSingle = async (): Promise<StorageSnapshot | null> => (await fetchSingleRaw())?.snap ?? null
+  const fetchChunked = async (): Promise<StorageSnapshot | null> => (await fetchChunkedRaw())?.snap ?? null
 
   async function fetchSnapshot(): Promise<StorageSnapshot | null> {
     const mode = deps.resolveMode ? await deps.resolveMode() : null
     if (mode === 'single') return fetchSingle()
     if (mode === 'chunked') return fetchChunked()
-    // mode === null：无 resolveMode（现有单测）或云端无模式记录，走旧的兼容逻辑——先试单包再试 manifest
-    return (await fetchSingle()) ?? (await fetchChunked())
+    // 无 mode 记录：单包与分块可能并存（跨阈值切换后旧包残留），取「createdAt 较新」的，
+    // 避免旧包盖过新数据。两者皆无 → null。
+    const s = await fetchSingleRaw()
+    const c = await fetchChunkedRaw()
+    if (!s && !c) return null
+    if (s && c) return (c.createdAt >= s.createdAt ? c : s).snap
+    return (s ?? c)!.snap
   }
 
   // 覆盖恢复：本地为空时用（换机/被清空）。
@@ -166,7 +181,7 @@ const wxDeps: CloudBackupDeps = {
       const fm = wx.getFileSystemManager()
       const buf = fm.readFileSync(res.tempFilePath) as ArrayBuffer
       return new Uint8Array(buf)
-    } catch { return null }  // 无此文件/网络错误 → 视作不存在
+    } catch { return null }  // 无此文件/网络错误 → 视作不存在（宽松：保证备份可用；防覆盖靠 backup 的「合并」层）
   },
   // 不再用 finalize/resolveMode：restore 退回「先试单包 backup.json.gz，再试 manifest」的兼容逻辑，
   // 靠 downloadFile 能否取到文件来判断走哪条路径，无需 mode 记录。

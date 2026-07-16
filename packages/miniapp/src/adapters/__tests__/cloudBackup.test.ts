@@ -82,6 +82,35 @@ describe('cloudBackup 单包', () => {
   })
 })
 
+describe('cloudBackup 合并到云端（只增不减，不破坏云端数据）', () => {
+  it('本机缺 report 时再次备份，不会把云端已有的 report 冲掉；好友更新为最新', async () => {
+    const cloud = memCloud()
+    // 第一次：本机有 report + 好友，备份到云
+    await makeCloudBackup(deps(memStorage({ kv: { 'nianlun:report': { year: 2025 } }, files: { friends: '[1]' } }), cloud)).backup()
+    // 第二次：模拟换机后只恢复了好友、report 还没回来，此时触发自动备份
+    await makeCloudBackup(deps(memStorage({ kv: {}, files: { friends: '[1,2]' } }), cloud)).backup()
+
+    const dst = memStorage({ kv: {}, files: {} })
+    const ok = await makeCloudBackup(deps(dst, cloud)).restore()
+    expect(ok).toBe(true)
+    expect(dst._get().kv['nianlun:report']).toEqual({ year: 2025 })   // 云端 report 未被冲掉
+    expect(dst._get().files.friends).toBe('[1,2]')                    // 好友更新为最新
+  })
+
+  it('读云端失败时 backup 抛错中止、绝不上传（云端文件保持不变）', async () => {
+    const cloud = memCloud()
+    await makeCloudBackup(deps(memStorage({ kv: { 'nianlun:report': { y: 1 } }, files: { friends: '[1]' } }), cloud)).backup()
+    const before = [...cloud._files.keys()].sort()
+
+    // 云端 download 抛错（网络等），upload 仍指向同一份内存云
+    const errCloud = { upload: cloud.upload, download: async () => { throw new Error('net down') } }
+    await expect(
+      makeCloudBackup(deps(memStorage({ kv: {}, files: { friends: '[]' } }), errCloud)).backup(),
+    ).rejects.toThrow()
+    expect([...cloud._files.keys()].sort()).toEqual(before)   // 云端未被改动
+  })
+})
+
 describe('cloudBackup 分块降级', () => {
   it('超阈值时分块上传，restore 能还原', async () => {
     const big = 'x'.repeat(50) // 配合极小阈值触发分块
