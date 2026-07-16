@@ -144,6 +144,10 @@ function draw() {
   ctx.draw()
 }
 
+function goSettings() {
+  uni.navigateTo({ url: '/pages/settings/settings' })
+}
+
 function save() {
   uni.canvasToTempFilePath({
     canvasId: 'poster',
@@ -173,6 +177,11 @@ onMounted(() => {
 
 <template>
   <view class="page">
+    <!-- 顶部设置入口：始终显示，空状态也要能进设置「从云端恢复」 -->
+    <view class="topbar">
+      <text class="set-btn" @click="goSettings">⚙️ 设置</text>
+    </view>
+
     <view v-if="!report && backup.status === 'restoring'" class="page-loading">
       <ProgressBar indeterminate label="正在从云端恢复数据…" />
     </view>
@@ -245,6 +254,13 @@ onMounted(() => {
 <style scoped>
 .page { padding: 40rpx 36rpx 64rpx; }
 .page-loading { margin-top: 200rpx; }
+
+.topbar { display: flex; justify-content: flex-end; margin-bottom: 12rpx; }
+.set-btn {
+  padding: 10rpx 22rpx; border-radius: 999rpx;
+  background: var(--surface); border: 1rpx solid var(--border-2);
+  color: var(--muted); font-size: 24rpx; font-weight: 550;
+}
 
 .poster {
   display: flex; flex-direction: column;

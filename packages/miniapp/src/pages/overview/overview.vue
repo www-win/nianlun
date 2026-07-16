@@ -13,21 +13,6 @@ useRelationDeepBadge()   // 深度分析进行中 → 好友 tab 红点（本页
 const data = useDataStore()
 const backup = useBackupStore()
 
-async function onBackup() {
-  await backup.backupNow()
-  uni.showToast({ title: backup.status === 'error' ? '备份失败' : '已备份', icon: backup.status === 'error' ? 'none' : 'success' })
-}
-function onRestore() {
-  uni.showModal({
-    title: '从云端恢复', content: '将从云端备份写回本机数据（本地已有的会被云端版本覆盖），确定吗？',
-    success: async (r) => {
-      if (!r.confirm) return
-      const ok = await backup.restoreNow()
-      if (ok) { await data.hydrate(); uni.showToast({ title: '已恢复', icon: 'success' }) }
-      else uni.showToast({ title: '云端暂无备份', icon: 'none' })
-    },
-  })
-}
 function goChatQa() {
   uni.navigateTo({ url: '/pages/chat-qa/chat-qa' })
 }
@@ -198,21 +183,6 @@ const rels = computed(() => (data.report?.relationBreakdown || []).filter((r) =>
       </view>
     </template>
 
-    <!-- 数据与备份：始终显示（空状态也要能「从云端恢复」，否则数据丢了反而看不到恢复按钮） -->
-    <view class="card" style="margin-top:24rpx;padding:28rpx">
-      <view class="eyebrow">数据与备份</view>
-      <view class="muted" style="margin:12rpx 0">
-        {{ backup.lastBackupAt ? '上次备份：' + new Date(backup.lastBackupAt).toLocaleString() : '尚未备份' }}
-      </view>
-      <view style="display:flex;gap:16rpx">
-        <button class="btn-primary" style="flex:1" :loading="backup.status==='backing'" @click="onBackup">立即备份到云</button>
-        <button class="btn-ghost" style="flex:1" :loading="backup.status==='restoring'" @click="onRestore">从云端恢复</button>
-      </view>
-      <ProgressBar
-        v-if="backup.status === 'backing' || backup.status === 'restoring'"
-        indeterminate
-        :label="backup.status === 'backing' ? '正在备份到云…' : '正在从云端恢复…'" />
-    </view>
   </view>
 </template>
 

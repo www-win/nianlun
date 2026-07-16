@@ -8,6 +8,7 @@ import { fileReader } from '../../adapters/fileReader'
 import { useImportStore } from '../../stores/import'
 import { useDataStore } from '../../stores/data'
 import { useAiQueueStore } from '../../stores/aiQueue'
+import { useBackupStore } from '../../stores/backup'
 import { assessImportSize } from '../../lib/importGuard'
 import { useRelationDeepBadge } from '../../composables/useRelationDeepBadge'
 
@@ -66,7 +67,12 @@ async function onImport() {
       if (!ok) { imp.reset(); return }           // 放弃导入：清掉读取进度块
     }
     await imp.run(files, year.value)
-    if (imp.status === 'done') useAiQueueStore().scan()   // 导入成功：把新好友的未分析功能入队后台跑
+    if (imp.status === 'done') {
+      // 导入成功后立刻备份一次：好友+报告先稳稳上云，不被后续 AI 分析把 5s 防抖不断重置而拖延。
+      // 不 await、失败静默（只更新 backup.status）——不阻塞后台分析入队。之后 AI 结果再各自排防抖备份。
+      void useBackupStore().backupNow()
+      useAiQueueStore().scan()   // 导入成功：把新好友的未分析功能入队后台跑
+    }
   } catch (e) {
     // 读文件/解压阶段的异常以前被静默吞掉（表现为「选完文件没反应」），这里显式提示
     imp.reset()                                  // 清掉卡在读取阶段的进度块
