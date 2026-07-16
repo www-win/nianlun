@@ -16,6 +16,27 @@ const displayName = computed(() => (friend.value ? (friend.value.alias || friend
 
 const deep = ref<RelationDeep | null>(null)
 
+// 预切要点：模板只遍历这些数组，绝不在模板表达式里调用 splitPoints——
+// 小程序(mp-weixin)不会把「仅用于 v-for 表达式」的 setup 函数暴露到渲染上下文，
+// 直接在模板调用会 `t.splitPoints is not a function`。故这里 computed 预算好。
+const pv = computed(() => {
+  const d = deep.value
+  return {
+    overall: splitPoints(d?.overall),
+    attachMe: splitPoints(d?.attachment?.me?.desc),
+    attachOther: splitPoints(d?.attachment?.other?.desc),
+    initiative: splitPoints(d?.interaction?.initiative),
+    expression: splitPoints(d?.interaction?.expression),
+    conflict: splitPoints(d?.interaction?.conflict),
+    needsMe: splitPoints(d?.needs?.me),
+    needsOther: splitPoints(d?.needs?.other),
+    sharedMemory: splitPoints(d?.uniqueness?.sharedMemory),
+    ritual: splitPoints(d?.uniqueness?.ritual),
+    security: splitPoints(d?.security?.summary),
+    power: splitPoints(d?.power?.summary),
+  }
+})
+
 const queue = useAiQueueStore()
 const state = computed(() => queue.stateFor('relationDeep', friend.value?.id ?? ''))
 const loading = computed(() => state.value === 'running' || state.value === 'queued')
@@ -177,6 +198,15 @@ function drawPoster() {
     })
   })
 }
+
+// 把 AI 返回的整段中文正文按句读（。！？；换行）切成要点，供模板「分点」渲染；
+// 无标点时整体作为单条；句末标点保留在该段内。
+function splitPoints(text?: string): string[] {
+  if (!text) return []
+  const s = String(text).trim()
+  const parts = s.match(/[^。！？；;\n]+[。！？；;\n]?/g) || [s]
+  return parts.map((x) => x.trim()).filter(Boolean)
+}
 </script>
 
 <template>
@@ -200,47 +230,56 @@ function drawPoster() {
 
       <template v-else>
         <!-- ① 整体评估 -->
-        <view v-if="deep.overall" class="banner"><text class="b-t">整体评估</text><text class="b-body">{{ deep.overall }}</text></view>
-
-        <!-- ② 依恋风格 + ③ 互动模式（双栏） -->
-        <view class="row">
-          <view v-if="deep.attachment" class="card col">
-            <text class="c-t">依恋风格分析</text>
-            <view v-if="deep.attachment.me" class="sub">
-              <text class="s-h">我 · {{ deep.attachment.me.style }}</text>
-              <text class="s-b">{{ deep.attachment.me.desc }}</text>
-            </view>
-            <view v-if="deep.attachment.other" class="sub">
-              <text class="s-h">对方 · {{ deep.attachment.other.style }}</text>
-              <text class="s-b">{{ deep.attachment.other.desc }}</text>
-            </view>
-          </view>
-          <view v-if="deep.interaction" class="card col">
-            <text class="c-t">互动模式分析</text>
-            <view v-if="deep.interaction.initiative" class="sub"><text class="s-h">沟通主动性</text><text class="s-b">{{ deep.interaction.initiative }}</text></view>
-            <view v-if="deep.interaction.expression" class="sub"><text class="s-h">情感表达</text><text class="s-b">{{ deep.interaction.expression }}</text></view>
-            <view v-if="deep.interaction.conflict" class="sub"><text class="s-h">冲突处理</text><text class="s-b">{{ deep.interaction.conflict }}</text></view>
+        <view v-if="deep.overall" class="banner">
+          <text class="b-t">整体评估</text>
+          <view class="pts">
+            <view v-for="(p, pi) in pv.overall" :key="pi" class="pt"><text class="dot dot-b">•</text><text class="pt-b pt-banner">{{ p }}</text></view>
           </view>
         </view>
 
-        <!-- ④ 情感需求 + ⑤ 关系独特性（双栏） -->
-        <view class="row">
-          <view v-if="deep.needs" class="card col">
-            <text class="c-t">情感需求分析</text>
-            <view v-if="deep.needs.me" class="sub"><text class="s-h">我的需求</text><text class="s-b">{{ deep.needs.me }}</text></view>
-            <view v-if="deep.needs.other" class="sub"><text class="s-h">对方的需求</text><text class="s-b">{{ deep.needs.other }}</text></view>
+        <!-- ② 依恋风格（通栏） -->
+        <view v-if="deep.attachment" class="card">
+          <text class="c-t">依恋风格分析</text>
+          <view v-if="deep.attachment.me" class="sub">
+            <text class="s-h">我 · {{ deep.attachment.me.style }}</text>
+            <view class="pts">
+              <view v-for="(p, pi) in pv.attachMe" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view>
+            </view>
           </view>
-          <view v-if="deep.uniqueness" class="card col">
-            <text class="c-t">关系独特性分析</text>
-            <view v-if="deep.uniqueness.sharedMemory" class="sub"><text class="s-h">共同记忆</text><text class="s-b">{{ deep.uniqueness.sharedMemory }}</text></view>
-            <view v-if="deep.uniqueness.ritual" class="sub"><text class="s-h">互动仪式</text><text class="s-b">{{ deep.uniqueness.ritual }}</text></view>
+          <view v-if="deep.attachment.other" class="sub">
+            <text class="s-h">对方 · {{ deep.attachment.other.style }}</text>
+            <view class="pts">
+              <view v-for="(p, pi) in pv.attachOther" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view>
+            </view>
           </view>
+        </view>
+
+        <!-- ③ 互动模式（通栏） -->
+        <view v-if="deep.interaction" class="card">
+          <text class="c-t">互动模式分析</text>
+          <view v-if="deep.interaction.initiative" class="sub"><text class="s-h">沟通主动性</text><view class="pts"><view v-for="(p, pi) in pv.initiative" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+          <view v-if="deep.interaction.expression" class="sub"><text class="s-h">情感表达</text><view class="pts"><view v-for="(p, pi) in pv.expression" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+          <view v-if="deep.interaction.conflict" class="sub"><text class="s-h">冲突处理</text><view class="pts"><view v-for="(p, pi) in pv.conflict" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+        </view>
+
+        <!-- ④ 情感需求（通栏） -->
+        <view v-if="deep.needs" class="card">
+          <text class="c-t">情感需求分析</text>
+          <view v-if="deep.needs.me" class="sub"><text class="s-h">我的需求</text><view class="pts"><view v-for="(p, pi) in pv.needsMe" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+          <view v-if="deep.needs.other" class="sub"><text class="s-h">对方的需求</text><view class="pts"><view v-for="(p, pi) in pv.needsOther" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+        </view>
+
+        <!-- ⑤ 关系独特性（通栏） -->
+        <view v-if="deep.uniqueness" class="card">
+          <text class="c-t">关系独特性分析</text>
+          <view v-if="deep.uniqueness.sharedMemory" class="sub"><text class="s-h">共同记忆</text><view class="pts"><view v-for="(p, pi) in pv.sharedMemory" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
+          <view v-if="deep.uniqueness.ritual" class="sub"><text class="s-h">互动仪式</text><view class="pts"><view v-for="(p, pi) in pv.ritual" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view></view>
         </view>
 
         <!-- ⑥ 安全感/信任曲线（通栏，带折线图） -->
         <view v-if="deep.security" class="card">
           <text class="c-t">安全感 / 信任曲线</text>
-          <text v-if="deep.security.summary" class="s-b">{{ deep.security.summary }}</text>
+          <view v-if="deep.security.summary" class="pts"><view v-for="(p, pi) in pv.security" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view>
           <canvas v-if="hasSecurityChart" canvas-id="secLine" class="sec-canvas" />
           <view v-for="(tp, i) in deep.security.turningPoints" :key="i" class="tp">
             <text v-if="tp.month || tp.direction" class="tp-m">{{ tp.month }}月 · {{ tp.direction }}</text>
@@ -251,20 +290,21 @@ function drawPoster() {
         <!-- ⑦ 权力/主导权（通栏） -->
         <view v-if="deep.power" class="card">
           <text class="c-t">权力 / 主导权关系</text>
-          <text v-if="deep.power.summary" class="s-b">{{ deep.power.summary }}</text>
+          <view v-if="deep.power.summary" class="pts"><view v-for="(p, pi) in pv.power" :key="pi" class="pt"><text class="dot">•</text><text class="pt-b">{{ p }}</text></view></view>
           <view v-if="deep.power.whoLeads" class="sub"><text class="s-h">主导方</text><text class="s-b">{{ deep.power.whoLeads }}</text></view>
           <view v-if="deep.power.dependency" class="sub"><text class="s-h">依赖关系</text><text class="s-b">{{ deep.power.dependency }}</text></view>
         </view>
 
-        <!-- ⑧ 情绪触发点（双栏） -->
-        <view v-if="deep.triggers" class="row">
-          <view v-if="deep.triggers.me" class="card col">
-            <text class="c-t">我的情绪触发点</text>
-            <view v-for="(t, i) in deep.triggers.me" :key="i" class="sub"><text class="s-h">{{ t.trigger }}</text><text class="s-b">{{ t.reaction }}</text></view>
+        <!-- ⑧ 情绪触发点（通栏） -->
+        <view v-if="deep.triggers && (deep.triggers.me || deep.triggers.other)" class="card">
+          <text class="c-t">情绪触发点</text>
+          <view v-if="deep.triggers.me && deep.triggers.me.length" class="group">
+            <text class="g-t">我的雷区</text>
+            <view v-for="(t, i) in deep.triggers.me" :key="'me' + i" class="sub"><text class="s-h">{{ t.trigger }}</text><text class="s-b">{{ t.reaction }}</text></view>
           </view>
-          <view v-if="deep.triggers.other" class="card col">
-            <text class="c-t">对方的情绪触发点</text>
-            <view v-for="(t, i) in deep.triggers.other" :key="i" class="sub"><text class="s-h">{{ t.trigger }}</text><text class="s-b">{{ t.reaction }}</text></view>
+          <view v-if="deep.triggers.other && deep.triggers.other.length" class="group">
+            <text class="g-t">对方的雷区</text>
+            <view v-for="(t, i) in deep.triggers.other" :key="'ot' + i" class="sub"><text class="s-h">{{ t.trigger }}</text><text class="s-b">{{ t.reaction }}</text></view>
           </view>
         </view>
 
@@ -303,13 +343,20 @@ function drawPoster() {
 .banner { background: #eef3fb; border-left: 6rpx solid #5a8fd0; border-radius: 12rpx; padding: 24rpx; margin-bottom: 20rpx; }
 .b-t { display: block; color: #4a72b8; font-weight: 700; font-size: 30rpx; margin-bottom: 12rpx; }
 .b-body { font-size: 28rpx; line-height: 1.7; color: #3a4657; }
-.row { display: flex; gap: 16rpx; margin-bottom: 20rpx; }
-.col { flex: 1; }
-.card { background: #fff; border-radius: 14rpx; padding: 24rpx; margin-bottom: 20rpx; }
-.c-t { display: block; color: #2ea34a; font-weight: 700; font-size: 30rpx; margin-bottom: 14rpx; }
-.sub { margin-bottom: 14rpx; }
-.s-h { display: block; color: #5a8fd0; font-size: 26rpx; font-weight: 600; margin-bottom: 4rpx; }
-.s-b { font-size: 27rpx; line-height: 1.7; color: #4a443c; }
+.card { background: #fff; border-radius: 14rpx; padding: 28rpx 24rpx; margin-bottom: 20rpx; }
+.c-t { display: block; color: #2ea34a; font-weight: 700; font-size: 31rpx; margin-bottom: 6rpx; padding-bottom: 14rpx; border-bottom: 1rpx solid #f0f0ee; }
+.group { margin-top: 18rpx; }
+.g-t { display: block; color: #2f2b26; font-weight: 600; font-size: 27rpx; margin: 4rpx 0 10rpx; }
+.sub { margin-top: 16rpx; padding-left: 18rpx; border-left: 4rpx solid #dbe6f5; }
+.s-h { display: block; color: #5a8fd0; font-size: 26rpx; font-weight: 600; margin-bottom: 6rpx; }
+.s-b { font-size: 27rpx; line-height: 1.75; color: #4a443c; }
+/* 要点列表：每点圆点悬挂 + 正文缩进，长句折行时不顶到圆点下方 */
+.pts { margin-top: 8rpx; }
+.pt { display: flex; align-items: flex-start; margin: 8rpx 0; }
+.dot { flex: none; color: #5a8fd0; font-size: 27rpx; line-height: 1.75; margin-right: 12rpx; }
+.dot-b { color: #4a72b8; }
+.pt-b { flex: 1; font-size: 27rpx; line-height: 1.75; color: #4a443c; }
+.pt-banner { color: #3a4657; }
 .sec-canvas { width: 100%; height: 200rpx; margin: 16rpx 0; }
 .tp { display: flex; flex-direction: column; padding: 12rpx 0; border-top: 1rpx solid #f0f0ee; }
 .tp-m { font-size: 25rpx; color: #d08a2c; }
